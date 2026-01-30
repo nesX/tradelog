@@ -8,7 +8,7 @@ import CSVImport from '../components/trades/CSVImport.jsx';
 import Modal from '../components/common/Modal.jsx';
 import Button from '../components/common/Button.jsx';
 import CreateTradeForm from '../components/trades/CreateTradeForm.jsx';
-import { useTrades, useUpdateTrade } from '../hooks/useTrades.js';
+import { useTrades, useUpdateTrade, useDeleteTradeImage } from '../hooks/useTrades.js';
 import { useToast } from '../components/common/Toast.jsx';
 
 /**
@@ -29,12 +29,14 @@ const Home = () => {
   // Estado de modales
   const [showCSVImport, setShowCSVImport] = useState(false);
   const [editModal, setEditModal] = useState({ isOpen: false, trade: null });
+  const [deletingImageId, setDeletingImageId] = useState(null);
 
   // Query de trades
   const { data, isLoading, error } = useTrades(filters);
 
-  // Mutation para editar
+  // Mutations
   const updateMutation = useUpdateTrade();
+  const deleteImageMutation = useDeleteTradeImage();
 
   // Manejar cambio de página
   const handlePageChange = (newPage) => {
@@ -56,13 +58,37 @@ const Home = () => {
     }
   };
 
+  // Manejar eliminación de imagen
+  const handleDeleteImage = async (imageId) => {
+    try {
+      setDeletingImageId(imageId);
+      await deleteImageMutation.mutateAsync({
+        tradeId: editModal.trade.id,
+        imageId,
+      });
+      // Actualizar el trade en el modal para reflejar la imagen eliminada
+      setEditModal((prev) => ({
+        ...prev,
+        trade: {
+          ...prev.trade,
+          images: prev.trade.images.filter((img) => img.id !== imageId),
+        },
+      }));
+      toast.success('Imagen eliminada');
+    } catch (error) {
+      toast.error(error.message || 'Error al eliminar la imagen');
+    } finally {
+      setDeletingImageId(null);
+    }
+  };
+
   return (
     <div>
       {/* Header de página */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Historial de Trades</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Historial de Trades</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
             Gestiona y analiza todos tus trades
           </p>
         </div>
@@ -121,6 +147,8 @@ const Home = () => {
             onSubmit={handleEditSubmit}
             isLoading={updateMutation.isPending}
             onCancel={() => setEditModal({ isOpen: false, trade: null })}
+            onDeleteImage={handleDeleteImage}
+            deletingImageId={deletingImageId}
           />
         )}
       </Modal>

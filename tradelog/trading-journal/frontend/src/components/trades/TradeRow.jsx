@@ -76,7 +76,7 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
             )}
           </div>
         ) : (
-          <div className="h-10 w-10 bg-gray-100 rounded flex items-center justify-center">
+          <div className="h-10 w-10 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
             <span className="text-gray-400 text-xs">-</span>
           </div>
         )}
@@ -84,7 +84,7 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
 
       {/* Símbolo */}
       <td className="px-4 py-3">
-        <span className="font-medium text-gray-900">{trade.symbol}</span>
+        <span className="font-medium text-gray-900 dark:text-white">{trade.symbol}</span>
       </td>
 
       {/* Tipo */}
@@ -95,7 +95,7 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
       </td>
 
       {/* Fecha entrada */}
-      <td className="px-4 py-3 text-gray-600">
+      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
         {formatDate(trade.entry_date)}
       </td>
 
@@ -139,14 +139,14 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
           <button
             ref={buttonRef}
             onClick={() => setShowActions(!showActions)}
-            className="p-1 rounded hover:bg-gray-200 transition-colors"
+            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           >
-            <MoreVertical className="w-4 h-4 text-gray-500" />
+            <MoreVertical className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           </button>
 
           {showActions && (
             <div
-              className={`absolute right-0 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[120px]
+              className={`absolute right-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 min-w-[120px]
                 ${menuPosition === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
             >
               <button
@@ -154,7 +154,7 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
                   onEdit(trade);
                   setShowActions(false);
                 }}
-                className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 <Edit2 className="w-4 h-4 mr-2" />
                 Editar
@@ -164,7 +164,7 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
                   onDelete(trade);
                   setShowActions(false);
                 }}
-                className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                className="flex items-center w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Eliminar

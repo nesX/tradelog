@@ -84,10 +84,10 @@ const TradeTable = ({
               {/* Fila para crear nuevo trade */}
               <tr
                 onClick={onCreateTrade}
-                className="hover:bg-blue-50 cursor-pointer transition-colors group"
+                className="hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer transition-colors group"
               >
                 <td colSpan={10} className="px-4 py-3">
-                  <div className="flex items-center justify-center text-gray-500 group-hover:text-blue-600">
+                  <div className="flex items-center justify-center text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                     <Plus className="w-4 h-4 mr-2" />
                     <span className="font-medium">Nuevo Trade</span>
                   </div>
@@ -99,8 +99,8 @@ const TradeTable = ({
 
         {/* Paginación */}
         {pagination && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
-            <div className="text-sm text-gray-600">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
               Mostrando {trades.length} de {pagination.total} trades
             </div>
 
@@ -108,19 +108,19 @@ const TradeTable = ({
               <button
                 onClick={() => onPageChange(pagination.page - 1)}
                 disabled={pagination.page <= 1}
-                className="p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
 
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
                 Página {pagination.page} de {pagination.totalPages}
               </span>
 
               <button
                 onClick={() => onPageChange(pagination.page + 1)}
                 disabled={pagination.page >= pagination.totalPages}
-                className="p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -136,7 +136,7 @@ const TradeTable = ({
         title="Eliminar Trade"
         size="sm"
       >
-        <p className="text-gray-600 mb-4">
+        <p className="text-gray-600 dark:text-gray-300 mb-4">
           ¿Estás seguro de eliminar el trade de{' '}
           <span className="font-medium">{deleteModal.trade?.symbol}</span>?
           Esta acción no se puede deshacer.

@@ -59,21 +59,21 @@ const Modal = ({
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
         <div
-          className={`relative w-full ${sizes[size]} bg-white rounded-xl shadow-xl transform transition-all`}
+          className={`relative w-full ${sizes[size]} bg-white dark:bg-gray-800 rounded-xl shadow-xl transform transition-all`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           {(title || showCloseButton) && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               {title && (
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   {title}
                 </h3>
               )}
               {showCloseButton && (
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>

@@ -16,6 +16,8 @@ const CreateTradeForm = ({
   onSubmit,
   isLoading = false,
   onCancel,
+  onDeleteImage,
+  deletingImageId = null,
 }) => {
   const isEditing = !!initialData;
 
@@ -196,30 +198,43 @@ const CreateTradeForm = ({
         {/* Mostrar imágenes existentes en modo edición */}
         {isEditing && existingImages.length > 0 && (
           <div className="mb-3">
-            <p className="text-sm text-gray-500 mb-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
               Imágenes existentes ({existingImages.length}):
             </p>
             <div className="flex flex-wrap gap-2">
               {existingImages.map((image, index) => (
-                <div key={image.id} className="relative">
+                <div key={image.id} className="relative group">
                   <img
                     src={getExistingImageUrl(image)}
                     alt={`Imagen ${index + 1}`}
-                    className="h-20 w-20 object-cover rounded-lg border border-gray-200"
+                    className={`h-20 w-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600 ${
+                      deletingImageId === image.id ? 'opacity-50' : ''
+                    }`}
                   />
+                  {onDeleteImage && (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteImage(image.id)}
+                      disabled={deletingImageId === image.id}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                    >
+                      {deletingImageId === image.id ? (
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <X className="w-3 h-3" />
+                      )}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
-            <p className="text-xs text-gray-400 mt-1">
-              Para eliminar imágenes existentes, hazlo desde la vista del trade
-            </p>
           </div>
         )}
 
         {/* Previews de nuevas imágenes */}
         {previews.length > 0 && (
           <div className="mb-3">
-            <p className="text-sm text-gray-500 mb-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
               Nuevas imágenes ({previews.length}):
             </p>
             <div className="flex flex-wrap gap-2">
@@ -228,7 +243,7 @@ const CreateTradeForm = ({
                   <img
                     src={preview.url}
                     alt={`Nueva imagen ${index + 1}`}
-                    className="h-20 w-20 object-cover rounded-lg border border-gray-200"
+                    className="h-20 w-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                   />
                   <button
                     type="button"
@@ -247,7 +262,7 @@ const CreateTradeForm = ({
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
-          className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors cursor-pointer"
+          className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors cursor-pointer"
         >
           <input
             type="file"
@@ -262,9 +277,9 @@ const CreateTradeForm = ({
               <ImageIcon className="w-8 h-8 text-gray-400" />
               <Plus className="w-5 h-5 text-gray-400" />
             </div>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               Arrastra imágenes o{' '}
-              <span className="text-blue-600 font-medium">haz click para seleccionar</span>
+              <span className="text-blue-600 dark:text-blue-400 font-medium">haz click para seleccionar</span>
             </p>
             <p className="text-xs text-gray-400 mt-1">
               JPG, PNG, WebP o GIF (máx. 5MB por imagen, hasta 10 imágenes)
@@ -278,7 +293,7 @@ const CreateTradeForm = ({
       </div>
 
       {/* Botones */}
-      <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+      <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
         {onCancel && (
           <Button type="button" variant="secondary" onClick={onCancel}>
             Cancelar

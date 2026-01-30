@@ -140,7 +140,7 @@ const TradeFilters = ({ filters, onFiltersChange }) => {
 
       {/* Filtros avanzados */}
       {showAdvanced && (
-        <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-3">
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-3">
           <div className="w-48">
             <Input
               type="date"

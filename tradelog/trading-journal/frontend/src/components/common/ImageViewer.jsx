@@ -20,7 +20,7 @@ const ImageViewer = ({
 
   if (imageList.length === 0) {
     return (
-      <div className={`${thumbnailSize} bg-gray-100 rounded flex items-center justify-center ${className}`}>
+      <div className={`${thumbnailSize} bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center ${className}`}>
         <span className="text-gray-400 text-xs">Sin imagen</span>
       </div>
     );
@@ -52,7 +52,7 @@ const ImageViewer = ({
 
   if (!firstImageUrl || imageErrors[0]) {
     return (
-      <div className={`${thumbnailSize} bg-gray-100 rounded flex items-center justify-center ${className}`}>
+      <div className={`${thumbnailSize} bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center ${className}`}>
         <span className="text-gray-400 text-xs">Error</span>
       </div>
     );
@@ -66,7 +66,7 @@ const ImageViewer = ({
           setCurrentIndex(0);
           setIsOpen(true);
         }}
-        className={`${thumbnailSize} relative group rounded overflow-hidden border border-gray-200 hover:border-blue-500 transition-colors ${className}`}
+        className={`${thumbnailSize} relative group rounded overflow-hidden border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors ${className}`}
       >
         <img
           src={firstImageUrl}

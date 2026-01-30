@@ -12,30 +12,30 @@ const ToastContext = createContext(null);
 const toastTypes = {
   success: {
     icon: CheckCircle,
-    bgColor: 'bg-green-50',
+    bgColor: 'bg-green-50 dark:bg-green-900/50',
     borderColor: 'border-green-500',
-    textColor: 'text-green-800',
+    textColor: 'text-green-800 dark:text-green-200',
     iconColor: 'text-green-500',
   },
   error: {
     icon: AlertCircle,
-    bgColor: 'bg-red-50',
+    bgColor: 'bg-red-50 dark:bg-red-900/50',
     borderColor: 'border-red-500',
-    textColor: 'text-red-800',
+    textColor: 'text-red-800 dark:text-red-200',
     iconColor: 'text-red-500',
   },
   warning: {
     icon: AlertTriangle,
-    bgColor: 'bg-yellow-50',
+    bgColor: 'bg-yellow-50 dark:bg-yellow-900/50',
     borderColor: 'border-yellow-500',
-    textColor: 'text-yellow-800',
+    textColor: 'text-yellow-800 dark:text-yellow-200',
     iconColor: 'text-yellow-500',
   },
   info: {
     icon: Info,
-    bgColor: 'bg-blue-50',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/50',
     borderColor: 'border-blue-500',
-    textColor: 'text-blue-800',
+    textColor: 'text-blue-800 dark:text-blue-200',
     iconColor: 'text-blue-500',
   },
 };
