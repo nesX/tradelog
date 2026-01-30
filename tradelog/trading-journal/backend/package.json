@@ -1,0 +1,36 @@
+{
+  "name": "trading-journal-backend",
+  "version": "1.0.0",
+  "description": "Backend API para Trading Journal",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write \"src/**/*.js\"",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "db:init": "psql -f ../database/schema.sql && psql -f ../database/indexes.sql && psql -f ../database/triggers.sql && psql -f ../database/views.sql"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "express-async-errors": "^3.1.1",
+    "helmet": "^8.1.0",
+    "joi": "^17.13.3",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.17.2",
+    "uuid": "^10.0.0",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.2",
+    "jest": "^29.7.0",
+    "prettier": "^3.8.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
