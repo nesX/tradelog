@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { X, Image as ImageIcon, Plus } from 'lucide-react';
 import Input from '../common/Input.jsx';
+import DateTimeInput from '../common/DateTimeInput.jsx';
 import Select from '../common/Select.jsx';
 import Button from '../common/Button.jsx';
 import { useImageUpload } from '../../hooks/useImageUpload.js';
@@ -24,6 +24,7 @@ const CreateTradeForm = ({
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm({
     defaultValues: initialData ? {
@@ -155,21 +156,30 @@ const CreateTradeForm = ({
 
       {/* Fila 4: Fechas */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input
-          type="datetime-local"
-          label="Fecha de Entrada"
-          {...register('entry_date', {
-            required: 'La fecha de entrada es requerida',
-          })}
-          error={errors.entry_date?.message}
+        <Controller
+          name="entry_date"
+          control={control}
+          rules={{ required: 'La fecha de entrada es requerida' }}
+          render={({ field }) => (
+            <DateTimeInput
+              label="Fecha de Entrada"
+              error={errors.entry_date?.message}
+              {...field}
+            />
+          )}
         />
 
-        <Input
-          type="datetime-local"
-          label="Fecha de Salida"
-          helperText="Dejar vacío si el trade está abierto"
-          {...register('exit_date')}
-          error={errors.exit_date?.message}
+        <Controller
+          name="exit_date"
+          control={control}
+          render={({ field }) => (
+            <DateTimeInput
+              label="Fecha de Salida"
+              helperText="Dejar vacío si el trade está abierto"
+              error={errors.exit_date?.message}
+              {...field}
+            />
+          )}
         />
       </div>
 

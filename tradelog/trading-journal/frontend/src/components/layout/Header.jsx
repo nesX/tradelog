@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { TrendingUp, BarChart3, Plus, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext.jsx';
+import UserMenu from '../auth/UserMenu.jsx';
 
 /**
  * Componente Header de la aplicación
@@ -62,6 +63,11 @@ const Header = () => {
                 <Moon className="w-5 h-5" />
               )}
             </button>
+
+            {/* User Menu */}
+            <div className="ml-2">
+              <UserMenu />
+            </div>
           </nav>
         </div>
       </div>

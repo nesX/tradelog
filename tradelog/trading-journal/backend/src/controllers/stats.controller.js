@@ -9,7 +9,8 @@ import { sendSuccess } from '../utils/response.js';
  * GET /api/stats - Obtener estadísticas generales
  */
 export const getGeneralStats = async (req, res) => {
-  const stats = await statsService.getGeneralStats();
+  const userId = req.user.id;
+  const stats = await statsService.getGeneralStats(userId);
 
   sendSuccess(res, stats);
 };
@@ -18,7 +19,8 @@ export const getGeneralStats = async (req, res) => {
  * GET /api/stats/by-symbol - Obtener estadísticas por símbolo
  */
 export const getStatsBySymbol = async (req, res) => {
-  const stats = await statsService.getStatsBySymbol();
+  const userId = req.user.id;
+  const stats = await statsService.getStatsBySymbol(userId);
 
   sendSuccess(res, { symbols: stats });
 };
@@ -27,13 +29,14 @@ export const getStatsBySymbol = async (req, res) => {
  * GET /api/stats/by-date - Obtener estadísticas por rango de fechas
  */
 export const getStatsByDateRange = async (req, res) => {
+  const userId = req.user.id;
   const { dateFrom, dateTo } = req.query;
 
   // Si no se proporcionan fechas, usar últimos 30 días
   const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const to = dateTo ? new Date(dateTo) : new Date();
 
-  const stats = await statsService.getStatsByDateRange(from, to);
+  const stats = await statsService.getStatsByDateRange(userId, from, to);
 
   sendSuccess(res, stats);
 };
@@ -42,9 +45,10 @@ export const getStatsByDateRange = async (req, res) => {
  * GET /api/stats/daily-pnl - Obtener P&L diario
  */
 export const getDailyPnL = async (req, res) => {
+  const userId = req.user.id;
   const days = parseInt(req.query.days) || 30;
 
-  const data = await statsService.getDailyPnL(days);
+  const data = await statsService.getDailyPnL(userId, days);
 
   sendSuccess(res, { dailyPnL: data });
 };
@@ -53,7 +57,8 @@ export const getDailyPnL = async (req, res) => {
  * GET /api/stats/by-type - Obtener estadísticas por tipo de trade
  */
 export const getStatsByType = async (req, res) => {
-  const stats = await statsService.getStatsByTradeType();
+  const userId = req.user.id;
+  const stats = await statsService.getStatsByTradeType(userId);
 
   sendSuccess(res, stats);
 };
@@ -62,9 +67,10 @@ export const getStatsByType = async (req, res) => {
  * GET /api/stats/top-trades - Obtener mejores y peores trades
  */
 export const getTopTrades = async (req, res) => {
+  const userId = req.user.id;
   const limit = parseInt(req.query.limit) || 5;
 
-  const data = await statsService.getTopTrades(limit);
+  const data = await statsService.getTopTrades(userId, limit);
 
   sendSuccess(res, data);
 };

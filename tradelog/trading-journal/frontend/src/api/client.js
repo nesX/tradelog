@@ -9,10 +9,13 @@ const apiClient = axios.create({
   },
 });
 
-// Interceptor para requests
+// Interceptor para requests - agregar token de autenticación
 apiClient.interceptors.request.use(
   (config) => {
-    // Aquí se pueden agregar tokens de autenticación en el futuro
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {
@@ -32,6 +35,7 @@ apiClient.interceptors.response.use(
       message: 'Error de conexión',
       code: 'NETWORK_ERROR',
       details: null,
+      status: error.response?.status,
     };
 
     if (error.response?.data?.error) {
@@ -40,6 +44,15 @@ apiClient.interceptors.response.use(
       errorResponse.details = error.response.data.error.details;
     } else if (error.message) {
       errorResponse.message = error.message;
+    }
+
+    // Si es error 401, limpiar token (sesión expirada)
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      // Redirigir a login si no estamos ya ahí
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
 
     return Promise.reject(errorResponse);

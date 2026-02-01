@@ -29,6 +29,16 @@ const envSchema = Joi.object({
   LOG_LEVEL: Joi.string()
     .valid('error', 'warn', 'info', 'debug')
     .default('info'),
+
+  // JWT
+  JWT_SECRET: Joi.string().required(),
+  JWT_EXPIRES_IN: Joi.string().default('7d'),
+
+  // Google OAuth
+  GOOGLE_CLIENT_ID: Joi.string().required(),
+
+  // Frontend URL
+  FRONTEND_URL: Joi.string().default('http://localhost:5173'),
 }).unknown();
 
 // Validar y extraer variables
@@ -63,4 +73,15 @@ export const config = {
   log: {
     level: envVars.LOG_LEVEL,
   },
+
+  jwt: {
+    secret: envVars.JWT_SECRET,
+    expiresIn: envVars.JWT_EXPIRES_IN,
+  },
+
+  google: {
+    clientId: envVars.GOOGLE_CLIENT_ID,
+  },
+
+  frontendUrl: envVars.FRONTEND_URL,
 };

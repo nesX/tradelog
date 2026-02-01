@@ -1,11 +1,14 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
+import { AuthProvider } from './contexts/AuthContext.jsx';
 import { ToastProvider } from './components/common/Toast.jsx';
+import ProtectedRoute from './components/auth/ProtectedRoute.jsx';
 import Layout from './components/layout/Layout.jsx';
 import Home from './pages/Home.jsx';
 import CreateTrade from './pages/CreateTrade.jsx';
 import Stats from './pages/Stats.jsx';
+import Login from './pages/Login.jsx';
 
 // Configuración de React Query
 const queryClient = new QueryClient({
@@ -28,17 +31,48 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <ToastProvider>
-          <BrowserRouter>
-            <Layout>
+        <AuthProvider>
+          <ToastProvider>
+            <BrowserRouter>
               <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/create" element={<CreateTrade />} />
-                <Route path="/stats" element={<Stats />} />
+                {/* Ruta pública */}
+                <Route path="/login" element={<Login />} />
+
+                {/* Rutas protegidas */}
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Home />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/create"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CreateTrade />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/stats"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Stats />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
               </Routes>
-            </Layout>
-          </BrowserRouter>
-        </ToastProvider>
+            </BrowserRouter>
+          </ToastProvider>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

@@ -196,10 +196,11 @@ export const previewCSV = (csvData) => {
 
 /**
  * Importa trades desde CSV
+ * @param {number} userId - ID del usuario
  * @param {string} csvData - Contenido CSV
  * @returns {Promise<Object>} Resultado de la importación
  */
-export const importCSV = async (csvData) => {
+export const importCSV = async (userId, csvData) => {
   const parseResult = parseCSV(csvData);
 
   // Si hay errores, retornar sin importar
@@ -224,7 +225,7 @@ export const importCSV = async (csvData) => {
 
   // Importar trades
   const tradesData = parseResult.valid.map(v => v.data);
-  const createdTrades = await tradeRepository.createMany(tradesData);
+  const createdTrades = await tradeRepository.createMany(userId, tradesData);
 
   return {
     success: true,

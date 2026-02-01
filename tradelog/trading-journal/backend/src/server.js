@@ -12,6 +12,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { ensureDirectoryExists } from './utils/fileUtils.js';
 
 // Routes
+import authRoutes from './routes/auth.routes.js';
 import tradeRoutes from './routes/trade.routes.js';
 import statsRoutes from './routes/stats.routes.js';
 
@@ -49,6 +50,7 @@ app.use('/api/images', express.static(uploadsPath));
 // ======================
 // Rutas de la API
 // ======================
+app.use('/api/auth', authRoutes);
 app.use('/api/trades', tradeRoutes);
 app.use('/api/stats', statsRoutes);
 

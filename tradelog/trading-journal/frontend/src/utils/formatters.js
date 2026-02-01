@@ -75,7 +75,7 @@ export const formatPnL = (value) => {
 };
 
 /**
- * Formatea una fecha
+ * Formatea una fecha en formato dd/mm/yyyy HH:mm
  * @param {string|Date} date - Fecha a formatear
  * @param {Object} options - Opciones de formato
  * @returns {string}
@@ -83,31 +83,28 @@ export const formatPnL = (value) => {
 export const formatDate = (date, options = {}) => {
   if (!date) return '-';
 
-  const {
-    includeTime = true,
-    locale = 'es-ES',
-  } = options;
+  const { includeTime = true } = options;
 
   const dateObj = typeof date === 'string' ? new Date(date) : date;
 
   if (isNaN(dateObj.getTime())) return '-';
 
-  const dateOptions = {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  };
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const year = dateObj.getFullYear();
 
-  if (includeTime) {
-    dateOptions.hour = '2-digit';
-    dateOptions.minute = '2-digit';
+  if (!includeTime) {
+    return `${day}/${month}/${year}`;
   }
 
-  return new Intl.DateTimeFormat(locale, dateOptions).format(dateObj);
+  const hours = String(dateObj.getHours()).padStart(2, '0');
+  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 };
 
 /**
- * Formatea una fecha para input datetime-local
+ * Formatea una fecha para input datetime-local (usa hora local, no UTC)
  * @param {string|Date} date - Fecha a formatear
  * @returns {string}
  */
@@ -118,8 +115,14 @@ export const formatDateForInput = (date) => {
 
   if (isNaN(dateObj.getTime())) return '';
 
-  // Formato: YYYY-MM-DDTHH:mm
-  return dateObj.toISOString().slice(0, 16);
+  // Formato: YYYY-MM-DDTHH:mm (hora local)
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const hours = String(dateObj.getHours()).padStart(2, '0');
+  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
 /**

@@ -10,20 +10,22 @@ import path from 'path';
 
 /**
  * Obtiene todos los trades con filtros
+ * @param {number} userId - ID del usuario
  * @param {Object} filters - Filtros de búsqueda
  * @returns {Promise<Object>}
  */
-export const getAllTrades = async (filters) => {
-  return tradeRepository.findAll(filters);
+export const getAllTrades = async (userId, filters) => {
+  return tradeRepository.findAll(userId, filters);
 };
 
 /**
  * Obtiene un trade por ID
+ * @param {number} userId - ID del usuario
  * @param {number} id - ID del trade
  * @returns {Promise<Object>}
  */
-export const getTradeById = async (id) => {
-  const trade = await tradeRepository.findById(id);
+export const getTradeById = async (userId, id) => {
+  const trade = await tradeRepository.findById(userId, id);
 
   if (!trade) {
     throw new NotFoundError(`Trade con ID ${id} no encontrado`);
@@ -34,18 +36,19 @@ export const getTradeById = async (id) => {
 
 /**
  * Crea un nuevo trade
+ * @param {number} userId - ID del usuario
  * @param {Object} tradeData - Datos del trade
  * @param {Array} files - Archivos de imagen subidos
  * @returns {Promise<Object>}
  */
-export const createTrade = async (tradeData, files = []) => {
+export const createTrade = async (userId, tradeData, files = []) => {
   // Si tiene exit_price y exit_date, calcular exit_date si no se proporcionó
   if (tradeData.exit_price && !tradeData.exit_date) {
     tradeData.exit_date = new Date();
   }
 
   // Crear el trade
-  const trade = await tradeRepository.create(tradeData);
+  const trade = await tradeRepository.create(userId, tradeData);
 
   // Si hay imágenes, agregarlas
   if (files && files.length > 0) {
@@ -64,17 +67,18 @@ export const createTrade = async (tradeData, files = []) => {
 
 /**
  * Actualiza un trade existente
+ * @param {number} userId - ID del usuario
  * @param {number} id - ID del trade
  * @param {Object} updateData - Datos a actualizar
  * @param {Array} newFiles - Nuevas imágenes si se subieron
  * @returns {Promise<Object>}
  */
-export const updateTrade = async (id, updateData, newFiles = []) => {
+export const updateTrade = async (userId, id, updateData, newFiles = []) => {
   // Verificar que existe
-  await getTradeById(id);
+  await getTradeById(userId, id);
 
   // Actualizar trade
-  const updatedTrade = await tradeRepository.update(id, updateData);
+  const updatedTrade = await tradeRepository.update(userId, id, updateData);
 
   if (!updatedTrade) {
     throw new NotFoundError(`Trade con ID ${id} no encontrado`);
@@ -98,13 +102,14 @@ export const updateTrade = async (id, updateData, newFiles = []) => {
 
 /**
  * Elimina un trade
+ * @param {number} userId - ID del usuario
  * @param {number} id - ID del trade
  * @param {boolean} permanent - Si es eliminación permanente
  * @returns {Promise<void>}
  */
-export const deleteTrade = async (id, permanent = false) => {
+export const deleteTrade = async (userId, id, permanent = false) => {
   // Verificar que existe y obtener datos
-  const trade = await getTradeById(id);
+  const trade = await getTradeById(userId, id);
 
   // Si tiene imágenes y es eliminación permanente, eliminar archivos
   if (trade.images && trade.images.length > 0 && permanent) {
@@ -115,8 +120,8 @@ export const deleteTrade = async (id, permanent = false) => {
   }
 
   const deleted = permanent
-    ? await tradeRepository.hardDelete(id)
-    : await tradeRepository.softDelete(id);
+    ? await tradeRepository.hardDelete(userId, id)
+    : await tradeRepository.softDelete(userId, id);
 
   if (!deleted) {
     throw new NotFoundError(`Trade con ID ${id} no encontrado`);
@@ -125,13 +130,14 @@ export const deleteTrade = async (id, permanent = false) => {
 
 /**
  * Agrega imágenes a un trade
+ * @param {number} userId - ID del usuario
  * @param {number} tradeId - ID del trade
  * @param {Array} files - Archivos de imagen subidos
  * @returns {Promise<Array>}
  */
-export const addImages = async (tradeId, files) => {
+export const addImages = async (userId, tradeId, files) => {
   // Verificar que existe
-  await getTradeById(tradeId);
+  await getTradeById(userId, tradeId);
 
   if (!files || files.length === 0) {
     throw new NotFoundError('No se proporcionaron imágenes');
@@ -149,13 +155,14 @@ export const addImages = async (tradeId, files) => {
 
 /**
  * Elimina una imagen específica de un trade
+ * @param {number} userId - ID del usuario
  * @param {number} tradeId - ID del trade
  * @param {number} imageId - ID de la imagen
  * @returns {Promise<Object>}
  */
-export const deleteImage = async (tradeId, imageId) => {
+export const deleteImage = async (userId, tradeId, imageId) => {
   // Verificar que el trade existe
-  await getTradeById(tradeId);
+  await getTradeById(userId, tradeId);
 
   // Obtener la imagen
   const image = await tradeRepository.getImageById(imageId);
@@ -172,17 +179,18 @@ export const deleteImage = async (tradeId, imageId) => {
   await tradeRepository.deleteImage(imageId);
 
   // Retornar trade actualizado
-  return getTradeById(tradeId);
+  return getTradeById(userId, tradeId);
 };
 
 /**
  * Elimina todas las imágenes de un trade
+ * @param {number} userId - ID del usuario
  * @param {number} tradeId - ID del trade
  * @returns {Promise<Object>}
  */
-export const deleteAllImages = async (tradeId) => {
+export const deleteAllImages = async (userId, tradeId) => {
   // Verificar que existe
-  const trade = await getTradeById(tradeId);
+  const trade = await getTradeById(userId, tradeId);
 
   if (!trade.images || trade.images.length === 0) {
     throw new NotFoundError('El trade no tiene imágenes');
@@ -198,13 +206,14 @@ export const deleteAllImages = async (tradeId) => {
   await tradeRepository.deleteAllImages(tradeId);
 
   // Retornar trade actualizado
-  return getTradeById(tradeId);
+  return getTradeById(userId, tradeId);
 };
 
 /**
  * Obtiene símbolos únicos para filtros
+ * @param {number} userId - ID del usuario
  * @returns {Promise<Array<string>>}
  */
-export const getUniqueSymbols = async () => {
-  return tradeRepository.getUniqueSymbols();
+export const getUniqueSymbols = async (userId) => {
+  return tradeRepository.getUniqueSymbols(userId);
 };

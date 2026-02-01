@@ -10,8 +10,9 @@ import { sendSuccess, sendCreated, sendDeleted } from '../utils/response.js';
  * GET /api/trades - Listar trades con paginación y filtros
  */
 export const listTrades = async (req, res) => {
+  const userId = req.user.id;
   const filters = req.query;
-  const result = await tradeService.getAllTrades(filters);
+  const result = await tradeService.getAllTrades(userId, filters);
 
   sendSuccess(res, result);
 };
@@ -20,8 +21,9 @@ export const listTrades = async (req, res) => {
  * GET /api/trades/:id - Obtener un trade por ID
  */
 export const getTrade = async (req, res) => {
+  const userId = req.user.id;
   const { id } = req.params;
-  const trade = await tradeService.getTradeById(id);
+  const trade = await tradeService.getTradeById(userId, id);
 
   sendSuccess(res, trade);
 };
@@ -30,10 +32,11 @@ export const getTrade = async (req, res) => {
  * POST /api/trades - Crear un nuevo trade
  */
 export const createTrade = async (req, res) => {
+  const userId = req.user.id;
   const tradeData = req.body;
   const files = req.files || [];
 
-  const trade = await tradeService.createTrade(tradeData, files);
+  const trade = await tradeService.createTrade(userId, tradeData, files);
 
   sendCreated(res, trade, 'Trade creado exitosamente');
 };
@@ -42,11 +45,12 @@ export const createTrade = async (req, res) => {
  * PUT /api/trades/:id - Actualizar un trade
  */
 export const updateTrade = async (req, res) => {
+  const userId = req.user.id;
   const { id } = req.params;
   const updateData = req.body;
   const files = req.files || [];
 
-  const trade = await tradeService.updateTrade(id, updateData, files);
+  const trade = await tradeService.updateTrade(userId, id, updateData, files);
 
   sendSuccess(res, trade, 'Trade actualizado exitosamente');
 };
@@ -55,10 +59,11 @@ export const updateTrade = async (req, res) => {
  * DELETE /api/trades/:id - Eliminar un trade (soft delete)
  */
 export const deleteTrade = async (req, res) => {
+  const userId = req.user.id;
   const { id } = req.params;
   const permanent = req.query.permanent === 'true';
 
-  await tradeService.deleteTrade(id, permanent);
+  await tradeService.deleteTrade(userId, id, permanent);
 
   sendDeleted(res, 'Trade eliminado exitosamente');
 };
@@ -67,10 +72,11 @@ export const deleteTrade = async (req, res) => {
  * POST /api/trades/:id/images - Agregar imágenes a un trade
  */
 export const addImages = async (req, res) => {
+  const userId = req.user.id;
   const { id } = req.params;
   const files = req.files || [];
 
-  const images = await tradeService.addImages(id, files);
+  const images = await tradeService.addImages(userId, id, files);
 
   sendCreated(res, { images }, 'Imágenes agregadas exitosamente');
 };
@@ -79,9 +85,10 @@ export const addImages = async (req, res) => {
  * DELETE /api/trades/:id/images/:imageId - Eliminar una imagen específica
  */
 export const deleteImage = async (req, res) => {
+  const userId = req.user.id;
   const { id, imageId } = req.params;
 
-  const trade = await tradeService.deleteImage(parseInt(id), parseInt(imageId));
+  const trade = await tradeService.deleteImage(userId, parseInt(id), parseInt(imageId));
 
   sendSuccess(res, trade, 'Imagen eliminada exitosamente');
 };
@@ -90,9 +97,10 @@ export const deleteImage = async (req, res) => {
  * DELETE /api/trades/:id/images - Eliminar todas las imágenes de un trade
  */
 export const deleteAllImages = async (req, res) => {
+  const userId = req.user.id;
   const { id } = req.params;
 
-  const trade = await tradeService.deleteAllImages(id);
+  const trade = await tradeService.deleteAllImages(userId, id);
 
   sendSuccess(res, trade, 'Imágenes eliminadas exitosamente');
 };
@@ -101,7 +109,8 @@ export const deleteAllImages = async (req, res) => {
  * GET /api/trades/symbols - Obtener símbolos únicos
  */
 export const getSymbols = async (req, res) => {
-  const symbols = await tradeService.getUniqueSymbols();
+  const userId = req.user.id;
+  const symbols = await tradeService.getUniqueSymbols(userId);
 
   sendSuccess(res, { symbols });
 };
@@ -121,9 +130,10 @@ export const previewCSVImport = async (req, res) => {
  * POST /api/trades/import - Importar trades desde CSV
  */
 export const importCSV = async (req, res) => {
+  const userId = req.user.id;
   const { csvData } = req.body;
 
-  const result = await csvParserService.importCSV(csvData);
+  const result = await csvParserService.importCSV(userId, csvData);
 
   if (result.success) {
     sendCreated(res, result, result.message);

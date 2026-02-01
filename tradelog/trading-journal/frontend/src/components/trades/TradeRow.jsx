@@ -68,6 +68,7 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
               images={trade.images}
               alt={`Trade ${trade.symbol}`}
               thumbnailSize="h-10 w-10"
+              notes={trade.notes}
             />
             {imageCount > 1 && (
               <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">

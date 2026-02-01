@@ -47,10 +47,11 @@ export const getImagesForTrades = async (tradeIds) => {
 
 /**
  * Obtiene todos los trades con paginación y filtros
+ * @param {number} userId - ID del usuario
  * @param {Object} options - Opciones de consulta
  * @returns {Promise<{trades: Array, total: number, page: number, totalPages: number}>}
  */
-export const findAll = async (options = {}) => {
+export const findAll = async (userId, options = {}) => {
   const {
     page = PAGINATION_DEFAULTS.page,
     limit = PAGINATION_DEFAULTS.limit,
@@ -64,8 +65,8 @@ export const findAll = async (options = {}) => {
   } = options;
 
   const offset = (page - 1) * limit;
-  const params = [];
-  const conditions = ['deleted_at IS NULL'];
+  const params = [userId];
+  const conditions = ['deleted_at IS NULL', 'user_id = $1'];
 
   // Construir condiciones dinámicamente
   if (status) {
@@ -132,13 +133,14 @@ export const findAll = async (options = {}) => {
 
 /**
  * Obtiene un trade por ID
+ * @param {number} userId - ID del usuario
  * @param {number} id - ID del trade
  * @returns {Promise<Object|null>}
  */
-export const findById = async (id) => {
+export const findById = async (userId, id) => {
   const result = await query(
-    `SELECT ${SELECT_FIELDS} FROM trades WHERE id = $1 AND deleted_at IS NULL`,
-    [id]
+    `SELECT ${SELECT_FIELDS} FROM trades WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+    [id, userId]
   );
 
   if (!result.rows[0]) return null;
@@ -151,10 +153,11 @@ export const findById = async (id) => {
 
 /**
  * Crea un nuevo trade
+ * @param {number} userId - ID del usuario
  * @param {Object} tradeData - Datos del trade
  * @returns {Promise<Object>}
  */
-export const create = async (tradeData) => {
+export const create = async (userId, tradeData) => {
   const {
     symbol,
     trade_type,
@@ -169,11 +172,12 @@ export const create = async (tradeData) => {
 
   const result = await query(
     `INSERT INTO trades (
-      symbol, trade_type, entry_price, exit_price, quantity,
+      user_id, symbol, trade_type, entry_price, exit_price, quantity,
       entry_date, exit_date, commission, notes
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     RETURNING ${SELECT_FIELDS}`,
     [
+      userId,
       symbol,
       trade_type,
       entry_price,
@@ -194,10 +198,11 @@ export const create = async (tradeData) => {
 
 /**
  * Crea múltiples trades (para import CSV)
+ * @param {number} userId - ID del usuario
  * @param {Array<Object>} tradesData - Array de datos de trades
  * @returns {Promise<Array<Object>>}
  */
-export const createMany = async (tradesData) => {
+export const createMany = async (userId, tradesData) => {
   const client = await getClient();
 
   try {
@@ -220,11 +225,12 @@ export const createMany = async (tradesData) => {
 
       const result = await client.query(
         `INSERT INTO trades (
-          symbol, trade_type, entry_price, exit_price, quantity,
+          user_id, symbol, trade_type, entry_price, exit_price, quantity,
           entry_date, exit_date, commission, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING ${SELECT_FIELDS}`,
         [
+          userId,
           symbol,
           trade_type,
           entry_price,
@@ -254,18 +260,19 @@ export const createMany = async (tradesData) => {
 
 /**
  * Actualiza un trade
+ * @param {number} userId - ID del usuario
  * @param {number} id - ID del trade
  * @param {Object} updateData - Datos a actualizar
  * @returns {Promise<Object|null>}
  */
-export const update = async (id, updateData) => {
+export const update = async (userId, id, updateData) => {
   const allowedFields = [
     'symbol', 'trade_type', 'entry_price', 'exit_price', 'quantity',
     'entry_date', 'exit_date', 'commission', 'notes'
   ];
 
   const updates = [];
-  const params = [];
+  const params = [userId, id];
 
   // Construir SET clause dinámicamente
   for (const [key, value] of Object.entries(updateData)) {
@@ -276,14 +283,13 @@ export const update = async (id, updateData) => {
   }
 
   if (updates.length === 0) {
-    return findById(id);
+    return findById(userId, id);
   }
 
-  params.push(id);
   const result = await query(
     `UPDATE trades
-     SET ${updates.join(', ')}
-     WHERE id = $${params.length} AND deleted_at IS NULL
+     SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $2 AND user_id = $1 AND deleted_at IS NULL
      RETURNING ${SELECT_FIELDS}`,
     params
   );
@@ -298,38 +304,42 @@ export const update = async (id, updateData) => {
 
 /**
  * Elimina un trade (soft delete)
+ * @param {number} userId - ID del usuario
  * @param {number} id - ID del trade
  * @returns {Promise<boolean>}
  */
-export const softDelete = async (id) => {
+export const softDelete = async (userId, id) => {
   const result = await query(
-    `UPDATE trades SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`,
-    [id]
+    `UPDATE trades SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+    [id, userId]
   );
   return result.rowCount > 0;
 };
 
 /**
  * Elimina un trade permanentemente
+ * @param {number} userId - ID del usuario
  * @param {number} id - ID del trade
  * @returns {Promise<boolean>}
  */
-export const hardDelete = async (id) => {
+export const hardDelete = async (userId, id) => {
   // Las imágenes se eliminan automáticamente por CASCADE
   const result = await query(
-    `DELETE FROM trades WHERE id = $1`,
-    [id]
+    `DELETE FROM trades WHERE id = $1 AND user_id = $2`,
+    [id, userId]
   );
   return result.rowCount > 0;
 };
 
 /**
- * Obtiene símbolos únicos
+ * Obtiene símbolos únicos del usuario
+ * @param {number} userId - ID del usuario
  * @returns {Promise<Array<string>>}
  */
-export const getUniqueSymbols = async () => {
+export const getUniqueSymbols = async (userId) => {
   const result = await query(
-    `SELECT DISTINCT symbol FROM trades WHERE deleted_at IS NULL ORDER BY symbol`
+    `SELECT DISTINCT symbol FROM trades WHERE user_id = $1 AND deleted_at IS NULL ORDER BY symbol`,
+    [userId]
   );
   return result.rows.map(row => row.symbol);
 };

@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import * as statsController from '../controllers/stats.controller.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
+
+// Aplicar autenticación a todas las rutas de stats
+router.use(authenticate);
 
 // GET /api/stats - Estadísticas generales
 router.get('/', statsController.getGeneralStats);

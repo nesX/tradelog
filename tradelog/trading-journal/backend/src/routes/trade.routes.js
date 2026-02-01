@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as tradeController from '../controllers/trade.controller.js';
 import { validate } from '../middleware/validation.js';
+import { authenticate } from '../middleware/auth.js';
 import { uploadTradeImages, handleMulterError } from '../middleware/upload.js';
 import {
   createTradeSchema,
@@ -11,6 +12,9 @@ import {
 } from '../validators/trade.validator.js';
 
 const router = Router();
+
+// Aplicar autenticación a todas las rutas de trades
+router.use(authenticate);
 
 // GET /api/trades/symbols - Obtener símbolos únicos (antes de :id para evitar conflicto)
 router.get('/symbols', tradeController.getSymbols);

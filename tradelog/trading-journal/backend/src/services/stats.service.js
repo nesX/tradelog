@@ -6,10 +6,34 @@ import { query } from '../config/database.js';
 
 /**
  * Obtiene estadísticas generales
+ * @param {number} userId - ID del usuario
  * @returns {Promise<Object>}
  */
-export const getGeneralStats = async () => {
-  const result = await query(`SELECT * FROM trade_stats`);
+export const getGeneralStats = async (userId) => {
+  const result = await query(`
+    SELECT
+      COUNT(*) as total_trades,
+      COUNT(*) FILTER (WHERE status = 'OPEN') as open_trades,
+      COUNT(*) FILTER (WHERE status = 'CLOSED') as closed_trades,
+      COUNT(*) FILTER (WHERE status = 'CLOSED' AND pnl > 0) as winning_trades,
+      COUNT(*) FILTER (WHERE status = 'CLOSED' AND pnl < 0) as losing_trades,
+      COUNT(*) FILTER (WHERE status = 'CLOSED' AND pnl = 0) as breakeven_trades,
+      ROUND(COALESCE(SUM(pnl), 0)::numeric, 2) as total_pnl,
+      ROUND(COALESCE(AVG(pnl) FILTER (WHERE status = 'CLOSED'), 0)::numeric, 2) as avg_pnl,
+      ROUND(COALESCE(MAX(pnl), 0)::numeric, 2) as best_trade,
+      ROUND(COALESCE(MIN(pnl), 0)::numeric, 2) as worst_trade,
+      ROUND(
+        CASE
+          WHEN COUNT(*) FILTER (WHERE status = 'CLOSED') > 0
+          THEN (COUNT(*) FILTER (WHERE status = 'CLOSED' AND pnl > 0)::numeric /
+                COUNT(*) FILTER (WHERE status = 'CLOSED')::numeric) * 100
+          ELSE 0
+        END, 2
+      ) as win_rate
+    FROM trades
+    WHERE deleted_at IS NULL AND user_id = $1
+  `, [userId]);
+
   return result.rows[0] || {
     total_trades: 0,
     open_trades: 0,
@@ -27,20 +51,42 @@ export const getGeneralStats = async () => {
 
 /**
  * Obtiene estadísticas por símbolo
+ * @param {number} userId - ID del usuario
  * @returns {Promise<Array>}
  */
-export const getStatsBySymbol = async () => {
-  const result = await query(`SELECT * FROM trade_stats_by_symbol`);
+export const getStatsBySymbol = async (userId) => {
+  const result = await query(`
+    SELECT
+      symbol,
+      COUNT(*) as total_trades,
+      COUNT(*) FILTER (WHERE status = 'CLOSED' AND pnl > 0) as winning_trades,
+      COUNT(*) FILTER (WHERE status = 'CLOSED' AND pnl < 0) as losing_trades,
+      ROUND(COALESCE(SUM(pnl), 0)::numeric, 2) as total_pnl,
+      ROUND(COALESCE(AVG(pnl) FILTER (WHERE status = 'CLOSED'), 0)::numeric, 2) as avg_pnl,
+      ROUND(
+        CASE
+          WHEN COUNT(*) FILTER (WHERE status = 'CLOSED') > 0
+          THEN (COUNT(*) FILTER (WHERE status = 'CLOSED' AND pnl > 0)::numeric /
+                COUNT(*) FILTER (WHERE status = 'CLOSED')::numeric) * 100
+          ELSE 0
+        END, 2
+      ) as win_rate
+    FROM trades
+    WHERE deleted_at IS NULL AND user_id = $1
+    GROUP BY symbol
+    ORDER BY total_pnl DESC
+  `, [userId]);
   return result.rows;
 };
 
 /**
  * Obtiene estadísticas filtradas por rango de fechas
+ * @param {number} userId - ID del usuario
  * @param {Date} dateFrom - Fecha inicial
  * @param {Date} dateTo - Fecha final
  * @returns {Promise<Object>}
  */
-export const getStatsByDateRange = async (dateFrom, dateTo) => {
+export const getStatsByDateRange = async (userId, dateFrom, dateTo) => {
   const result = await query(`
     SELECT
       COUNT(*) as total_trades,
@@ -63,19 +109,21 @@ export const getStatsByDateRange = async (dateFrom, dateTo) => {
       ) as win_rate
     FROM trades
     WHERE deleted_at IS NULL
-      AND entry_date >= $1
-      AND entry_date <= $2
-  `, [dateFrom, dateTo]);
+      AND user_id = $1
+      AND entry_date >= $2
+      AND entry_date <= $3
+  `, [userId, dateFrom, dateTo]);
 
   return result.rows[0];
 };
 
 /**
  * Obtiene el P&L acumulado por día
+ * @param {number} userId - ID del usuario
  * @param {number} days - Número de días hacia atrás
  * @returns {Promise<Array>}
  */
-export const getDailyPnL = async (days = 30) => {
+export const getDailyPnL = async (userId, days = 30) => {
   const result = await query(`
     SELECT
       DATE(entry_date) as date,
@@ -84,20 +132,22 @@ export const getDailyPnL = async (days = 30) => {
       SUM(SUM(pnl)) OVER (ORDER BY DATE(entry_date)) as cumulative_pnl
     FROM trades
     WHERE deleted_at IS NULL
+      AND user_id = $1
       AND status = 'CLOSED'
-      AND entry_date >= CURRENT_DATE - INTERVAL '${days} days'
+      AND entry_date >= CURRENT_DATE - INTERVAL '1 day' * $2
     GROUP BY DATE(entry_date)
     ORDER BY date
-  `);
+  `, [userId, days]);
 
   return result.rows;
 };
 
 /**
  * Obtiene el resumen de trades por tipo (LONG/SHORT)
+ * @param {number} userId - ID del usuario
  * @returns {Promise<Object>}
  */
-export const getStatsByTradeType = async () => {
+export const getStatsByTradeType = async (userId) => {
   const result = await query(`
     SELECT
       trade_type,
@@ -115,9 +165,9 @@ export const getStatsByTradeType = async () => {
         END, 2
       ) as win_rate
     FROM trades
-    WHERE deleted_at IS NULL
+    WHERE deleted_at IS NULL AND user_id = $1
     GROUP BY trade_type
-  `);
+  `, [userId]);
 
   // Convertir a objeto
   const stats = {
@@ -134,20 +184,21 @@ export const getStatsByTradeType = async () => {
 
 /**
  * Obtiene los mejores y peores trades
+ * @param {number} userId - ID del usuario
  * @param {number} limit - Número de trades a retornar
  * @returns {Promise<Object>}
  */
-export const getTopTrades = async (limit = 5) => {
+export const getTopTrades = async (userId, limit = 5) => {
   const bestQuery = query(`
     SELECT id, symbol, trade_type, entry_price, exit_price,
            ROUND(pnl::numeric, 2) as pnl,
            ROUND(pnl_percentage::numeric, 2) as pnl_percentage,
            entry_date
     FROM trades
-    WHERE deleted_at IS NULL AND status = 'CLOSED' AND pnl IS NOT NULL
+    WHERE deleted_at IS NULL AND user_id = $1 AND status = 'CLOSED' AND pnl IS NOT NULL
     ORDER BY pnl DESC
-    LIMIT $1
-  `, [limit]);
+    LIMIT $2
+  `, [userId, limit]);
 
   const worstQuery = query(`
     SELECT id, symbol, trade_type, entry_price, exit_price,
@@ -155,10 +206,10 @@ export const getTopTrades = async (limit = 5) => {
            ROUND(pnl_percentage::numeric, 2) as pnl_percentage,
            entry_date
     FROM trades
-    WHERE deleted_at IS NULL AND status = 'CLOSED' AND pnl IS NOT NULL
+    WHERE deleted_at IS NULL AND user_id = $1 AND status = 'CLOSED' AND pnl IS NOT NULL
     ORDER BY pnl ASC
-    LIMIT $1
-  `, [limit]);
+    LIMIT $2
+  `, [userId, limit]);
 
   const [bestResult, worstResult] = await Promise.all([bestQuery, worstQuery]);
 

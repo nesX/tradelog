@@ -5,6 +5,38 @@ import apiClient from './client.js';
  */
 
 // ==================
+// AUTH
+// ==================
+
+/**
+ * Login con Google
+ */
+export const loginWithGoogle = async (idToken) => {
+  return apiClient.post('/api/auth/google', { idToken });
+};
+
+/**
+ * Obtener usuario actual
+ */
+export const getCurrentUser = async () => {
+  return apiClient.get('/api/auth/me');
+};
+
+/**
+ * Cerrar sesión
+ */
+export const logout = async () => {
+  return apiClient.post('/api/auth/logout');
+};
+
+/**
+ * Refrescar token
+ */
+export const refreshToken = async () => {
+  return apiClient.post('/api/auth/refresh');
+};
+
+// ==================
 // TRADES
 // ==================
 
