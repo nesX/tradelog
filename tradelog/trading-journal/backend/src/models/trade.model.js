@@ -28,6 +28,7 @@ export const TRADE_FIELDS = [
   'pnl',
   'pnl_percentage',
   'notes',
+  'post_analysis',
   'status',
   'created_at',
   'updated_at',

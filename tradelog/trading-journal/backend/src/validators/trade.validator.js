@@ -85,6 +85,15 @@ export const createTradeSchema = Joi.object({
     .messages({
       'string.max': 'Las notas no pueden exceder 2000 caracteres',
     }),
+
+  post_analysis: Joi.string()
+    .trim()
+    .max(2000)
+    .allow('', null)
+    .optional()
+    .messages({
+      'string.max': 'El análisis posterior no puede exceder 2000 caracteres',
+    }),
 });
 
 /**
@@ -130,6 +139,12 @@ export const updateTradeSchema = Joi.object({
     .optional(),
 
   notes: Joi.string()
+    .trim()
+    .max(2000)
+    .allow('', null)
+    .optional(),
+
+  post_analysis: Joi.string()
     .trim()
     .max(2000)
     .allow('', null)

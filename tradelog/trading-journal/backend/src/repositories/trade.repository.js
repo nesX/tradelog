@@ -168,13 +168,14 @@ export const create = async (userId, tradeData) => {
     exit_date,
     commission,
     notes,
+    post_analysis,
   } = tradeData;
 
   const result = await query(
     `INSERT INTO trades (
       user_id, symbol, trade_type, entry_price, exit_price, quantity,
-      entry_date, exit_date, commission, notes
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      entry_date, exit_date, commission, notes, post_analysis
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     RETURNING ${SELECT_FIELDS}`,
     [
       userId,
@@ -187,6 +188,7 @@ export const create = async (userId, tradeData) => {
       exit_date || null,
       commission || 0,
       notes || null,
+      post_analysis || null,
     ]
   );
 
@@ -221,13 +223,14 @@ export const createMany = async (userId, tradesData) => {
         exit_date,
         commission,
         notes,
+        post_analysis,
       } = tradeData;
 
       const result = await client.query(
         `INSERT INTO trades (
           user_id, symbol, trade_type, entry_price, exit_price, quantity,
-          entry_date, exit_date, commission, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          entry_date, exit_date, commission, notes, post_analysis
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING ${SELECT_FIELDS}`,
         [
           userId,
@@ -240,6 +243,7 @@ export const createMany = async (userId, tradesData) => {
           exit_date || null,
           commission || 0,
           notes || null,
+          post_analysis || null,
         ]
       );
 
@@ -268,7 +272,7 @@ export const createMany = async (userId, tradesData) => {
 export const update = async (userId, id, updateData) => {
   const allowedFields = [
     'symbol', 'trade_type', 'entry_price', 'exit_price', 'quantity',
-    'entry_date', 'exit_date', 'commission', 'notes'
+    'entry_date', 'exit_date', 'commission', 'notes', 'post_analysis'
   ];
 
   const updates = [];
