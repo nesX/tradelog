@@ -1,5 +1,6 @@
 import * as tradeRepository from '../repositories/trade.repository.js';
-import { NotFoundError } from '../middleware/errorHandler.js';
+import { validateSignalsBelongToSystem } from '../repositories/system.repository.js';
+import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 import { deleteFileIfExists } from '../utils/fileUtils.js';
 import { config } from '../config/env.js';
 import path from 'path';
@@ -47,6 +48,18 @@ export const createTrade = async (userId, tradeData, files = []) => {
     tradeData.exit_date = new Date();
   }
 
+  // Validar que las señales pertenecen al sistema
+  if (tradeData.primary_system_id && tradeData.primary_signals?.length) {
+    const signalIds = tradeData.primary_signals.map(s => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(tradeData.primary_system_id, signalIds);
+    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema primario');
+  }
+  if (tradeData.secondary_system_id && tradeData.secondary_signals?.length) {
+    const signalIds = tradeData.secondary_signals.map(s => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(tradeData.secondary_system_id, signalIds);
+    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema secundario');
+  }
+
   // Crear el trade
   const trade = await tradeRepository.create(userId, tradeData);
 
@@ -76,6 +89,18 @@ export const createTrade = async (userId, tradeData, files = []) => {
 export const updateTrade = async (userId, id, updateData, newFiles = []) => {
   // Verificar que existe
   await getTradeById(userId, id);
+
+  // Validar señales pertenecen al sistema
+  if (updateData.primary_system_id && updateData.primary_signals?.length) {
+    const signalIds = updateData.primary_signals.map(s => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(updateData.primary_system_id, signalIds);
+    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema primario');
+  }
+  if (updateData.secondary_system_id && updateData.secondary_signals?.length) {
+    const signalIds = updateData.secondary_signals.map(s => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(updateData.secondary_system_id, signalIds);
+    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema secundario');
+  }
 
   // Actualizar trade
   const updatedTrade = await tradeRepository.update(userId, id, updateData);

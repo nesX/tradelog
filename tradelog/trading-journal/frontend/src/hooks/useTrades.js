@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../api/endpoints.js';
+import { statsKeys } from './useStats.js';
 
 /**
  * Hooks de React Query para trades
@@ -60,9 +61,9 @@ export const useCreateTrade = () => {
   return useMutation({
     mutationFn: ({ tradeData, imageFiles }) => api.createTrade(tradeData, imageFiles || []),
     onSuccess: () => {
-      // Invalidar cache de trades
       queryClient.invalidateQueries({ queryKey: tradeKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tradeKeys.symbols() });
+      queryClient.invalidateQueries({ queryKey: statsKeys.all });
     },
   });
 };
@@ -76,9 +77,9 @@ export const useUpdateTrade = () => {
   return useMutation({
     mutationFn: ({ id, updateData, imageFiles }) => api.updateTrade(id, updateData, imageFiles || []),
     onSuccess: (data, variables) => {
-      // Invalidar cache del trade específico y la lista
       queryClient.invalidateQueries({ queryKey: tradeKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: tradeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: statsKeys.all });
     },
   });
 };
@@ -94,6 +95,7 @@ export const useDeleteTrade = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tradeKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tradeKeys.symbols() });
+      queryClient.invalidateQueries({ queryKey: statsKeys.all });
     },
   });
 };
@@ -163,6 +165,7 @@ export const useImportCSV = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tradeKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tradeKeys.symbols() });
+      queryClient.invalidateQueries({ queryKey: statsKeys.all });
     },
   });
 };

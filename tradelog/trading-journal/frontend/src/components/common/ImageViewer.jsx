@@ -11,8 +11,15 @@ const ImageViewer = ({
   thumbnailSize = 'h-12 w-12',
   className = '',
   notes = '',
+  postAnalysis = '',
+  externalOpen = null,
+  onExternalOpenChange = null,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  // Usar estado externo si se proporciona, sino usar el interno
+  const isOpen = externalOpen !== null ? externalOpen : internalOpen;
+  const setIsOpen = onExternalOpenChange || setInternalOpen;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState({});
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -188,7 +195,15 @@ const ImageViewer = ({
         {notes && (
           <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
             <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Notas:</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{notes}</p>
+            <p className="text-base text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{notes}</p>
+          </div>
+        )}
+
+        {/* Análisis Posterior */}
+        {postAnalysis && (
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm font-medium text-blue-600 dark:text-blue-300 mb-1">Análisis Posterior:</p>
+            <p className="text-base text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{postAnalysis}</p>
           </div>
         )}
 

@@ -8,6 +8,7 @@ import Layout from './components/layout/Layout.jsx';
 import Home from './pages/Home.jsx';
 import CreateTrade from './pages/CreateTrade.jsx';
 import Stats from './pages/Stats.jsx';
+import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 
 // Configuración de React Query
@@ -65,6 +66,16 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <Stats />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Settings />
                       </Layout>
                     </ProtectedRoute>
                   }

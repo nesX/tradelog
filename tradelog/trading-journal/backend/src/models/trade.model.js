@@ -30,6 +30,8 @@ export const TRADE_FIELDS = [
   'notes',
   'post_analysis',
   'status',
+  'primary_system_id',
+  'secondary_system_id',
   'created_at',
   'updated_at',
 ];

@@ -1,5 +1,14 @@
 import { query, getClient } from '../config/database.js';
 import { TRADE_FIELDS, IMAGE_FIELDS, PAGINATION_DEFAULTS } from '../models/trade.model.js';
+import {
+  getSystemDataForTrades,
+  getTradeSignals,
+  getTradeTimeframes,
+  insertTradeSignals,
+  insertTradeTimeframes,
+  deleteTradeSignalsByRole,
+  deleteAllTradeTimeframes,
+} from './system.repository.js';
 
 /**
  * Repository para operaciones de base de datos de trades
@@ -113,13 +122,20 @@ export const findAll = async (userId, options = {}) => {
   const dataResult = await query(dataQuery, [...params, limit, offset]);
   const trades = dataResult.rows;
 
-  // Obtener imágenes para todos los trades
+  // Obtener imágenes y datos de sistemas para todos los trades
   const tradeIds = trades.map(t => t.id);
-  const imagesByTrade = await getImagesForTrades(tradeIds);
+  const [imagesByTrade, systemData] = await Promise.all([
+    getImagesForTrades(tradeIds),
+    getSystemDataForTrades(tradeIds),
+  ]);
 
-  // Agregar imágenes a cada trade
+  // Agregar imágenes y señales/timeframes a cada trade
   for (const trade of trades) {
     trade.images = imagesByTrade[trade.id] || [];
+    const sigs = systemData.signals[trade.id] || { primary: [], secondary: [] };
+    trade.primary_signals = sigs.primary;
+    trade.secondary_signals = sigs.secondary;
+    trade.timeframes = systemData.timeframes[trade.id] || [];
   }
 
   return {
@@ -146,7 +162,17 @@ export const findById = async (userId, id) => {
   if (!result.rows[0]) return null;
 
   const trade = result.rows[0];
-  trade.images = await getTradeImages(id);
+  const [images, primarySignals, secondarySignals, timeframes] = await Promise.all([
+    getTradeImages(id),
+    getTradeSignals(id, 'primary'),
+    getTradeSignals(id, 'secondary'),
+    getTradeTimeframes(id),
+  ]);
+
+  trade.images = images;
+  trade.primary_signals = primarySignals;
+  trade.secondary_signals = secondarySignals;
+  trade.timeframes = timeframes.map(t => t.label);
 
   return trade;
 };
@@ -169,31 +195,79 @@ export const create = async (userId, tradeData) => {
     commission,
     notes,
     post_analysis,
+    primary_system_id,
+    secondary_system_id,
+    primary_signals,
+    secondary_signals,
+    timeframe_ids,
   } = tradeData;
+
+  const hasSystemData = (primary_signals?.length || secondary_signals?.length || timeframe_ids?.length);
+
+  if (hasSystemData) {
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const result = await client.query(
+        `INSERT INTO trades (
+          user_id, symbol, trade_type, entry_price, exit_price, quantity,
+          entry_date, exit_date, commission, notes, post_analysis,
+          primary_system_id, secondary_system_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING ${SELECT_FIELDS}`,
+        [
+          userId, symbol, trade_type, entry_price, exit_price || null, quantity,
+          entry_date, exit_date || null, commission || 0, notes || null, post_analysis || null,
+          primary_system_id || null, secondary_system_id || null,
+        ]
+      );
+      const trade = result.rows[0];
+
+      if (primary_signals?.length) {
+        await insertTradeSignals(client, trade.id, 'primary', primary_signals);
+      }
+      if (secondary_signals?.length) {
+        await insertTradeSignals(client, trade.id, 'secondary', secondary_signals);
+      }
+      if (timeframe_ids?.length) {
+        await insertTradeTimeframes(client, trade.id, timeframe_ids);
+      }
+
+      await client.query('COMMIT');
+
+      trade.images = [];
+      trade.primary_signals = primary_signals || [];
+      trade.secondary_signals = secondary_signals || [];
+      trade.timeframes = [];
+      return trade;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
 
   const result = await query(
     `INSERT INTO trades (
       user_id, symbol, trade_type, entry_price, exit_price, quantity,
-      entry_date, exit_date, commission, notes, post_analysis
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      entry_date, exit_date, commission, notes, post_analysis,
+      primary_system_id, secondary_system_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
     RETURNING ${SELECT_FIELDS}`,
     [
-      userId,
-      symbol,
-      trade_type,
-      entry_price,
-      exit_price || null,
-      quantity,
-      entry_date,
-      exit_date || null,
-      commission || 0,
-      notes || null,
-      post_analysis || null,
+      userId, symbol, trade_type, entry_price, exit_price || null, quantity,
+      entry_date, exit_date || null, commission || 0, notes || null, post_analysis || null,
+      primary_system_id || null, secondary_system_id || null,
     ]
   );
 
   const trade = result.rows[0];
   trade.images = [];
+  trade.primary_signals = [];
+  trade.secondary_signals = [];
+  trade.timeframes = [];
 
   return trade;
 };
@@ -249,6 +323,9 @@ export const createMany = async (userId, tradesData) => {
 
       const trade = result.rows[0];
       trade.images = [];
+      trade.primary_signals = [];
+      trade.secondary_signals = [];
+      trade.timeframes = [];
       createdTrades.push(trade);
     }
 
@@ -272,38 +349,104 @@ export const createMany = async (userId, tradesData) => {
 export const update = async (userId, id, updateData) => {
   const allowedFields = [
     'symbol', 'trade_type', 'entry_price', 'exit_price', 'quantity',
-    'entry_date', 'exit_date', 'commission', 'notes', 'post_analysis'
+    'entry_date', 'exit_date', 'commission', 'notes', 'post_analysis',
+    'primary_system_id', 'secondary_system_id',
   ];
+
+  const {
+    primary_signals,
+    secondary_signals,
+    timeframe_ids,
+    ...coreData
+  } = updateData;
 
   const updates = [];
   const params = [userId, id];
 
-  // Construir SET clause dinámicamente
-  for (const [key, value] of Object.entries(updateData)) {
+  for (const [key, value] of Object.entries(coreData)) {
     if (allowedFields.includes(key)) {
       params.push(value);
       updates.push(`${key} = $${params.length}`);
     }
   }
 
-  if (updates.length === 0) {
+  const hasSystemData = primary_signals !== undefined || secondary_signals !== undefined || timeframe_ids !== undefined;
+
+  if (updates.length === 0 && !hasSystemData) {
     return findById(userId, id);
   }
 
-  const result = await query(
-    `UPDATE trades
-     SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2 AND user_id = $1 AND deleted_at IS NULL
-     RETURNING ${SELECT_FIELDS}`,
-    params
-  );
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
 
-  if (!result.rows[0]) return null;
+    let trade;
+    if (updates.length > 0) {
+      const result = await client.query(
+        `UPDATE trades
+         SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2 AND user_id = $1 AND deleted_at IS NULL
+         RETURNING ${SELECT_FIELDS}`,
+        params
+      );
+      if (!result.rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      trade = result.rows[0];
+    } else {
+      const result = await client.query(
+        `SELECT ${SELECT_FIELDS} FROM trades WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+        [id, userId]
+      );
+      if (!result.rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      trade = result.rows[0];
+    }
 
-  const trade = result.rows[0];
-  trade.images = await getTradeImages(id);
+    if (primary_signals !== undefined) {
+      await deleteTradeSignalsByRole(client, id, 'primary');
+      if (primary_signals.length > 0) {
+        await insertTradeSignals(client, id, 'primary', primary_signals);
+      }
+    }
+    if (secondary_signals !== undefined) {
+      await deleteTradeSignalsByRole(client, id, 'secondary');
+      if (secondary_signals.length > 0) {
+        await insertTradeSignals(client, id, 'secondary', secondary_signals);
+      }
+    }
+    if (timeframe_ids !== undefined) {
+      await deleteAllTradeTimeframes(client, id);
+      if (timeframe_ids.length > 0) {
+        await insertTradeTimeframes(client, id, timeframe_ids);
+      }
+    }
 
-  return trade;
+    await client.query('COMMIT');
+
+    // Enriquecer con datos actualizados
+    const [images, primarySignals, secondarySignals, timeframes] = await Promise.all([
+      getTradeImages(id),
+      getTradeSignals(id, 'primary'),
+      getTradeSignals(id, 'secondary'),
+      getTradeTimeframes(id),
+    ]);
+
+    trade.images = images;
+    trade.primary_signals = primarySignals;
+    trade.secondary_signals = secondarySignals;
+    trade.timeframes = timeframes.map(t => t.label);
+
+    return trade;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 /**

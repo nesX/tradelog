@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Edit2, Trash2, MoreVertical } from 'lucide-react';
 import ImageViewer from '../common/ImageViewer.jsx';
+import Modal from '../common/Modal.jsx';
+import { useSystems } from '../../hooks/useSystems.js';
 import {
   formatDate,
   formatNumber,
@@ -15,9 +17,17 @@ import {
  */
 const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
   const [showActions, setShowActions] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [showNotesModal, setShowNotesModal] = useState(false);
   const menuRef = useRef(null);
   const buttonRef = useRef(null);
   const pnl = formatPnL(trade.pnl);
+
+  // Obtener nombre del sistema primario (si existe)
+  const { data: systems = [] } = useSystems();
+  const primarySystem = trade.primary_system_id
+    ? systems.find(s => s.id === trade.primary_system_id)
+    : null;
 
   // Calcular si el menú debe aparecer hacia arriba
   const [menuPosition, setMenuPosition] = useState('bottom');
@@ -58,8 +68,27 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
   const firstImage = trade.images && trade.images.length > 0 ? trade.images[0] : null;
   const imageCount = trade.images ? trade.images.length : 0;
 
+  // Manejar doble click en la fila
+  const handleRowDoubleClick = (e) => {
+    // Evitar abrir el modal si se hace doble click en el menú de acciones
+    if (menuRef.current && menuRef.current.contains(e.target)) {
+      return;
+    }
+    // Si hay imágenes, abrir el visor de imágenes
+    if (firstImage) {
+      setShowImageModal(true);
+    } else if (trade.notes || trade.post_analysis) {
+      // Si no hay imágenes pero hay notas o análisis, mostrar modal de notas
+      setShowNotesModal(true);
+    }
+  };
+
   return (
-    <tr className="hover:bg-gray-50 transition-colors">
+    <>
+    <tr
+      className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+      onDoubleClick={handleRowDoubleClick}
+    >
       {/* Imágenes */}
       <td className="px-4 py-3">
         {firstImage ? (
@@ -69,6 +98,9 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
               alt={`Trade ${trade.symbol}`}
               thumbnailSize="h-10 w-10"
               notes={trade.notes}
+              postAnalysis={trade.post_analysis}
+              externalOpen={showImageModal}
+              onExternalOpenChange={setShowImageModal}
             />
             {imageCount > 1 && (
               <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
@@ -85,7 +117,14 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
 
       {/* Símbolo */}
       <td className="px-4 py-3">
-        <span className="font-medium text-gray-900 dark:text-white">{trade.symbol}</span>
+        <div className="flex flex-col gap-1">
+          <span className="font-medium text-gray-900 dark:text-white">{trade.symbol}</span>
+          {primarySystem && (
+            <span className="inline-block px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full w-fit max-w-[120px] truncate">
+              {primarySystem.name}
+            </span>
+          )}
+        </div>
       </td>
 
       {/* Tipo */}
@@ -175,6 +214,34 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
         </div>
       </td>
     </tr>
+
+    {/* Modal de notas (cuando no hay imágenes) */}
+    {!firstImage && (trade.notes || trade.post_analysis) && (
+      <Modal
+        isOpen={showNotesModal}
+        onClose={() => setShowNotesModal(false)}
+        title={`Notas - ${trade.symbol}`}
+        size="md"
+      >
+        {trade.notes && (
+          <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Notas:</p>
+            <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+              {trade.notes}
+            </p>
+          </div>
+        )}
+        {trade.post_analysis && (
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm font-medium text-blue-600 dark:text-blue-300 mb-1">Análisis Posterior:</p>
+            <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+              {trade.post_analysis}
+            </p>
+          </div>
+        )}
+      </Modal>
+    )}
+    </>
   );
 };
 

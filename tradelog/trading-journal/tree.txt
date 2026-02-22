@@ -1,0 +1,196 @@
+.
+├── backend
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── src
+│   │   ├── config
+│   │   │   ├── database.js
+│   │   │   └── env.js
+│   │   ├── controllers
+│   │   │   ├── auth.controller.js
+│   │   │   ├── stats.controller.js
+│   │   │   └── trade.controller.js
+│   │   ├── middleware
+│   │   │   ├── auth.js
+│   │   │   ├── errorHandler.js
+│   │   │   ├── upload.js
+│   │   │   └── validation.js
+│   │   ├── models
+│   │   │   ├── trade.model.js
+│   │   │   └── user.model.js
+│   │   ├── repositories
+│   │   │   ├── trade.repository.js
+│   │   │   └── user.repository.js
+│   │   ├── routes
+│   │   │   ├── auth.routes.js
+│   │   │   ├── stats.routes.js
+│   │   │   └── trade.routes.js
+│   │   ├── server.js
+│   │   ├── services
+│   │   │   ├── auth.service.js
+│   │   │   ├── csvParser.service.js
+│   │   │   ├── stats.service.js
+│   │   │   └── trade.service.js
+│   │   ├── utils
+│   │   │   ├── fileUtils.js
+│   │   │   ├── logger.js
+│   │   │   └── response.js
+│   │   └── validators
+│   │       ├── auth.validator.js
+│   │       └── trade.validator.js
+│   ├── tests
+│   └── uploads
+│       ├── 1769730051377-fe1f5fda.png
+│       ├── 1769730352114-cabecccf.png
+│       ├── 1769753801339-de8f5a77.png
+│       ├── 1769753801340-9696c832.png
+│       ├── 1769793494135-16bfa512.png
+│       ├── 1769918341590-2b8d5936.png
+│       ├── 1769919283774-0534e357.png
+│       ├── 1769919417968-af67cbae.png
+│       ├── 1769920153514-bb5edbd0.png
+│       ├── 1769921364551-a919311d.png
+│       ├── 1769921901702-6c4fb5f4.png
+│       ├── 1769922019492-6061dd13.png
+│       ├── 1769923553600-c39ba59b.png
+│       ├── 1769925077983-e5751f74.png
+│       ├── 1769986775842-22b77ce9.png
+│       ├── 1769986775842-892bf907.png
+│       ├── 1769986775845-05142237.png
+│       ├── 1769988480509-0ae0d25e.png
+│       ├── 1769990131307-9c69b925.png
+│       ├── 1769995911339-a8ffd048.png
+│       ├── 1769997728885-7bec770a.png
+│       ├── 1769998381880-b41a0ed5.png
+│       ├── 1769998761744-338ca81d.png
+│       ├── 1770002195737-6f9782b4.png
+│       ├── 1770002378553-135f6eee.png
+│       ├── 1770010997540-d9b1180f.png
+│       ├── 1770010997575-8ad9b8b6.png
+│       ├── 1770011356489-061249b2.png
+│       ├── 1770074465636-78bce7a6.png
+│       ├── 1770078113227-7d7978b6.png
+│       ├── 1770078153783-fe89e9df.png
+│       ├── 1770078943770-f3f2be46.png
+│       ├── 1770080620008-2d3cfe15.png
+│       ├── 1770080620009-091c5d30.png
+│       ├── 1770084902289-d0561cd7.png
+│       ├── 1770138471453-2b400da4.png
+│       ├── 1770184195924-6602d9ad.png
+│       ├── 1770184911050-008320c5.png
+│       ├── 1770185448321-789424ff.png
+│       ├── 1770237801876-c24dae05.png
+│       ├── 1770238810577-d568b82e.png
+│       ├── 1770251725384-00b94f3b.png
+│       ├── 1770251725416-2f6cabb4.png
+│       ├── 1770252449356-fe9cc871.png
+│       ├── 1770253676181-5fece3cd.png
+│       ├── 1770253676182-4f224003.png
+│       ├── 1770665063827-d09bd4e2.png
+│       ├── 1770665178296-fe859369.png
+│       ├── 1770665229861-a3df3da7.png
+│       ├── 1770666180235-0fcb0998.png
+│       ├── 1770666180236-7c5a5c86.png
+│       ├── 1770666865818-f8dc1b85.png
+│       ├── 1770666960950-c8478ad5.png
+│       ├── 1770667176467-89d90839.png
+│       ├── 1770667266877-acce4e05.png
+│       ├── 1770669086761-de2e3d53.png
+│       ├── 1770669086761-fe17cf68.png
+│       ├── 1770670133944-33833bde.png
+│       ├── 1770670133944-5716a57e.png
+│       ├── 1770671559093-f4d40b2d.png
+│       ├── 1770673505281-c635b860.png
+│       ├── 1770673758965-3b27c699.png
+│       ├── 1770673758966-876b5599.png
+│       ├── 1770677649895-6e47ecc7.png
+│       ├── 1770679865294-e33c0b3e.png
+│       ├── 1770679865295-5c3f302c.png
+│       ├── 1770680295601-b8b3831e.png
+│       ├── 1770680767438-cdb62568.png
+│       ├── 1770681306102-65085054.png
+│       ├── 1770681306103-2f25aa46.png
+│       ├── 1770682085219-7e873b6a.png
+│       ├── 1770682085219-ab87b7de.png
+│       ├── 1770682500364-57a0f5ce.png
+│       ├── 1770682545480-ea2ea875.png
+│       ├── 1770778689809-cacf4de8.png
+│       ├── 1771299933312-4888ad35.png
+│       ├── 1771299933332-3103e4b9.png
+│       ├── 1771301854445-9997d2fa.png
+│       ├── 1771398072967-43912e15.png
+│       ├── 1771398350577-68c9b251.png
+│       ├── 1771398350578-6778d092.png
+│       ├── 1771441108229-ea604470.png
+│       ├── 1771441108233-92dd859b.png
+│       ├── 1771611539943-da515766.png
+│       └── 1771611697620-b4597c76.png
+├── database
+│   ├── indexes.sql
+│   ├── migration_20260130.sql
+│   ├── migration_auth.sql
+│   ├── migration_post_analysis.sql
+│   ├── schema.sql
+│   ├── seed.sql
+│   ├── triggers.sql
+│   └── views.sql
+├── frontend
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── postcss.config.js
+│   ├── src
+│   │   ├── api
+│   │   │   ├── client.js
+│   │   │   └── endpoints.js
+│   │   ├── App.jsx
+│   │   ├── components
+│   │   │   ├── auth
+│   │   │   │   ├── ProtectedRoute.jsx
+│   │   │   │   └── UserMenu.jsx
+│   │   │   ├── common
+│   │   │   │   ├── Button.jsx
+│   │   │   │   ├── DateTimeInput.jsx
+│   │   │   │   ├── EmptyState.jsx
+│   │   │   │   ├── ImageViewer.jsx
+│   │   │   │   ├── Input.jsx
+│   │   │   │   ├── Loading.jsx
+│   │   │   │   ├── Modal.jsx
+│   │   │   │   ├── Select.jsx
+│   │   │   │   └── Toast.jsx
+│   │   │   ├── layout
+│   │   │   │   ├── Header.jsx
+│   │   │   │   └── Layout.jsx
+│   │   │   └── trades
+│   │   │       ├── CreateTradeForm.jsx
+│   │   │       ├── CSVImport.jsx
+│   │   │       ├── TradeFilters.jsx
+│   │   │       ├── TradeRow.jsx
+│   │   │       ├── TradeStats.jsx
+│   │   │       └── TradeTable.jsx
+│   │   ├── constants
+│   │   │   └── tradeConstants.js
+│   │   ├── contexts
+│   │   │   ├── AuthContext.jsx
+│   │   │   └── ThemeContext.jsx
+│   │   ├── hooks
+│   │   │   ├── useImageUpload.js
+│   │   │   ├── useStats.js
+│   │   │   └── useTrades.js
+│   │   ├── main.jsx
+│   │   ├── pages
+│   │   │   ├── CreateTrade.jsx
+│   │   │   ├── Home.jsx
+│   │   │   ├── Login.jsx
+│   │   │   └── Stats.jsx
+│   │   ├── styles
+│   │   │   └── globals.css
+│   │   └── utils
+│   │       └── formatters.js
+│   ├── tailwind.config.js
+│   └── vite.config.js
+├── README.md
+├── TODO
+└── tree.txt
+
+29 directories, 165 files

@@ -29,11 +29,25 @@ export const getTrade = async (req, res) => {
 };
 
 /**
+ * Parsea campos JSON que llegan como strings desde FormData
+ */
+const parseJsonFields = (body) => {
+  const jsonFields = ['primary_signals', 'secondary_signals', 'timeframe_ids'];
+  const result = { ...body };
+  for (const field of jsonFields) {
+    if (typeof result[field] === 'string') {
+      try { result[field] = JSON.parse(result[field]); } catch { delete result[field]; }
+    }
+  }
+  return result;
+};
+
+/**
  * POST /api/trades - Crear un nuevo trade
  */
 export const createTrade = async (req, res) => {
   const userId = req.user.id;
-  const tradeData = req.body;
+  const tradeData = parseJsonFields(req.body);
   const files = req.files || [];
 
   const trade = await tradeService.createTrade(userId, tradeData, files);
@@ -47,7 +61,7 @@ export const createTrade = async (req, res) => {
 export const updateTrade = async (req, res) => {
   const userId = req.user.id;
   const { id } = req.params;
-  const updateData = req.body;
+  const updateData = parseJsonFields(req.body);
   const files = req.files || [];
 
   const trade = await tradeService.updateTrade(userId, id, updateData, files);

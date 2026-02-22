@@ -94,6 +94,35 @@ export const createTradeSchema = Joi.object({
     .messages({
       'string.max': 'El análisis posterior no puede exceder 2000 caracteres',
     }),
+
+  // Campos opcionales de sistemas/análisis técnico
+  primary_system_id: Joi.number().integer().positive().allow(null).optional(),
+  secondary_system_id: Joi.number().integer().positive().allow(null).optional(),
+
+  primary_signals: Joi.array()
+    .items(Joi.object({
+      signal_id: Joi.number().integer().positive().required(),
+      value: Joi.number().integer().min(1).max(4).default(1),
+    }))
+    .optional(),
+
+  secondary_signals: Joi.array()
+    .items(Joi.object({
+      signal_id: Joi.number().integer().positive().required(),
+      value: Joi.number().integer().min(1).max(4).default(1),
+    }))
+    .optional(),
+
+  timeframe_ids: Joi.array()
+    .items(Joi.number().integer().positive())
+    .optional(),
+}).custom((value, helpers) => {
+  if (value.secondary_system_id && !value.primary_system_id) {
+    return helpers.error('any.invalid', {
+      message: 'El sistema secundario requiere un sistema primario',
+    });
+  }
+  return value;
 });
 
 /**
@@ -148,6 +177,28 @@ export const updateTradeSchema = Joi.object({
     .trim()
     .max(2000)
     .allow('', null)
+    .optional(),
+
+  // Campos opcionales de sistemas/análisis técnico
+  primary_system_id: Joi.number().integer().positive().allow(null).optional(),
+  secondary_system_id: Joi.number().integer().positive().allow(null).optional(),
+
+  primary_signals: Joi.array()
+    .items(Joi.object({
+      signal_id: Joi.number().integer().positive().required(),
+      value: Joi.number().integer().min(1).max(4).default(1),
+    }))
+    .optional(),
+
+  secondary_signals: Joi.array()
+    .items(Joi.object({
+      signal_id: Joi.number().integer().positive().required(),
+      value: Joi.number().integer().min(1).max(4).default(1),
+    }))
+    .optional(),
+
+  timeframe_ids: Joi.array()
+    .items(Joi.number().integer().positive())
     .optional(),
 }).min(1).messages({
   'object.min': 'Debe proporcionar al menos un campo para actualizar',

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { LogOut, User, ChevronDown } from 'lucide-react';
+import { LogOut, ChevronDown, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 
 /**
@@ -60,6 +61,14 @@ const UserMenu = () => {
           </div>
 
           {/* Opciones */}
+          <Link
+            to="/settings"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+            <Settings className="w-4 h-4 mr-3" />
+            Configuración
+          </Link>
           <button
             onClick={handleLogout}
             className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"

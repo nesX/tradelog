@@ -15,6 +15,7 @@ import { ensureDirectoryExists } from './utils/fileUtils.js';
 import authRoutes from './routes/auth.routes.js';
 import tradeRoutes from './routes/trade.routes.js';
 import statsRoutes from './routes/stats.routes.js';
+import systemRoutes from './routes/system.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +54,7 @@ app.use('/api/images', express.static(uploadsPath));
 app.use('/api/auth', authRoutes);
 app.use('/api/trades', tradeRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api', systemRoutes);
 
 // Ruta de health check
 app.get('/api/health', (req, res) => {

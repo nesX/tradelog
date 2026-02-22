@@ -57,20 +57,25 @@ export const getTradeById = async (id) => {
 /**
  * Crear un nuevo trade (con múltiples imágenes)
  */
+const JSON_ARRAY_FIELDS = ['primary_signals', 'secondary_signals', 'timeframe_ids'];
+
+const appendToFormData = (formData, tradeData) => {
+  Object.entries(tradeData).forEach(([key, value]) => {
+    if (value !== null && value !== undefined) {
+      if (JSON_ARRAY_FIELDS.includes(key)) {
+        formData.append(key, JSON.stringify(value));
+      } else {
+        formData.append(key, value);
+      }
+    }
+  });
+};
+
 export const createTrade = async (tradeData, imageFiles = []) => {
   if (imageFiles && imageFiles.length > 0) {
     const formData = new FormData();
-    Object.entries(tradeData).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) {
-        formData.append(key, value);
-      }
-    });
-
-    // Agregar múltiples imágenes
-    imageFiles.forEach((file) => {
-      formData.append('images', file);
-    });
-
+    appendToFormData(formData, tradeData);
+    imageFiles.forEach((file) => formData.append('images', file));
     return apiClient.post('/api/trades', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -85,17 +90,8 @@ export const createTrade = async (tradeData, imageFiles = []) => {
 export const updateTrade = async (id, updateData, imageFiles = []) => {
   if (imageFiles && imageFiles.length > 0) {
     const formData = new FormData();
-    Object.entries(updateData).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) {
-        formData.append(key, value);
-      }
-    });
-
-    // Agregar múltiples imágenes
-    imageFiles.forEach((file) => {
-      formData.append('images', file);
-    });
-
+    appendToFormData(formData, updateData);
+    imageFiles.forEach((file) => formData.append('images', file));
     return apiClient.put(`/api/trades/${id}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -165,6 +161,24 @@ export const previewCSVImport = async (csvData) => {
 export const importCSV = async (csvData) => {
   return apiClient.post('/api/trades/import', { csvData });
 };
+
+// ==================
+// SYSTEMS
+// ==================
+
+export const getSystems = async () => apiClient.get('/api/systems');
+export const getSystemById = async (id) => apiClient.get(`/api/systems/${id}`);
+export const createSystem = async (data) => apiClient.post('/api/systems', data);
+export const updateSystemName = async (id, name) => apiClient.patch(`/api/systems/${id}/name`, { name });
+export const deleteSystem = async (id) => apiClient.delete(`/api/systems/${id}`);
+
+// ==================
+// TIMEFRAMES
+// ==================
+
+export const getTimeframes = async () => apiClient.get('/api/timeframes');
+export const createTimeframe = async (data) => apiClient.post('/api/timeframes', data);
+export const deleteTimeframe = async (id) => apiClient.delete(`/api/timeframes/${id}`);
 
 // ==================
 // STATS
