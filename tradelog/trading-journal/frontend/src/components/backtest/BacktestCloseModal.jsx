@@ -3,6 +3,7 @@ import Modal from '../common/Modal.jsx';
 import BacktestMoodSelector from './BacktestMoodSelector.jsx';
 
 const BacktestCloseModal = ({ isOpen, onClose, onConfirm, isLoading = false }) => {
+  const [periodEndDate, setPeriodEndDate] = useState('');
   const [moodScore, setMoodScore] = useState(null);
   const [moodComment, setMoodComment] = useState('');
   const [closingComment, setClosingComment] = useState('');
@@ -10,6 +11,7 @@ const BacktestCloseModal = ({ isOpen, onClose, onConfirm, isLoading = false }) =
 
   const validate = () => {
     const e = {};
+    if (!periodEndDate) e.date = 'La fecha final del período es obligatoria';
     if (!moodScore) e.mood = 'El estado anímico final es obligatorio';
     if (!closingComment.trim()) e.closing = 'El comentario de cierre es obligatorio';
     setErrors(e);
@@ -19,6 +21,7 @@ const BacktestCloseModal = ({ isOpen, onClose, onConfirm, isLoading = false }) =
   const handleConfirm = () => {
     if (!validate()) return;
     onConfirm({
+      period_end_date: periodEndDate,
       mood_end_score: moodScore,
       mood_end_comment: moodComment || undefined,
       closing_comment: closingComment.trim(),
@@ -26,6 +29,7 @@ const BacktestCloseModal = ({ isOpen, onClose, onConfirm, isLoading = false }) =
   };
 
   const handleClose = () => {
+    setPeriodEndDate('');
     setMoodScore(null);
     setMoodComment('');
     setClosingComment('');
@@ -36,6 +40,24 @@ const BacktestCloseModal = ({ isOpen, onClose, onConfirm, isLoading = false }) =
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Cerrar sesión" size="md">
       <div className="space-y-5">
+
+        {/* Fecha final del período revisado */}
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            ¿Hasta qué fecha llegaste? *
+          </label>
+          <input
+            type="date"
+            value={periodEndDate}
+            onChange={(e) => setPeriodEndDate(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            Última fecha del período histórico que revisaste en esta sesión
+          </p>
+          {errors.date && <p className="text-xs text-red-500">{errors.date}</p>}
+        </div>
+
         {/* Estado anímico final */}
         <BacktestMoodSelector
           value={moodScore}

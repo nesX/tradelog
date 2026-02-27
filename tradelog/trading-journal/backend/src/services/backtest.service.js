@@ -77,6 +77,7 @@ export const getSessionForContinuation = async (userId, sessionId) => {
     symbol: session.symbol,
     timeframe: session.timeframe,
     period_date: session.period_date,
+    period_end_date: session.period_end_date,
   };
 };
 
@@ -128,6 +129,7 @@ const formatSession = (row) => ({
   symbol: row.symbol,
   timeframe: row.timeframe,
   period_date: row.period_date,
+  period_end_date: row.period_end_date || null,
   mood_start_score: row.mood_start_score,
   mood_start_comment: row.mood_start_comment,
   mood_end_score: row.mood_end_score,

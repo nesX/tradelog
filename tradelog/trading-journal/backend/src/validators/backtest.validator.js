@@ -23,6 +23,8 @@ export const createSessionSchema = Joi.object({
 });
 
 export const closeSessionSchema = Joi.object({
+  period_end_date: Joi.date().required()
+    .messages({ 'any.required': 'La fecha final del período es obligatoria' }),
   mood_end_score: Joi.number().integer().min(1).max(5).required()
     .messages({ 'any.required': 'El estado anímico final es obligatorio' }),
   mood_end_comment: Joi.string().max(1000).allow('', null).optional(),

@@ -36,11 +36,13 @@ const BacktestNew = () => {
       .then((res) => {
         const d = res.data;
         setParentData(d);
+        // Usar period_end_date como punto de inicio de la continuación
+        const continuationDate = d.period_end_date || d.period_date;
         setForm((prev) => ({
           ...prev,
           symbol: d.symbol,
           timeframe: d.timeframe,
-          period_date: d.period_date ? d.period_date.slice(0, 10) : '',
+          period_date: continuationDate ? continuationDate.slice(0, 10) : '',
         }));
       })
       .catch(() => {

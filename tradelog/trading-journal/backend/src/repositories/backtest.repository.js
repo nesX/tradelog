@@ -114,7 +114,8 @@ export const create = async (data) => {
 export const closeSession = async (id, userId, data) => {
   const sql = `
     UPDATE backtest_sessions
-    SET mood_end_score = $3, mood_end_comment = $4, closing_comment = $5, closed_at = NOW()
+    SET mood_end_score = $3, mood_end_comment = $4, closing_comment = $5,
+        period_end_date = $6, closed_at = NOW()
     WHERE id = $1 AND user_id = $2
     RETURNING *
   `;
@@ -124,6 +125,7 @@ export const closeSession = async (id, userId, data) => {
     data.mood_end_score,
     data.mood_end_comment || null,
     data.closing_comment,
+    data.period_end_date,
   ];
   const result = await query(sql, params);
   return result.rows[0] || null;

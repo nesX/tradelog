@@ -1,17 +1,16 @@
 import * as authService from '../services/auth.service.js';
 import { sendSuccess } from '../utils/response.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * POST /api/auth/google - Autenticación con Google
  */
 export const loginWithGoogle = async (req, res, next) => {
   try {
-    const { idToken } = req.body;
-
-    const result = await authService.authenticateWithGoogle(idToken);
-
+    const result = await authService.authenticateWithGoogle(req.body.idToken);
     sendSuccess(res, result, 'Autenticación exitosa');
   } catch (error) {
+    logger.error('AuthController:loginWithGoogle', { error: error.message });
     next(error);
   }
 };
@@ -22,9 +21,9 @@ export const loginWithGoogle = async (req, res, next) => {
 export const getMe = async (req, res, next) => {
   try {
     const user = await authService.getCurrentUser(req.user.id);
-
     sendSuccess(res, { user });
   } catch (error) {
+    logger.error('AuthController:getMe', { error: error.message, userId: req.user?.id });
     next(error);
   }
 };
@@ -33,7 +32,6 @@ export const getMe = async (req, res, next) => {
  * POST /api/auth/logout - Cerrar sesión
  */
 export const logout = async (req, res) => {
-  // El logout es manejado en el cliente eliminando el token
   sendSuccess(res, null, 'Sesión cerrada exitosamente');
 };
 
@@ -42,12 +40,11 @@ export const logout = async (req, res) => {
  */
 export const refreshToken = async (req, res, next) => {
   try {
-    // Generar nuevo token con los datos del usuario actual
     const user = await authService.getCurrentUser(req.user.id);
     const token = authService.generateToken(user);
-
     sendSuccess(res, { token }, 'Token renovado');
   } catch (error) {
+    logger.error('AuthController:refreshToken', { error: error.message, userId: req.user?.id });
     next(error);
   }
 };

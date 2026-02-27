@@ -29,6 +29,7 @@ const envSchema = Joi.object({
   LOG_LEVEL: Joi.string()
     .valid('error', 'warn', 'info', 'debug')
     .default('info'),
+  LOG_DIR: Joi.string().default('./logs'),
 
   // JWT
   JWT_SECRET: Joi.string().required(),
@@ -72,6 +73,7 @@ export const config = {
 
   log: {
     level: envVars.LOG_LEVEL,
+    dir: envVars.LOG_DIR,
   },
 
   jwt: {
