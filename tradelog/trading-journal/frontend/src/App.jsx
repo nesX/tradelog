@@ -10,6 +10,9 @@ import CreateTrade from './pages/CreateTrade.jsx';
 import Stats from './pages/Stats.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
+import Backtest from './pages/Backtest.jsx';
+import BacktestSession from './pages/BacktestSession.jsx';
+import BacktestNew from './pages/BacktestNew.jsx';
 
 // Configuración de React Query
 const queryClient = new QueryClient({
@@ -76,6 +79,46 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <Settings />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/backtest"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Backtest />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/backtest/new"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <BacktestNew />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/backtest/:id"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <BacktestSession />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/backtest/:id/continue"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <BacktestNew />
                       </Layout>
                     </ProtectedRoute>
                   }

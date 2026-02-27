@@ -1,343 +1,538 @@
-Aquí está el documento completo para pasarle al agente:
-
----
-
-# Implementación: Sistema de Estrategias y Señales para Trading Journal
+# Implementación: Módulo de Backtesting Rápido
 
 ## Contexto del proyecto
 
-Trading Journal full-stack existente y funcional. Stack: React 18 + Vite (frontend), Express.js (backend), PostgreSQL (base de datos). El proyecto ya tiene CRUD de trades, autenticación JWT, upload de imágenes, import CSV y estadísticas básicas. **No romper nada de lo existente.**
+Trading Journal full-stack existente y funcional. Stack: React 18 + Vite (frontend), Express.js (backend), PostgreSQL (base de datos). Arquitectura: `routes → middleware → controllers → services → repositories → database`. Ambos lados usan ES modules (`"type": "module"`). Backend en puerto 5000, frontend en 5173.
 
-La arquitectura sigue el patrón: `routes → middleware → controllers → services → repositories → database`
-
-Ambos lados usan ES modules (`"type": "module"`). El backend corre en puerto 5000, el frontend en 5173.
+**Este módulo es completamente independiente** del journal de trades y de las estadísticas existentes. No comparte datos, no afecta ningún flujo existente, no aparece en estadísticas del journal principal.
 
 ---
 
 ## Qué se va a implementar
 
-Un sistema configurable por usuario para registrar el análisis técnico de cada trade. Todo es opcional — el trade funciona exactamente igual que hoy si el usuario no usa estas funciones.
+Un sistema de registro rápido de sesiones de backtesting. El usuario crea una sesión, registra el contexto (símbolo, fecha del período histórico, timeframe, estado anímico), y dentro de la sesión va registrando trades con un click + comentario obligatorio. Las sesiones pueden ser continuación de otra sesión anterior. Todo el módulo existe para generar un historial de comentarios y decisiones que luego se pueda analizar con IA.
 
 ---
 
-## Modelo de datos — cambios a la DB
+## Modelo de datos — nuevas tablas exclusivas del módulo
 
-### Nuevas tablas
+### `backtest_sessions`
 
-**`systems`** — sistemas de trading del usuario
 ```sql
-id SERIAL PRIMARY KEY
-user_id INTEGER NOT NULL REFERENCES users(id)
-name VARCHAR(100) NOT NULL
-description TEXT
-created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-deleted_at TIMESTAMP DEFAULT NULL
+CREATE TABLE backtest_sessions (
+  id                    SERIAL PRIMARY KEY,
+  user_id               INTEGER NOT NULL REFERENCES users(id),
+  symbol                VARCHAR(20) NOT NULL,
+  timeframe             VARCHAR(10) NOT NULL,         -- ej: "1m", "5m", "1h", "4h"
+  period_date           DATE NOT NULL,                -- fecha del período histórico que se está revisando
+  
+  -- Estado anímico al inicio
+  mood_start_score      SMALLINT NOT NULL CHECK (mood_start_score BETWEEN 1 AND 5),
+  mood_start_comment    TEXT,                         -- opcional
+  
+  -- Estado anímico al cierre (se llena al cerrar la sesión)
+  mood_end_score        SMALLINT CHECK (mood_end_score BETWEEN 1 AND 5),
+  mood_end_comment      TEXT,                         -- opcional
+  
+  -- Comentario de cierre obligatorio al cerrar
+  closing_comment       TEXT,
+  closed_at             TIMESTAMP,                   -- null = sesión activa
+  
+  -- Relación de continuación
+  parent_session_id     INTEGER REFERENCES backtest_sessions(id) ON DELETE SET NULL,
+  
+  created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-**`signals`** — señales que componen un sistema. Inmutables después de creación.
-```sql
-id SERIAL PRIMARY KEY
-system_id INTEGER NOT NULL REFERENCES systems(id)
-name VARCHAR(100) NOT NULL
-uses_scale BOOLEAN DEFAULT FALSE
--- uses_scale=false → booleana (presente/ausente)
--- uses_scale=true → escala 1=débil, 2=media, 3=fuerte, 4=importante
-created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-deleted_at TIMESTAMP DEFAULT NULL
-```
-
-**`user_timeframes`** — timeframes configurados por el usuario, reutilizables
-```sql
-id SERIAL PRIMARY KEY
-user_id INTEGER NOT NULL REFERENCES users(id)
-label VARCHAR(20) NOT NULL -- ej: "1m", "5m", "1h", "4h", "Diario"
-sort_order INTEGER DEFAULT 0
-created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-```
-
-**`trade_signals`** — señales registradas en un trade
-```sql
-id SERIAL PRIMARY KEY
-trade_id INTEGER NOT NULL REFERENCES trades(id) ON DELETE CASCADE
-signal_id INTEGER NOT NULL REFERENCES signals(id)
-system_role VARCHAR(10) NOT NULL CHECK (system_role IN ('primary', 'secondary'))
-value INTEGER NOT NULL DEFAULT 1
--- Para booleana: 1=presente (solo se guarda si está presente, nunca se guarda 0)
--- Para escala: 1=débil, 2=media, 3=fuerte, 4=importante
-```
-
-**`trade_timeframes`** — timeframes usados en un trade
-```sql
-id SERIAL PRIMARY KEY
-trade_id INTEGER NOT NULL REFERENCES trades(id) ON DELETE CASCADE
-timeframe_id INTEGER NOT NULL REFERENCES user_timeframes(id)
-```
-
-### Modificaciones a tabla `trades` existente
-Agregar columnas nullable (no rompen nada existente):
-```sql
-ALTER TABLE trades ADD COLUMN primary_system_id INTEGER REFERENCES systems(id) ON DELETE SET NULL;
-ALTER TABLE trades ADD COLUMN secondary_system_id INTEGER REFERENCES systems(id) ON DELETE SET NULL;
-```
-
-### Reglas de negocio importantes para la DB
-- Un sistema no puede tener señales agregadas o eliminadas después de su creación. Esto se enforcea en el backend, no con constraints de DB.
-- Soft delete en systems y signals: `deleted_at` no nulo significa archivado. Los trades que referencian sistemas/señales archivados mantienen su data histórica intacta.
-- `trade_signals` solo guarda señales presentes. Una señal ausente simplemente no tiene registro.
+**Reglas importantes:**
+- `closed_at` NULL significa sesión activa. Solo puede haber múltiples sesiones activas por usuario (no se restringe).
+- Una sesión está "cerrada" cuando tiene `closed_at`, `closing_comment`, `mood_end_score`.
+- `parent_session_id` es la referencia a la sesión que esta continúa.
 
 ---
 
-## Backend — nuevos archivos y modificaciones
+### `backtest_trades`
 
-### Nuevas rutas
-```
-GET    /api/systems                    → listar sistemas del usuario autenticado
-POST   /api/systems                    → crear sistema con sus señales
-GET    /api/systems/:id                → obtener sistema con sus señales
-PATCH  /api/systems/:id/name           → solo se puede editar el nombre
-DELETE /api/systems/:id                → soft delete
-
-GET    /api/timeframes                 → listar timeframes del usuario
-POST   /api/timeframes                 → crear timeframe
-DELETE /api/timeframes/:id             → eliminar (verificar que no haya trades usando este tf)
+```sql
+CREATE TABLE backtest_trades (
+  id          SERIAL PRIMARY KEY,
+  session_id  INTEGER NOT NULL REFERENCES backtest_sessions(id) ON DELETE CASCADE,
+  result      VARCHAR(20) NOT NULL CHECK (result IN ('long_win', 'long_loss', 'short_win', 'short_loss', 'break_even')),
+  comment     TEXT NOT NULL,   -- OBLIGATORIO, no puede estar vacío
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-Todas requieren middleware `authenticate` existente.
+---
 
-### Archivos nuevos en backend
+### Índices
 
-`src/repositories/system.repository.js` — todas las queries SQL de systems, signals, timeframes, trade_signals, trade_timeframes
+```sql
+CREATE INDEX idx_backtest_sessions_user_id ON backtest_sessions(user_id);
+CREATE INDEX idx_backtest_sessions_parent ON backtest_sessions(parent_session_id);
+CREATE INDEX idx_backtest_sessions_closed ON backtest_sessions(closed_at);
+CREATE INDEX idx_backtest_trades_session_id ON backtest_trades(session_id);
+```
 
-`src/services/system.service.js` — lógica de negocio:
-- Al crear sistema: insertar sistema + todas sus señales en transacción
-- Al intentar agregar/eliminar señales después: lanzar error con mensaje claro
-- Soft delete de sistema: verificar si tiene trades asociados, si tiene → soft delete, si no → delete físico
+### Trigger para updated_at en backtest_sessions
 
-`src/controllers/system.controller.js` — thin controllers, delegan al service
+```sql
+CREATE TRIGGER update_backtest_sessions_updated_at
+  BEFORE UPDATE ON backtest_sessions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- La función update_updated_at_column() ya existe en el proyecto (triggers.sql)
+```
 
-`src/routes/system.routes.js` — rutas con authenticate middleware
+Crear archivo: `database/migration_backtesting.sql` con todo el DDL anterior en orden.
 
-`src/validators/system.validator.js` — schemas Joi:
-- Crear sistema: name requerido, description opcional, signals array con mínimo 1 elemento, cada signal tiene name y uses_scale boolean
-- Crear timeframe: label requerido, sort_order opcional
+---
 
-### Modificaciones a archivos existentes
+## Backend — archivos nuevos
 
-`src/routes/trade.routes.js` — ya existe, solo agregar las rutas nuevas si hace falta
+### Estructura de archivos a crear
 
-`src/repositories/trade.repository.js` — modificar queries de crear y editar trade para incluir:
-- Insertar en `trade_signals` dentro de la misma transacción del trade
-- Insertar en `trade_timeframes` dentro de la misma transacción
-- Al obtener un trade, hacer JOIN o queries separadas para traer signals y timeframes asociados
+```
+backend/src/
+  repositories/backtest.repository.js
+  services/backtest.service.js
+  controllers/backtest.controller.js
+  routes/backtest.routes.js
+  validators/backtest.validator.js
+```
 
-`src/services/trade.service.js` — manejar la lógica de guardar signals y timeframes junto con el trade
+---
 
-`src/server.js` — registrar las nuevas rutas de systems y timeframes
+### `src/validators/backtest.validator.js`
 
-### Respuesta al obtener un sistema (shape esperado)
+Schemas Joi para validar los requests:
+
+**Crear sesión:**
+- `symbol`: string, requerido, max 20 chars, uppercase
+- `timeframe`: string, requerido, opciones: '1S','5S','10S','30S','1m','2m','3m','5m','15m','30m','1h','2h','4h','6h','8h','12h','1d','3d','1w'
+- `period_date`: date, requerido
+- `mood_start_score`: number, entero, entre 1 y 5, requerido
+- `mood_start_comment`: string, opcional, max 1000 chars
+- `parent_session_id`: number, entero, opcional
+
+**Cerrar sesión (PATCH /:id/close):**
+- `mood_end_score`: number, entero, entre 1 y 5, requerido
+- `mood_end_comment`: string, opcional, max 1000 chars
+- `closing_comment`: string, requerido, no vacío
+
+**Agregar trade:**
+- `result`: string, requerido, valores permitidos: 'long_win', 'long_loss', 'short_win', 'short_loss', 'break_even'
+- `comment`: string, requerido, no vacío, max 2000 chars
+
+---
+
+### `src/repositories/backtest.repository.js`
+
+Queries SQL parametrizadas. Métodos necesarios:
+
+```js
+// Sesiones
+findAllByUser(userId)           // lista todas las sesiones del usuario con contador de trades
+findById(id, userId)            // sesión con sus trades
+create(data)                    // insertar sesión nueva
+closeSession(id, userId, data)  // actualizar mood_end, closing_comment, closed_at
+findByIdRaw(id, userId)         // solo datos de la sesión sin trades (para precarga de continuación)
+
+// Trades
+addTrade(sessionId, data)       // insertar trade en sesión
+deleteTrade(tradeId, sessionId) // eliminar trade (por si el usuario se equivoca)
+```
+
+**Query importante para `findAllByUser`** — debe traer por cada sesión:
+- Todos los campos de `backtest_sessions`
+- Nombre de la sesión padre si existe (JOIN a sí misma): `parent_session_id`, `parent.symbol`, `parent.period_date`
+- Contadores: total de trades, cuántos de cada tipo (long_win, long_loss, short_win, short_loss, break_even)
+- Calcular win_rate: (long_win + short_win) / total * 100
+
+Ejemplo de la query de lista:
+```sql
+SELECT 
+  s.*,
+  p.symbol AS parent_symbol,
+  p.period_date AS parent_period_date,
+  COUNT(t.id) AS total_trades,
+  COUNT(t.id) FILTER (WHERE t.result = 'long_win') AS long_wins,
+  COUNT(t.id) FILTER (WHERE t.result = 'long_loss') AS long_losses,
+  COUNT(t.id) FILTER (WHERE t.result = 'short_win') AS short_wins,
+  COUNT(t.id) FILTER (WHERE t.result = 'short_loss') AS short_losses,
+  COUNT(t.id) FILTER (WHERE t.result = 'break_even') AS break_evens,
+  ROUND(
+    COUNT(t.id) FILTER (WHERE t.result IN ('long_win', 'short_win'))::numeric /
+    NULLIF(COUNT(t.id), 0) * 100, 1
+  ) AS win_rate
+FROM backtest_sessions s
+LEFT JOIN backtest_sessions p ON s.parent_session_id = p.id
+LEFT JOIN backtest_trades t ON t.session_id = s.id
+WHERE s.user_id = $1
+GROUP BY s.id, p.symbol, p.period_date
+ORDER BY s.created_at DESC
+```
+
+---
+
+### `src/services/backtest.service.js`
+
+Lógica de negocio:
+
+**createSession(userId, data):**
+- Si viene `parent_session_id`, verificar que esa sesión pertenece al mismo usuario. Si no pertenece → error 403.
+- Si viene `parent_session_id`, verificar que la sesión padre esté cerrada (`closed_at` no null). Si está activa → error 400 con mensaje "Debes cerrar la sesión anterior antes de crear una continuación".
+- Insertar la sesión nueva.
+
+**closeSession(userId, sessionId, data):**
+- Verificar que la sesión existe y pertenece al usuario.
+- Verificar que `closed_at` sea null (no está ya cerrada). Si ya está cerrada → error 400.
+- Actualizar con `closed_at = NOW()`, `mood_end_score`, `mood_end_comment`, `closing_comment`.
+
+**addTrade(userId, sessionId, data):**
+- Verificar que la sesión existe y pertenece al usuario.
+- Verificar que la sesión esté activa (`closed_at` es null). Si está cerrada → error 400 con mensaje "No puedes agregar trades a una sesión cerrada".
+- Insertar el trade.
+
+**deleteTrade(userId, tradeId):**
+- Verificar que el trade existe y que su sesión pertenece al usuario.
+- Verificar que la sesión esté activa. Si está cerrada → error 400.
+- Eliminar el trade.
+
+**getSessionForContinuation(userId, sessionId):**
+- Devuelve símbolo, timeframe y period_date de la sesión para precargar en el formulario de nueva sesión.
+
+---
+
+### `src/controllers/backtest.controller.js`
+
+Controllers thin que delegan al service. Patrón idéntico a los controllers existentes en el proyecto.
+
+---
+
+### `src/routes/backtest.routes.js`
+
+Todas las rutas requieren el middleware `authenticate` existente.
+
+```
+GET    /api/backtest/sessions                        → listar sesiones del usuario
+POST   /api/backtest/sessions                        → crear sesión
+GET    /api/backtest/sessions/:id                    → obtener sesión con sus trades
+PATCH  /api/backtest/sessions/:id/close              → cerrar sesión
+GET    /api/backtest/sessions/:id/continuation-data  → datos para precargar continuación
+
+POST   /api/backtest/sessions/:id/trades             → agregar trade a sesión activa
+DELETE /api/backtest/trades/:tradeId                 → eliminar trade
+```
+
+---
+
+### `src/server.js`
+
+Registrar las nuevas rutas:
+```js
+import backtestRoutes from './routes/backtest.routes.js'
+app.use('/api/backtest', backtestRoutes)
+```
+
+---
+
+## Shapes de respuesta de la API
+
+### GET /api/backtest/sessions — lista
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 3,
+      "symbol": "BTCUSDT",
+      "timeframe": "1m",
+      "period_date": "2024-11-15",
+      "mood_start_score": 4,
+      "mood_start_comment": "Descansado, enfocado",
+      "mood_end_score": 3,
+      "mood_end_comment": null,
+      "closing_comment": "Buena sesión, proyecciones funcionaron bien",
+      "closed_at": "2026-02-20T15:30:00Z",
+      "parent_session_id": 2,
+      "parent_symbol": "BTCUSDT",
+      "parent_period_date": "2024-11-14",
+      "is_continuation": true,
+      "total_trades": 12,
+      "long_wins": 4,
+      "long_losses": 2,
+      "short_wins": 3,
+      "short_losses": 2,
+      "break_evens": 1,
+      "win_rate": 58.3,
+      "created_at": "2026-02-20T10:00:00Z"
+    }
+  ]
+}
+```
+
+### GET /api/backtest/sessions/:id — detalle con trades
+
 ```json
 {
   "success": true,
   "data": {
-    "id": 1,
-    "name": "Mi sistema principal",
-    "description": "...",
-    "signals": [
-      { "id": 1, "name": "RSI Divergencia", "uses_scale": false },
-      { "id": 2, "name": "Proyecciones", "uses_scale": true },
-      { "id": 3, "name": "MACD Divergencia", "uses_scale": false }
+    "id": 3,
+    "symbol": "BTCUSDT",
+    "timeframe": "1m",
+    "period_date": "2024-11-15",
+    "mood_start_score": 4,
+    "mood_start_comment": "Descansado, enfocado",
+    "mood_end_score": 3,
+    "mood_end_comment": null,
+    "closing_comment": "Buena sesión",
+    "closed_at": "2026-02-20T15:30:00Z",
+    "parent_session_id": 2,
+    "is_continuation": true,
+    "total_trades": 3,
+    "long_wins": 1,
+    "long_losses": 1,
+    "short_wins": 1,
+    "short_losses": 0,
+    "break_evens": 0,
+    "win_rate": 66.7,
+    "trades": [
+      {
+        "id": 101,
+        "result": "long_win",
+        "comment": "Proyección clara, entrada limpia en el retroceso",
+        "created_at": "2026-02-20T10:15:00Z"
+      },
+      {
+        "id": 102,
+        "result": "long_loss",
+        "comment": "Entré antes de confirmación, impaciencia",
+        "created_at": "2026-02-20T11:00:00Z"
+      }
     ],
-    "created_at": "..."
+    "created_at": "2026-02-20T10:00:00Z"
   }
-}
-```
-
-### Respuesta al obtener un trade (shape modificado)
-El trade existente agrega:
-```json
-{
-  "primary_system_id": 1,
-  "secondary_system_id": null,
-  "primary_system": {
-    "id": 1,
-    "name": "Mi sistema principal",
-    "signals_present": [
-      { "signal_id": 1, "name": "RSI Divergencia", "uses_scale": false, "value": 1 },
-      { "signal_id": 2, "name": "Proyecciones", "uses_scale": true, "value": 3 }
-    ]
-  },
-  "secondary_system": null,
-  "timeframes": ["1m", "4h"]
 }
 ```
 
 ---
 
-## Frontend — nuevos archivos y modificaciones
+## Frontend — archivos nuevos y modificaciones
 
-### Nueva página de configuración
-`src/pages/Settings.jsx` — página accesible desde el header con dos secciones:
+### Nuevas rutas en App.jsx
 
-**Sección "Mis sistemas":**
-- Lista de sistemas existentes del usuario
-- Botón crear nuevo sistema → abre modal
-- Cada sistema muestra nombre, número de señales, opción de editar nombre y archivar
-- Al archivar: confirmación indicando que los trades históricos se mantienen
+```
+/backtest                → BacktestList.jsx  (lista de sesiones)
+/backtest/new            → BacktestSession.jsx (crear sesión nueva)
+/backtest/:id            → BacktestSession.jsx (sesión activa o ver detalle)
+/backtest/:id/continue   → BacktestNew.jsx (crear continuación con datos precargados)
+```
 
-**Modal crear sistema:**
-- Campo nombre del sistema
-- Campo descripción opcional
-- Sección señales: lista dinámica donde el usuario agrega señales una por una
-- Cada señal tiene: input nombre + toggle "usar escala"
-- Mínimo 1 señal requerida
-- Mensaje de advertencia visible: *"Una vez creado el sistema no podrás agregar ni eliminar señales. Define todas las señales antes de continuar."*
-- Botón agregar señal / botón eliminar señal (solo disponible antes de guardar)
+Todas dentro de `ProtectedRoute` existente.
 
-**Sección "Mis timeframes":**
-- Lista simple de timeframes existentes
-- Input para agregar nuevo timeframe
-- Opción de eliminar (si no tiene trades asociados)
-- Drag para reordenar (sort_order)
+---
 
-### Modificaciones al formulario de trade existente
-`src/components/trades/CreateTradeForm.jsx` — agregar al final del formulario existente, sin tocar nada de lo actual:
+### Nuevos archivos frontend
 
-Un enlace o botón pequeño y discreto: **"+ Agregar análisis técnico"**
+```
+frontend/src/
+  pages/
+    Backtest.jsx              -- lista de sesiones
+    BacktestSession.jsx       -- vista de sesión activa y detalle
+  components/backtest/
+    BacktestSessionCard.jsx   -- card en la lista
+    BacktestTradeButton.jsx   -- los 5 botones de resultado
+    BacktestTradeList.jsx     -- lista de trades dentro de sesión
+    BacktestTradeItem.jsx     -- un trade individual
+    BacktestMoodSelector.jsx  -- selector de escala 1-5 + comentario opcional
+    BacktestCloseModal.jsx    -- modal para cerrar sesión
+    BacktestNewSessionForm.jsx -- formulario crear sesión
+  hooks/
+    useBacktest.js            -- React Query hooks
+  api/
+    (agregar funciones en endpoints.js existente)
+```
 
-Al hacer click despliega con animación suave una sección con:
-- Select de sistema principal (carga los sistemas del usuario)
-- Al seleccionar sistema, aparecen sus señales como checkboxes (si booleana) o select débil/media/fuerte/importante (si usa escala)
-- Select múltiple de timeframes (carga los timeframes del usuario)
-- Enlace pequeño: **"+ Sistema secundario"** que despliega otro bloque igual pero para el sistema secundario
+---
 
-Si el usuario no toca este enlace, el trade se guarda exactamente igual que hoy.
+### `src/pages/Backtest.jsx` — Lista de sesiones
 
-Si el usuario despliega la sección pero no selecciona sistema, no se guarda nada de análisis técnico.
+Vista principal del módulo. Muestra:
 
-### Modificaciones a TradeRow y TradeTable
-`src/components/trades/TradeRow.jsx` — si el trade tiene sistema principal, mostrar un badge pequeño con el nombre del sistema. Nada más en la tabla para no saturar.
+- Botón prominente "Nueva sesión" que lleva a `/backtest/new`
+- Lista de sesiones ordenadas por fecha de creación descendente
+- Cada card muestra:
+  - Símbolo + Timeframe + Fecha del período
+  - Badge "Continuación" si `is_continuation = true` con referencia visual a la sesión padre
+  - Marcador: W/L/BE (ej: 7W · 3L · 1BE)
+  - Win rate en porcentaje
+  - Estado: badge "Activa" (verde) o fecha de cierre
+  - Estado anímico inicio y fin como iconos o números simples
+- Click en la card navega a `/backtest/:id`
 
-### Nuevos hooks
-`src/hooks/useSystems.js` — React Query hooks para CRUD de sistemas
-`src/hooks/useTimeframes.js` — React Query hooks para CRUD de timeframes
+---
 
-### Nuevos endpoints en frontend
-`src/api/endpoints.js` — agregar funciones para systems y timeframes siguiendo el patrón existente
+### `src/pages/BacktestSession.jsx` — Sesión activa y detalle
 
-### Navegación
-`src/components/layout/Header.jsx` — agregar enlace a Settings en el menú de usuario existente (UserMenu.jsx), no en la navegación principal para no saturar
+Esta página sirve para dos usos: registrar trades en tiempo real (sesión activa) y ver el historial (sesión cerrada). Determina el modo según `closed_at`.
+
+**Modo activo (sesión abierta):**
+
+Header con símbolo, timeframe, fecha, estado anímico de inicio y marcador en tiempo real (se actualiza con cada trade registrado).
+
+Sección central con los 5 botones grandes y bien diferenciados visualmente:
+- **Long Win** — color verde
+- **Long Loss** — color rojo
+- **Short Win** — color azul/verde
+- **Short Loss** — color naranja/rojo
+- **Break Even** — color gris/amarillo
+
+Al hacer click en cualquier botón se abre un modal o un área inline que muestra:
+- El tipo seleccionado (ej: "Long Win")
+- Textarea para el comentario — obligatorio, no puede enviarse vacío
+- Botón confirmar / cancelar
+
+Al confirmar, el trade se agrega a la lista de trades debajo y los contadores se actualizan inmediatamente (optimistic update con React Query).
+
+Botón "Cerrar sesión" que abre `BacktestCloseModal.jsx`.
+
+Listado de trades registrados en la sesión en orden cronológico, cada uno mostrando tipo (con badge de color), comentario y hora.
+
+**Modo detalle (sesión cerrada):**
+
+Misma estructura pero sin los botones de registro. Muestra estado anímico inicio y fin, comentario de cierre, y el listado completo de trades. Botón "Continuar sesión" que lleva a `/backtest/:id/continue`.
+
+---
+
+### `src/components/backtest/BacktestCloseModal.jsx`
+
+Modal que aparece al presionar "Cerrar sesión". Contiene:
+- Estado anímico final: `BacktestMoodSelector` (escala 1-5 obligatoria + comentario opcional)
+- Textarea comentario de cierre — obligatorio, no puede estar vacío
+- Botón "Cerrar sesión" — llama a PATCH /:id/close
+- Botón cancelar
+
+---
+
+### `src/components/backtest/BacktestMoodSelector.jsx`
+
+Componente reutilizable para seleccionar estado anímico. Muestra:
+- 5 botones o círculos numerados del 1 al 5, visualmente diferenciados (rojo → amarillo → verde)
+- Textarea opcional para comentario libre
+- Se usa en el formulario de nueva sesión (inicio) y en el modal de cierre (fin)
+
+---
+
+### `src/pages/BacktestNew.jsx` — Formulario nueva sesión / continuación
+
+Formulario para crear sesión. Si viene de una continuación (`/backtest/:id/continue`), primero hace GET a `/api/backtest/sessions/:id/continuation-data` y precarga los campos.
+
+Campos:
+- Símbolo — texto, uppercase automático
+- Timeframe — select con opciones: 1S, 5S, 10S, 30S, 1m, 2m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w
+- Fecha del período histórico — date picker
+- Estado anímico inicial — `BacktestMoodSelector`
+- Campo oculto `parent_session_id` si es continuación
+
+Si es continuación, mostrar banner informativo: "Continuación de la sesión del [fecha] — [símbolo]"
+
+Al guardar navega a `/backtest/:id` de la sesión recién creada.
+
+---
+
+### `src/hooks/useBacktest.js`
+
+React Query hooks siguiendo el patrón de `useTrades.js` existente. Keys factory:
+
+```js
+export const backtestKeys = {
+  all: ['backtest'],
+  sessions: () => [...backtestKeys.all, 'sessions'],
+  session: (id) => [...backtestKeys.all, 'sessions', id],
+}
+```
+
+Hooks necesarios:
+- `useSessions()` — GET lista
+- `useSession(id)` — GET detalle
+- `useCreateSession()` — POST, invalida lista al éxito
+- `useCloseSession()` — PATCH close, invalida sesión y lista
+- `useAddTrade(sessionId)` — POST trade, invalida sesión (actualiza contadores)
+- `useDeleteTrade()` — DELETE trade, invalida sesión
+
+Para `useAddTrade` implementar **optimistic update**: agregar el trade a la cache inmediatamente antes de que el servidor responda, revertir si hay error.
+
+---
+
+### `src/api/endpoints.js`
+
+Agregar al archivo existente las funciones del módulo backtesting:
+
+```js
+// Backtest
+export const getSessions = () => api.get('/backtest/sessions')
+export const getSession = (id) => api.get(`/backtest/sessions/${id}`)
+export const createSession = (data) => api.post('/backtest/sessions', data)
+export const closeSession = (id, data) => api.patch(`/backtest/sessions/${id}/close`, data)
+export const getContinuationData = (id) => api.get(`/backtest/sessions/${id}/continuation-data`)
+export const addBacktestTrade = (sessionId, data) => api.post(`/backtest/sessions/${sessionId}/trades`, data)
+export const deleteBacktestTrade = (tradeId) => api.delete(`/backtest/trades/${tradeId}`)
+```
+
+---
+
+### `src/components/layout/Header.jsx`
+
+Agregar enlace "Backtesting" en la navegación principal junto a los enlaces existentes (Home, Stats, etc.). Usar el mismo estilo visual que los enlaces actuales.
 
 ---
 
 ## Reglas de negocio que el backend debe enforcar
 
-1. **Inmutabilidad de señales**: Si se intenta POST a señales de un sistema ya creado → error 400 con mensaje *"Las señales de un sistema no pueden modificarse después de su creación"*
+1. **Comentario de trade obligatorio** — si `comment` viene vacío o solo espacios → error 400.
 
-2. **Soft delete de sistemas con trades**: Si el sistema tiene trades asociados → soft delete (deleted_at). Si no tiene trades → delete físico. En ambos casos responder success al frontend.
+2. **No agregar trades a sesión cerrada** — si `closed_at` no es null → error 400 con mensaje claro.
 
-3. **Señales de sistema archivado**: Al cargar el formulario de trade, no mostrar sistemas con deleted_at. Pero al mostrar un trade existente que usaba ese sistema, mostrar la info histórica correctamente.
+3. **Continuación solo de sesiones cerradas** — si `parent_session_id` apunta a una sesión activa → error 400 con mensaje "Cierra la sesión anterior antes de continuar".
 
-4. **Timeframe en uso**: Si se intenta eliminar un timeframe que tiene trades asociados → error 400 indicando cuántos trades lo usan.
+4. **Propiedad de sesiones** — todas las operaciones verifican que la sesión pertenece al `user_id` del JWT. Un usuario no puede ver, modificar ni agregar trades a sesiones de otro usuario.
 
-5. **Sistema secundario requiere primario**: Si viene secondary_system_id sin primary_system_id → error de validación.
+5. **Comentario de cierre obligatorio** — al cerrar sesión, si `closing_comment` viene vacío → error 400.
 
-6. **Señales pertenecen al sistema**: Validar que cada signal_id enviado en trade_signals efectivamente pertenece al system_id indicado. Prevenir que alguien envíe señales de otro sistema.
+6. **Sesión ya cerrada** — si se intenta cerrar una sesión que ya tiene `closed_at` → error 400.
 
----
-
-## Migraciones SQL necesarias
-
-Crear archivo `database/migration_systems.sql` con todo el DDL nuevo en orden:
-1. Crear tabla `systems`
-2. Crear tabla `signals`
-3. Crear tabla `user_timeframes`
-4. Crear tabla `trade_signals`
-5. Crear tabla `trade_timeframes`
-6. ALTER TABLE trades para agregar las dos columnas nuevas
-7. Índices: `idx_systems_user_id`, `idx_signals_system_id`, `idx_trade_signals_trade_id`, `idx_user_timeframes_user_id`
+7. **Eliminar trade de sesión cerrada** — no permitido → error 400.
 
 ---
 
 ## Lo que NO debe cambiar
 
-- El flujo actual de crear un trade funciona igual si no se usa la nueva sección
-- La tabla de trades no cambia visualmente salvo el badge de sistema
-- La autenticación, el CSV import, el upload de imágenes y las estadísticas actuales no se tocan
-- El estilo visual sigue siendo el mismo — la nueva UI debe sentirse parte del mismo diseño
+- El journal de trades existente no se toca en absoluto
+- Las estadísticas actuales no incluyen datos de backtesting
+- La autenticación, CSV import, upload de imágenes y todas las funciones actuales quedan intactas
+- El estilo visual del módulo nuevo debe ser coherente con el diseño actual del proyecto (Tailwind, mismo esquema de colores, mismos componentes comunes como Button, Modal, Input, Toast)
 
 ---
 
 ## Orden de implementación recomendado
 
-1. Migration SQL
-2. Repository de systems
-3. Service y controller de systems
-4. Rutas de systems registradas en server.js
-5. Modificar trade repository y service para persistir signals y timeframes
-6. Página Settings en frontend con gestión de sistemas y timeframes
-7. Modificar CreateTradeForm con la sección colapsable
-8. Modificar TradeRow para mostrar badge
-9. Probar flujo completo end to end
-
-
-
-
-
-  Resumen de cambios                                                           
-                                                                                                                                                                                                                                                              
-  Base de datos                                                                                                                                                                                                                                               
-                                                                                                                                                                                                                                                              
-  - database/migration_systems.sql — 5 tablas nuevas (systems, signals, user_timeframes, trade_signals, trade_timeframes) + ALTER TABLE trades para añadir primary_system_id / secondary_system_id + índices.                                                 
-                                                                                                                                                                                                                                                              
-  Backend (7 archivos)
-
-  ┌───────────────────────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │                Archivo                │                                                       Cambio                                                       │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/validators/system.validator.js    │ Nuevo — schemas Joi para crear sistema, editar nombre, crear timeframe                                             │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/repositories/system.repository.js │ Nuevo — todas las queries de sistemas, señales, timeframes y trade_signals                                         │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/services/system.service.js        │ Nuevo — lógica de negocio (soft-delete vs hard-delete según trades, validación timeframe en uso)                   │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/controllers/system.controller.js  │ Nuevo — controllers delgados para systems y timeframes                                                             │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/routes/system.routes.js           │ Nuevo — GET/POST /systems, GET/PATCH/DELETE /systems/:id, GET/POST/DELETE /timeframes                              │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/server.js                         │ Registra systemRoutes en /api                                                                                      │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/models/trade.model.js             │ Añade primary_system_id y secondary_system_id a TRADE_FIELDS                                                       │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/repositories/trade.repository.js  │ create/update/findById/findAll enriquecen trades con señales y timeframes                                          │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/services/trade.service.js         │ Valida que señales pertenecen al sistema antes de guardar                                                          │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/controllers/trade.controller.js   │ Parsea campos JSON (arrays) que llegan via FormData                                                                │
-  ├───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/validators/trade.validator.js     │ Añade campos opcionales: primary_system_id, secondary_system_id, primary_signals, secondary_signals, timeframe_ids │
-  └───────────────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-
-  Frontend (8 archivos)
-
-  ┌───────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────────────────────┐
-  │                  Archivo                  │                                            Cambio                                            │
-  ├───────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/api/endpoints.js                      │ Añade endpoints de systems y timeframes; serializa arrays como JSON en FormData              │
-  ├───────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/hooks/useSystems.js                   │ Nuevo — hooks React Query para CRUD de sistemas                                              │
-  ├───────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/hooks/useTimeframes.js                │ Nuevo — hooks React Query para CRUD de timeframes                                            │
-  ├───────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/pages/Settings.jsx                    │ Nueva página — gestión de sistemas (crear/editar nombre/archivar) y timeframes               │
-  ├───────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/App.jsx                               │ Añade ruta /settings protegida                                                               │
-  ├───────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/components/auth/UserMenu.jsx          │ Añade enlace "Configuración" al menú de usuario                                              │
-  ├───────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/components/trades/CreateTradeForm.jsx │ Sección colapsable "Agregar análisis técnico" con selección de sistema, señales y timeframes │
-  ├───────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ src/components/trades/TradeRow.jsx        │ Badge del sistema primario debajo del símbolo                                                │
-  └───────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────────────────────┘
-
-  El flujo existente no cambia en absoluto — si el usuario no toca la sección de análisis, el trade se guarda exactamente igual que antes.
-
+1. `database/migration_backtesting.sql` — ejecutar en la DB
+2. `backtest.repository.js` — todas las queries
+3. `backtest.service.js` — lógica de negocio con todas las validaciones
+4. `backtest.controller.js` — thin controllers
+5. `backtest.routes.js` — rutas con authenticate
+6. Registrar rutas en `server.js`
+7. Probar todos los endpoints con curl o Postman antes de tocar el frontend
+8. Agregar funciones en `endpoints.js` del frontend
+9. `useBacktest.js` — hooks de React Query
+10. `BacktestMoodSelector.jsx` — componente base reutilizable
+11. `BacktestNew.jsx` — formulario de creación
+12. `BacktestSession.jsx` — vista de sesión activa y detalle
+13. `BacktestCloseModal.jsx` — modal de cierre
+14. `Backtest.jsx` — lista de sesiones
+15. Agregar rutas en `App.jsx`
+16. Agregar enlace en `Header.jsx`
+17. Prueba end to end del flujo completo: crear → registrar trades → cerrar → crear continuación

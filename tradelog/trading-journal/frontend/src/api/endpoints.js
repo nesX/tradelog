@@ -181,6 +181,18 @@ export const createTimeframe = async (data) => apiClient.post('/api/timeframes',
 export const deleteTimeframe = async (id) => apiClient.delete(`/api/timeframes/${id}`);
 
 // ==================
+// BACKTEST
+// ==================
+
+export const getSessions = () => apiClient.get('/api/backtest/sessions');
+export const getSession = (id) => apiClient.get(`/api/backtest/sessions/${id}`);
+export const createSession = (data) => apiClient.post('/api/backtest/sessions', data);
+export const closeSession = (id, data) => apiClient.patch(`/api/backtest/sessions/${id}/close`, data);
+export const getContinuationData = (id) => apiClient.get(`/api/backtest/sessions/${id}/continuation-data`);
+export const addBacktestTrade = (sessionId, data) => apiClient.post(`/api/backtest/sessions/${sessionId}/trades`, data);
+export const deleteBacktestTrade = (tradeId) => apiClient.delete(`/api/backtest/trades/${tradeId}`);
+
+// ==================
 // STATS
 // ==================
 

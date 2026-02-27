@@ -57,13 +57,22 @@ export class DatabaseError extends AppError {
  */
 export const errorHandler = (err, req, res, next) => {
   // Log del error
-  logger.error('Error capturado', {
+  const logPayload = {
     message: err.message,
     code: err.code,
-    stack: err.stack,
     url: req.url,
     method: req.method,
-  });
+  };
+
+  // Para errores de validación loguear los campos que fallaron y el body recibido
+  if (err instanceof ValidationError && err.details?.length > 0) {
+    logPayload.validationDetails = err.details;
+    logPayload.requestBody = req.body;
+  } else {
+    logPayload.stack = err.stack;
+  }
+
+  logger.error('Error capturado', logPayload);
 
   // Si es un error operacional (controlado)
   if (err.isOperational) {

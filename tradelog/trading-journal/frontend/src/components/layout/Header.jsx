@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, BarChart3, Plus, Moon, Sun } from 'lucide-react';
+import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext.jsx';
 import UserMenu from '../auth/UserMenu.jsx';
 
@@ -13,6 +13,7 @@ const Header = () => {
   const navItems = [
     { path: '/', label: 'Trades', icon: TrendingUp },
     { path: '/stats', label: 'Estadísticas', icon: BarChart3 },
+    { path: '/backtest', label: 'Backtesting', icon: FlaskConical },
     { path: '/create', label: 'Nuevo Trade', icon: Plus },
   ];
 
@@ -33,7 +34,9 @@ const Header = () => {
           {/* Navegación */}
           <nav className="flex items-center space-x-1">
             {navItems.map(({ path, label, icon: Icon }) => {
-              const isActive = location.pathname === path;
+              const isActive = path === '/'
+                ? location.pathname === path
+                : location.pathname === path || location.pathname.startsWith(path + '/');
 
               return (
                 <Link
