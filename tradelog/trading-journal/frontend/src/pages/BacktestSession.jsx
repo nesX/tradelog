@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, GitBranch, Lock } from 'lucide-react';
-import { useSession, useAddTrade, useDeleteTrade, useCloseSession } from '../hooks/useBacktest.js';
+import { ArrowLeft, GitBranch, Lock, Camera, X } from 'lucide-react';
+import { useSession, useAddTrade, useDeleteTrade, useCloseSession, useDeleteTradeImage } from '../hooks/useBacktest.js';
 import BacktestTradeButton, { RESULT_KEYS, getResultConfig } from '../components/backtest/BacktestTradeButton.jsx';
 import BacktestTradeList from '../components/backtest/BacktestTradeList.jsx';
 import BacktestCloseModal from '../components/backtest/BacktestCloseModal.jsx';
@@ -27,11 +27,29 @@ const StatBadge = ({ value, label, colorClass }) => (
 // Área de comentario inline tras hacer click en un botón de resultado
 const TradeCommentArea = ({ result, onConfirm, onCancel, isLoading }) => {
   const [comment, setComment] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
   const config = getResultConfig(result);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const handleConfirm = () => {
     if (!comment.trim()) return;
-    onConfirm({ result, comment: comment.trim() });
+    onConfirm({ result, comment: comment.trim(), imageFile: imageFile || undefined });
   };
 
   return (
@@ -54,6 +72,39 @@ const TradeCommentArea = ({ result, onConfirm, onCancel, isLoading }) => {
         rows={3}
         className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
       />
+
+      {/* Adjuntar captura */}
+      <div className="flex items-center gap-3">
+        {imagePreview ? (
+          <div className="relative inline-block">
+            <img
+              src={imagePreview}
+              alt="Captura seleccionada"
+              className="h-16 w-16 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+            />
+            <button
+              type="button"
+              onClick={removeImage}
+              className="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ) : (
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Camera className="w-3.5 h-3.5" />
+            Adjuntar captura (opcional)
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleImageChange}
+              className="hidden"
+            />
+          </label>
+        )}
+      </div>
+
       <p className="text-xs text-gray-400 dark:text-gray-500">Ctrl+Enter para confirmar · Esc para cancelar</p>
       <div className="flex gap-2">
         <button
@@ -85,6 +136,7 @@ const BacktestSession = () => {
   const { data: session, isLoading, isError } = useSession(sessionId);
   const addTrade = useAddTrade(sessionId);
   const deleteTrade = useDeleteTrade();
+  const deleteTradeImage = useDeleteTradeImage(sessionId);
   const closeSession = useCloseSession();
 
   const [selectedResult, setSelectedResult] = useState(null);
@@ -131,6 +183,13 @@ const BacktestSession = () => {
         onError: (err) => toast.error(err?.error?.message || 'Error al eliminar'),
       }
     );
+  };
+
+  const handleDeleteTradeImage = (tradeId) => {
+    deleteTradeImage.mutate(tradeId, {
+      onSuccess: () => toast.success('Imagen eliminada'),
+      onError: (err) => toast.error(err?.error?.message || 'Error al eliminar la imagen'),
+    });
   };
 
   const handleCloseSession = (data) => {
@@ -298,6 +357,7 @@ const BacktestSession = () => {
         <BacktestTradeList
           trades={session.trades || []}
           onDelete={handleDeleteTrade}
+          onDeleteImage={handleDeleteTradeImage}
           canDelete={isActive}
         />
       </div>

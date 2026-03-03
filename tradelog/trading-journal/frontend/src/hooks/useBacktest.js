@@ -50,7 +50,7 @@ export const useCloseSession = () => {
 export const useAddTrade = (sessionId) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data) => api.addBacktestTrade(sessionId, data),
+    mutationFn: ({ imageFile, ...data }) => api.addBacktestTrade(sessionId, data, imageFile),
     onMutate: async (newTrade) => {
       await queryClient.cancelQueries({ queryKey: backtestKeys.session(sessionId) });
       const previous = queryClient.getQueryData(backtestKeys.session(sessionId));
@@ -61,6 +61,7 @@ export const useAddTrade = (sessionId) => {
           id: Date.now(),
           result: newTrade.result,
           comment: newTrade.comment,
+          image_filename: null,
           created_at: new Date().toISOString(),
           _optimistic: true,
         };
@@ -77,6 +78,16 @@ export const useAddTrade = (sessionId) => {
       }
     },
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: backtestKeys.session(sessionId) });
+    },
+  });
+};
+
+export const useDeleteTradeImage = (sessionId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tradeId) => api.deleteBacktestTradeImage(tradeId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: backtestKeys.session(sessionId) });
     },
   });

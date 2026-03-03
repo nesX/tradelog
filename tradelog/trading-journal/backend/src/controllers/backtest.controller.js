@@ -54,7 +54,7 @@ export const getContinuationData = async (req, res, next) => {
 
 export const addTrade = async (req, res, next) => {
   try {
-    const trade = await service.addTrade(req.user.id, parseInt(req.params.id, 10), req.body);
+    const trade = await service.addTrade(req.user.id, parseInt(req.params.id, 10), req.body, req.file);
     sendCreated(res, trade, 'Trade registrado');
   } catch (error) {
     logger.error('BacktestController:addTrade', { error: error.message, userId: req.user?.id, sessionId: req.params.id });
@@ -68,6 +68,16 @@ export const deleteTrade = async (req, res, next) => {
     sendDeleted(res, 'Trade eliminado');
   } catch (error) {
     logger.error('BacktestController:deleteTrade', { error: error.message, userId: req.user?.id, tradeId: req.params.tradeId });
+    next(error);
+  }
+};
+
+export const deleteTradeImage = async (req, res, next) => {
+  try {
+    await service.deleteTradeImage(req.user.id, parseInt(req.params.tradeId, 10));
+    sendSuccess(res, null, 'Imagen eliminada');
+  } catch (error) {
+    logger.error('BacktestController:deleteTradeImage', { error: error.message, userId: req.user?.id, tradeId: req.params.tradeId });
     next(error);
   }
 };

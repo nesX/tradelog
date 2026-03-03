@@ -1,6 +1,6 @@
 import BacktestTradeItem from './BacktestTradeItem.jsx';
 
-const BacktestTradeList = ({ trades = [], onDelete, canDelete = false }) => {
+const BacktestTradeList = ({ trades = [], onDelete, onDeleteImage, canDelete = false }) => {
   if (trades.length === 0) {
     return (
       <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-6">
@@ -16,6 +16,7 @@ const BacktestTradeList = ({ trades = [], onDelete, canDelete = false }) => {
           key={trade.id}
           trade={trade}
           onDelete={onDelete}
+          onDeleteImage={onDeleteImage}
           canDelete={canDelete}
         />
       ))}

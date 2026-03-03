@@ -1,7 +1,8 @@
-import { Trash2 } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
+import ImageViewer from '../common/ImageViewer.jsx';
 import { getResultConfig } from './BacktestTradeButton.jsx';
 
-const BacktestTradeItem = ({ trade, onDelete, canDelete = false }) => {
+const BacktestTradeItem = ({ trade, onDelete, onDeleteImage, canDelete = false }) => {
   const config = getResultConfig(trade.result);
   const time = new Date(trade.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 
@@ -15,6 +16,25 @@ const BacktestTradeItem = ({ trade, onDelete, canDelete = false }) => {
       <div className="flex-1 min-w-0">
         <p className="text-sm text-gray-700 dark:text-gray-200 break-words">{trade.comment}</p>
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{time}</p>
+        {trade.image_filename && !trade._optimistic && (
+          <div className="mt-1.5 relative inline-block">
+            <ImageViewer
+              images={[{ filename: trade.image_filename }]}
+              alt="Captura del trade"
+              thumbnailSize="h-14 w-14"
+            />
+            {canDelete && onDeleteImage && (
+              <button
+                type="button"
+                onClick={() => onDeleteImage(trade.id)}
+                className="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition-colors"
+                title="Eliminar imagen"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
       {canDelete && (
         <button

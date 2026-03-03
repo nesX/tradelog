@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Filter, X } from 'lucide-react';
 import Input from '../common/Input.jsx';
+import DateInput from '../common/DateInput.jsx';
 import Select from '../common/Select.jsx';
 import Button from '../common/Button.jsx';
 import { useSymbols } from '../../hooks/useTrades.js';
@@ -142,8 +143,7 @@ const TradeFilters = ({ filters, onFiltersChange }) => {
       {showAdvanced && (
         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-3">
           <div className="w-48">
-            <Input
-              type="date"
+            <DateInput
               label="Fecha desde"
               value={localFilters.dateFrom || ''}
               onChange={(e) => handleChange('dateFrom', e.target.value)}
@@ -151,8 +151,7 @@ const TradeFilters = ({ filters, onFiltersChange }) => {
           </div>
 
           <div className="w-48">
-            <Input
-              type="date"
+            <DateInput
               label="Fecha hasta"
               value={localFilters.dateTo || ''}
               onChange={(e) => handleChange('dateTo', e.target.value)}

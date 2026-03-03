@@ -1,5 +1,8 @@
+import path from 'path';
+import { unlink } from 'fs/promises';
 import * as repo from '../repositories/backtest.repository.js';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
+import { config } from '../config/env.js';
 
 // ==================
 // SESIONES
@@ -88,7 +91,7 @@ export const getSessionForContinuation = async (userId, sessionId) => {
 /**
  * Agrega un trade a una sesión activa
  */
-export const addTrade = async (userId, sessionId, data) => {
+export const addTrade = async (userId, sessionId, data, file = null) => {
   const session = await repo.findByIdRaw(sessionId, userId);
   if (!session) {
     throw new NotFoundError('Sesión no encontrada');
@@ -99,8 +102,16 @@ export const addTrade = async (userId, sessionId, data) => {
     ]);
   }
 
-  const trade = await repo.addTrade(sessionId, data);
-  return trade;
+  const tradeData = { ...data };
+  if (file) {
+    tradeData.image_filename = file.filename;
+    tradeData.image_original_name = file.originalname;
+    tradeData.image_file_size = file.size;
+    tradeData.image_mime_type = file.mimetype;
+  }
+
+  const trade = await repo.addTrade(sessionId, tradeData);
+  return formatTrade(trade);
 };
 
 /**
@@ -117,7 +128,32 @@ export const deleteTrade = async (userId, tradeId) => {
     ]);
   }
 
+  if (trade.image_filename) {
+    await deleteImageFile(trade.image_filename);
+  }
+
   await repo.deleteTrade(tradeId, trade.session_id);
+};
+
+/**
+ * Elimina solo la imagen de un trade (sin eliminar el trade)
+ */
+export const deleteTradeImage = async (userId, tradeId) => {
+  const trade = await repo.findTradeWithSession(tradeId, userId);
+  if (!trade) {
+    throw new NotFoundError('Trade no encontrado');
+  }
+  if (trade.session_closed_at) {
+    throw new ValidationError('No puedes modificar trades de una sesión cerrada', [
+      { field: 'trade_id', message: 'La sesión está cerrada' },
+    ]);
+  }
+  if (!trade.image_filename) {
+    throw new NotFoundError('Este trade no tiene imagen');
+  }
+
+  await deleteImageFile(trade.image_filename);
+  await repo.clearTradeImage(tradeId);
 };
 
 // ==================
@@ -150,12 +186,25 @@ const formatSession = (row) => ({
   created_at: row.created_at,
 });
 
+const formatTrade = (t) => ({
+  id: t.id,
+  result: t.result,
+  comment: t.comment,
+  image_filename: t.image_filename || null,
+  image_original_name: t.image_original_name || null,
+  created_at: t.created_at,
+});
+
 const formatSessionWithTrades = (row) => ({
   ...formatSession(row),
-  trades: (row.trades || []).map((t) => ({
-    id: t.id,
-    result: t.result,
-    comment: t.comment,
-    created_at: t.created_at,
-  })),
+  trades: (row.trades || []).map(formatTrade),
 });
+
+const deleteImageFile = async (filename) => {
+  try {
+    const filePath = path.join(config.upload.dir, filename);
+    await unlink(filePath);
+  } catch {
+    // Si el archivo ya no existe, no es un error crítico
+  }
+};

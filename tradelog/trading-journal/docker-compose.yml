@@ -1,0 +1,56 @@
+services:
+  # 1. Database Service (Postgres)
+  db:
+    image: postgres:16
+    container_name: tradelog-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - tradelog_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5  
+
+  # 2. Backend Service (Express API)
+  backend:
+    build: ./backend
+    container_name: tradelog-backend
+    restart: always
+    depends_on:
+        db:
+          condition: service_healthy # El backend esperará a que la base de datos esté lista antes de iniciar, de lo contrario arranca primero el backend y luego la base de datos, lo que puede causar errores de conexión.          
+    environment:
+    # This connects to the 'db' service using the same variables
+          DB_USER: ${DB_USER}
+          DB_PASSWORD: ${DB_PASSWORD}
+          DB_NAME: ${DB_NAME}
+          DB_HOST: db       # Aquí forzamos que el host sea el nombre del servicio
+          DB_PORT: 5432     # Puerto interno de Docker
+          UPLOAD_DIR: ${UPLOAD_DIR}
+          PORT: 3000
+    volumes:
+      - ./backend/uploads::/usr/src/app/${UPLOAD_DIR}
+    ports:
+      - "3000:3000"
+
+  # 3. Frontend Service (React/Vite)
+  frontend:
+    build: ./frontend
+    container_name: tradelog-frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    stdin_open: true
+    environment:
+      - VITE_API_URL=http://localhost:3000
+
+# This saves your database data even if the container stops
+volumes:
+  tradelog_db_data:

@@ -5,6 +5,7 @@ import { useCreateSession } from '../hooks/useBacktest.js';
 import { getContinuationData } from '../api/endpoints.js';
 import BacktestMoodSelector from '../components/backtest/BacktestMoodSelector.jsx';
 import { useToast } from '../components/common/Toast.jsx';
+import DateInput from '../components/common/DateInput.jsx';
 
 const TIMEFRAMES = [
   '1S', '5S', '10S', '30S',
@@ -148,18 +149,12 @@ const BacktestNew = () => {
         </div>
 
         {/* Fecha del período histórico */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Fecha del período histórico *
-          </label>
-          <input
-            type="date"
-            value={form.period_date}
-            onChange={(e) => setForm((p) => ({ ...p, period_date: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {errors.period_date && <p className="text-xs text-red-500">{errors.period_date}</p>}
-        </div>
+        <DateInput
+          label="Fecha del período histórico *"
+          value={form.period_date}
+          onChange={(e) => setForm((p) => ({ ...p, period_date: e.target.value }))}
+          error={errors.period_date}
+        />
 
         {/* Estado anímico inicial */}
         <BacktestMoodSelector

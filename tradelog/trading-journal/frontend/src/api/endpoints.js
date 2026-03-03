@@ -189,8 +189,20 @@ export const getSession = (id) => apiClient.get(`/api/backtest/sessions/${id}`);
 export const createSession = (data) => apiClient.post('/api/backtest/sessions', data);
 export const closeSession = (id, data) => apiClient.patch(`/api/backtest/sessions/${id}/close`, data);
 export const getContinuationData = (id) => apiClient.get(`/api/backtest/sessions/${id}/continuation-data`);
-export const addBacktestTrade = (sessionId, data) => apiClient.post(`/api/backtest/sessions/${sessionId}/trades`, data);
+export const addBacktestTrade = (sessionId, data, imageFile = null) => {
+  if (imageFile) {
+    const formData = new FormData();
+    formData.append('result', data.result);
+    formData.append('comment', data.comment);
+    formData.append('image', imageFile);
+    return apiClient.post(`/api/backtest/sessions/${sessionId}/trades`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+  return apiClient.post(`/api/backtest/sessions/${sessionId}/trades`, data);
+};
 export const deleteBacktestTrade = (tradeId) => apiClient.delete(`/api/backtest/trades/${tradeId}`);
+export const deleteBacktestTradeImage = (tradeId) => apiClient.delete(`/api/backtest/trades/${tradeId}/image`);
 
 // ==================
 // STATS

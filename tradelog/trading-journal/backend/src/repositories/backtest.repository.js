@@ -63,7 +63,7 @@ export const findById = async (id, userId) => {
   if (sessionResult.rows.length === 0) return null;
 
   const tradesSql = `
-    SELECT id, result, comment, created_at
+    SELECT id, result, comment, image_filename, image_original_name, created_at
     FROM backtest_trades
     WHERE session_id = $1
     ORDER BY created_at ASC
@@ -140,12 +140,37 @@ export const closeSession = async (id, userId, data) => {
  */
 export const addTrade = async (sessionId, data) => {
   const sql = `
-    INSERT INTO backtest_trades (session_id, result, comment)
-    VALUES ($1, $2, $3)
+    INSERT INTO backtest_trades
+      (session_id, result, comment, image_filename, image_original_name, image_file_size, image_mime_type)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
   `;
-  const result = await query(sql, [sessionId, data.result, data.comment]);
+  const params = [
+    sessionId,
+    data.result,
+    data.comment,
+    data.image_filename || null,
+    data.image_original_name || null,
+    data.image_file_size || null,
+    data.image_mime_type || null,
+  ];
+  const result = await query(sql, params);
   return result.rows[0];
+};
+
+/**
+ * Elimina la imagen de un trade (pone a NULL los campos de imagen)
+ */
+export const clearTradeImage = async (tradeId) => {
+  const sql = `
+    UPDATE backtest_trades
+    SET image_filename = NULL, image_original_name = NULL,
+        image_file_size = NULL, image_mime_type = NULL
+    WHERE id = $1
+    RETURNING *
+  `;
+  const result = await query(sql, [tradeId]);
+  return result.rows[0] || null;
 };
 
 /**
