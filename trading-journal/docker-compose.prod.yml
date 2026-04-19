@@ -1,0 +1,43 @@
+services:
+  backend:
+    user: "1000:1000"
+    build: ./backend
+    container_name: tradelog-backend
+    restart: always
+    env_file:
+      - ./.env.prod
+    environment:
+      # Sobreescriben el .env — el host debe ser el nombre del servicio Docker, no localhost
+      DB_HOST: postgres
+      DB_PORT: 5432
+      PORT: 3002
+      NODE_ENV: production
+      UPLOAD_DIR: uploads
+      LOG_DIR: logs
+    volumes:
+      - ${HOST_UPLOADS_DIR}:/usr/src/app/uploads
+      - ${HOST_LOGS_DIR}:/usr/src/app/logs
+    ports:
+      - "127.0.0.1:3002:3002"
+    networks:
+      - tradelog_internal
+      - market-tracker_internal  # red del postgres compartido - docker network ls | grep market # para saber el nombre exacto
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: /api        # relativo: nginx hace el proxy
+    container_name: tradelog-frontend
+    restart: always
+    ports:
+      - "127.0.0.1:5174:80"
+    networks:
+      - tradelog_internal
+
+networks:
+  tradelog_internal:
+    driver: bridge
+  market-tracker_internal:
+    external: true               # red interna del proyecto market-tracker (donde vive postgres)

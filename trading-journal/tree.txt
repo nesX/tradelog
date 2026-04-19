@@ -1,0 +1,149 @@
+.
+├── backend
+│   ├── Dockerfile
+│   ├── logs
+│   │   ├── combined.log
+│   │   └── error.log
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── src
+│   │   ├── config
+│   │   │   ├── database.js
+│   │   │   └── env.js
+│   │   ├── controllers
+│   │   │   ├── auth.controller.js
+│   │   │   ├── backtest.controller.js
+│   │   │   ├── stats.controller.js
+│   │   │   ├── system.controller.js
+│   │   │   └── trade.controller.js
+│   │   ├── middleware
+│   │   │   ├── auth.js
+│   │   │   ├── errorHandler.js
+│   │   │   ├── upload.js
+│   │   │   └── validation.js
+│   │   ├── models
+│   │   │   ├── trade.model.js
+│   │   │   └── user.model.js
+│   │   ├── repositories
+│   │   │   ├── backtest.repository.js
+│   │   │   ├── system.repository.js
+│   │   │   ├── trade.repository.js
+│   │   │   └── user.repository.js
+│   │   ├── routes
+│   │   │   ├── auth.routes.js
+│   │   │   ├── backtest.routes.js
+│   │   │   ├── stats.routes.js
+│   │   │   ├── system.routes.js
+│   │   │   └── trade.routes.js
+│   │   ├── server.js
+│   │   ├── services
+│   │   │   ├── auth.service.js
+│   │   │   ├── backtest.service.js
+│   │   │   ├── csvParser.service.js
+│   │   │   ├── stats.service.js
+│   │   │   ├── system.service.js
+│   │   │   └── trade.service.js
+│   │   ├── utils
+│   │   │   ├── fileUtils.js
+│   │   │   ├── logger.js
+│   │   │   └── response.js
+│   │   └── validators
+│   │       ├── auth.validator.js
+│   │       ├── backtest.validator.js
+│   │       ├── system.validator.js
+│   │       └── trade.validator.js
+│   └── tests
+├── database
+│   ├── indexes.sql
+│   ├── migration_20260130.sql
+│   ├── migration_auth.sql
+│   ├── migration_backtest_images.sql
+│   ├── migration_backtesting.sql
+│   ├── migration_backtesting_v2.sql
+│   ├── migration_post_analysis.sql
+│   ├── migration_systems.sql
+│   ├── schema.sql
+│   ├── seed.sql
+│   ├── triggers.sql
+│   └── views.sql
+├── docker-compose.yml
+├── frontend
+│   ├── Dockerfile
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── postcss.config.js
+│   ├── src
+│   │   ├── api
+│   │   │   ├── client.js
+│   │   │   └── endpoints.js
+│   │   ├── App.jsx
+│   │   ├── components
+│   │   │   ├── auth
+│   │   │   │   ├── ProtectedRoute.jsx
+│   │   │   │   └── UserMenu.jsx
+│   │   │   ├── backtest
+│   │   │   │   ├── BacktestCloseModal.jsx
+│   │   │   │   ├── BacktestMoodSelector.jsx
+│   │   │   │   ├── BacktestSessionCard.jsx
+│   │   │   │   ├── BacktestTradeButton.jsx
+│   │   │   │   ├── BacktestTradeItem.jsx
+│   │   │   │   └── BacktestTradeList.jsx
+│   │   │   ├── common
+│   │   │   │   ├── Button.jsx
+│   │   │   │   ├── DateInput.jsx
+│   │   │   │   ├── DateTimeInput.jsx
+│   │   │   │   ├── EmptyState.jsx
+│   │   │   │   ├── ImageViewer.jsx
+│   │   │   │   ├── Input.jsx
+│   │   │   │   ├── Loading.jsx
+│   │   │   │   ├── Modal.jsx
+│   │   │   │   ├── Select.jsx
+│   │   │   │   └── Toast.jsx
+│   │   │   ├── layout
+│   │   │   │   ├── Header.jsx
+│   │   │   │   └── Layout.jsx
+│   │   │   └── trades
+│   │   │       ├── CreateTradeForm.jsx
+│   │   │       ├── CSVImport.jsx
+│   │   │       ├── TradeFilters.jsx
+│   │   │       ├── TradeRow.jsx
+│   │   │       ├── TradeStats.jsx
+│   │   │       └── TradeTable.jsx
+│   │   ├── constants
+│   │   │   └── tradeConstants.js
+│   │   ├── contexts
+│   │   │   ├── AuthContext.jsx
+│   │   │   └── ThemeContext.jsx
+│   │   ├── hooks
+│   │   │   ├── useBacktest.js
+│   │   │   ├── useImageUpload.js
+│   │   │   ├── useStats.js
+│   │   │   ├── useSystems.js
+│   │   │   ├── useTimeframes.js
+│   │   │   └── useTrades.js
+│   │   ├── main.jsx
+│   │   ├── pages
+│   │   │   ├── Backtest.jsx
+│   │   │   ├── BacktestNew.jsx
+│   │   │   ├── BacktestSession.jsx
+│   │   │   ├── CreateTrade.jsx
+│   │   │   ├── Home.jsx
+│   │   │   ├── Login.jsx
+│   │   │   ├── Settings.jsx
+│   │   │   └── Stats.jsx
+│   │   ├── styles
+│   │   │   └── globals.css
+│   │   └── utils
+│   │       └── formatters.js
+│   ├── tailwind.config.js
+│   └── vite.config.js
+├── README.md
+├── tasks
+│   ├── Sistema de backtesting rapido.md
+│   └── Sistema de estrategias.md
+├── tasks.md
+├── TODO
+└── tree.txt
+
+31 directories, 116 files

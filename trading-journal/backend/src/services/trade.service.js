@@ -1,0 +1,244 @@
+import * as tradeRepository from '../repositories/trade.repository.js';
+import { validateSignalsBelongToSystem } from '../repositories/system.repository.js';
+import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
+import { deleteFileIfExists } from '../utils/fileUtils.js';
+import { config } from '../config/env.js';
+import path from 'path';
+
+/**
+ * Service para lógica de negocio de trades
+ */
+
+/**
+ * Obtiene todos los trades con filtros
+ * @param {number} userId - ID del usuario
+ * @param {Object} filters - Filtros de búsqueda
+ * @returns {Promise<Object>}
+ */
+export const getAllTrades = async (userId, filters) => {
+  return tradeRepository.findAll(userId, filters);
+};
+
+/**
+ * Obtiene un trade por ID
+ * @param {number} userId - ID del usuario
+ * @param {number} id - ID del trade
+ * @returns {Promise<Object>}
+ */
+export const getTradeById = async (userId, id) => {
+  const trade = await tradeRepository.findById(userId, id);
+
+  if (!trade) {
+    throw new NotFoundError(`Trade con ID ${id} no encontrado`);
+  }
+
+  return trade;
+};
+
+/**
+ * Crea un nuevo trade
+ * @param {number} userId - ID del usuario
+ * @param {Object} tradeData - Datos del trade
+ * @param {Array} files - Archivos de imagen subidos
+ * @returns {Promise<Object>}
+ */
+export const createTrade = async (userId, tradeData, files = []) => {
+  // Si tiene exit_price y exit_date, calcular exit_date si no se proporcionó
+  if (tradeData.exit_price && !tradeData.exit_date) {
+    tradeData.exit_date = new Date();
+  }
+
+  // Validar que las señales pertenecen al sistema
+  if (tradeData.primary_system_id && tradeData.primary_signals?.length) {
+    const signalIds = tradeData.primary_signals.map(s => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(tradeData.primary_system_id, signalIds);
+    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema primario');
+  }
+  if (tradeData.secondary_system_id && tradeData.secondary_signals?.length) {
+    const signalIds = tradeData.secondary_signals.map(s => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(tradeData.secondary_system_id, signalIds);
+    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema secundario');
+  }
+
+  // Crear el trade
+  const trade = await tradeRepository.create(userId, tradeData);
+
+  // Si hay imágenes, agregarlas
+  if (files && files.length > 0) {
+    const imagesData = files.map(file => ({
+      filename: file.filename,
+      originalName: file.originalname,
+      fileSize: file.size,
+      mimeType: file.mimetype,
+    }));
+
+    trade.images = await tradeRepository.addImages(trade.id, imagesData);
+  }
+
+  return trade;
+};
+
+/**
+ * Actualiza un trade existente
+ * @param {number} userId - ID del usuario
+ * @param {number} id - ID del trade
+ * @param {Object} updateData - Datos a actualizar
+ * @param {Array} newFiles - Nuevas imágenes si se subieron
+ * @returns {Promise<Object>}
+ */
+export const updateTrade = async (userId, id, updateData, newFiles = []) => {
+  // Verificar que existe
+  await getTradeById(userId, id);
+
+  // Validar señales pertenecen al sistema
+  if (updateData.primary_system_id && updateData.primary_signals?.length) {
+    const signalIds = updateData.primary_signals.map(s => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(updateData.primary_system_id, signalIds);
+    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema primario');
+  }
+  if (updateData.secondary_system_id && updateData.secondary_signals?.length) {
+    const signalIds = updateData.secondary_signals.map(s => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(updateData.secondary_system_id, signalIds);
+    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema secundario');
+  }
+
+  // Actualizar trade
+  const updatedTrade = await tradeRepository.update(userId, id, updateData);
+
+  if (!updatedTrade) {
+    throw new NotFoundError(`Trade con ID ${id} no encontrado`);
+  }
+
+  // Si hay nuevas imágenes, agregarlas
+  if (newFiles && newFiles.length > 0) {
+    const imagesData = newFiles.map(file => ({
+      filename: file.filename,
+      originalName: file.originalname,
+      fileSize: file.size,
+      mimeType: file.mimetype,
+    }));
+
+    const newImages = await tradeRepository.addImages(id, imagesData);
+    updatedTrade.images = [...updatedTrade.images, ...newImages];
+  }
+
+  return updatedTrade;
+};
+
+/**
+ * Elimina un trade
+ * @param {number} userId - ID del usuario
+ * @param {number} id - ID del trade
+ * @param {boolean} permanent - Si es eliminación permanente
+ * @returns {Promise<void>}
+ */
+export const deleteTrade = async (userId, id, permanent = false) => {
+  // Verificar que existe y obtener datos
+  const trade = await getTradeById(userId, id);
+
+  // Si tiene imágenes y es eliminación permanente, eliminar archivos
+  if (trade.images && trade.images.length > 0 && permanent) {
+    for (const image of trade.images) {
+      const imagePath = path.join(config.upload.dir, image.filename);
+      await deleteFileIfExists(imagePath);
+    }
+  }
+
+  const deleted = permanent
+    ? await tradeRepository.hardDelete(userId, id)
+    : await tradeRepository.softDelete(userId, id);
+
+  if (!deleted) {
+    throw new NotFoundError(`Trade con ID ${id} no encontrado`);
+  }
+};
+
+/**
+ * Agrega imágenes a un trade
+ * @param {number} userId - ID del usuario
+ * @param {number} tradeId - ID del trade
+ * @param {Array} files - Archivos de imagen subidos
+ * @returns {Promise<Array>}
+ */
+export const addImages = async (userId, tradeId, files) => {
+  // Verificar que existe
+  await getTradeById(userId, tradeId);
+
+  if (!files || files.length === 0) {
+    throw new NotFoundError('No se proporcionaron imágenes');
+  }
+
+  const imagesData = files.map(file => ({
+    filename: file.filename,
+    originalName: file.originalname,
+    fileSize: file.size,
+    mimeType: file.mimetype,
+  }));
+
+  return tradeRepository.addImages(tradeId, imagesData);
+};
+
+/**
+ * Elimina una imagen específica de un trade
+ * @param {number} userId - ID del usuario
+ * @param {number} tradeId - ID del trade
+ * @param {number} imageId - ID de la imagen
+ * @returns {Promise<Object>}
+ */
+export const deleteImage = async (userId, tradeId, imageId) => {
+  // Verificar que el trade existe
+  await getTradeById(userId, tradeId);
+
+  // Obtener la imagen
+  const image = await tradeRepository.getImageById(imageId);
+
+  if (!image || image.trade_id !== tradeId) {
+    throw new NotFoundError('Imagen no encontrada');
+  }
+
+  // Eliminar archivo del disco
+  const imagePath = path.join(config.upload.dir, image.filename);
+  await deleteFileIfExists(imagePath);
+
+  // Eliminar de la base de datos
+  await tradeRepository.deleteImage(imageId);
+
+  // Retornar trade actualizado
+  return getTradeById(userId, tradeId);
+};
+
+/**
+ * Elimina todas las imágenes de un trade
+ * @param {number} userId - ID del usuario
+ * @param {number} tradeId - ID del trade
+ * @returns {Promise<Object>}
+ */
+export const deleteAllImages = async (userId, tradeId) => {
+  // Verificar que existe
+  const trade = await getTradeById(userId, tradeId);
+
+  if (!trade.images || trade.images.length === 0) {
+    throw new NotFoundError('El trade no tiene imágenes');
+  }
+
+  // Eliminar archivos del disco
+  for (const image of trade.images) {
+    const imagePath = path.join(config.upload.dir, image.filename);
+    await deleteFileIfExists(imagePath);
+  }
+
+  // Eliminar de la base de datos
+  await tradeRepository.deleteAllImages(tradeId);
+
+  // Retornar trade actualizado
+  return getTradeById(userId, tradeId);
+};
+
+/**
+ * Obtiene símbolos únicos para filtros
+ * @param {number} userId - ID del usuario
+ * @returns {Promise<Array<string>>}
+ */
+export const getUniqueSymbols = async (userId) => {
+  return tradeRepository.getUniqueSymbols(userId);
+};

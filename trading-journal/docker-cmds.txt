@@ -1,0 +1,12 @@
+
+sudo docker compose --env-file backend/.env up -d --build
+
+
+sudo docker exec -i tradelog-db psql -U postgres -d tradelog < database/migration_notes.sql
+
+
+sudo docker compose --env-file backend/.env up -d --build
+
+
+
+sudo docker compose --env-file backend/.env up -d --build frontend

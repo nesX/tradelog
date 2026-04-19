@@ -1,0 +1,108 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # ── 1. Detectar qué cambió ─────────────────────────────────────────────────
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend:  ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'trading-journal/backend/**'
+              - 'trading-journal/docker-compose.prod.yml'
+            frontend:
+              - 'trading-journal/frontend/**'
+              - 'trading-journal/docker-compose.prod.yml'
+
+  # ── 2. Deploy ──────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key:      ${{ secrets.VPS_SSH_KEY }}
+          port:     ${{ secrets.VPS_PORT }}
+          script: |
+            set -e
+            cd ${{ secrets.TRADELOG_PROJECT_PATH }}
+            git pull origin main
+
+            REBUILT=""
+
+            if [ "${{ needs.changes.outputs.backend }}" = "true" ]; then
+              echo "→ Rebuilding: backend"
+              docker compose -f docker-compose.prod.yml up -d --build backend
+              REBUILT="backend"
+            fi
+
+            if [ "${{ needs.changes.outputs.frontend }}" = "true" ]; then
+              echo "→ Rebuilding: frontend"
+              docker compose -f docker-compose.prod.yml up -d --build frontend
+              REBUILT="$REBUILT frontend"
+            fi
+
+            docker image prune -f
+
+            # ── Health check ────────────────────────────────────────────────
+            echo "→ Health check en 15s..."
+            sleep 15
+
+            FAILED=""
+            for service in $REBUILT; do
+              ID=$(docker compose -f docker-compose.prod.yml ps -q "$service" 2>/dev/null || true)
+              if [ -z "$ID" ]; then
+                FAILED="$FAILED $service(missing)"
+                continue
+              fi
+              RUNNING=$(docker inspect --format='{{.State.Running}}' "$ID" 2>/dev/null || echo "false")
+              if [ "$RUNNING" != "true" ]; then
+                STATUS=$(docker inspect --format='{{.State.Status}}' "$ID" 2>/dev/null || echo "unknown")
+                FAILED="$FAILED $service($STATUS)"
+              fi
+            done
+
+            if [ -n "$FAILED" ]; then
+              curl -s -X POST http://localhost:3001/api/send-alert \
+                -H "Content-Type: application/json" \
+                -d "{\"message\": \"⚠️ Tradelog deploy con errores:$FAILED — $(date '+%Y-%m-%d %H:%M')\"}"
+              exit 1
+            fi
+
+            WHAT=""
+            [ "${{ needs.changes.outputs.backend }}" = "true" ]  && WHAT="${WHAT}backend "
+            [ "${{ needs.changes.outputs.frontend }}" = "true" ] && WHAT="${WHAT}frontend"
+            curl -s -X POST http://localhost:3001/api/send-alert \
+              -H "Content-Type: application/json" \
+              -d "{\"message\": \"✅ Tradelog deploy exitoso [${WHAT}] — $(date '+%Y-%m-%d %H:%M')\"}"
+
+      - name: Notify Telegram — failure
+        if: failure()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key:      ${{ secrets.VPS_SSH_KEY }}
+          port:     ${{ secrets.VPS_PORT }}
+          script: |
+            curl -s -X POST http://localhost:3001/api/send-alert \
+              -H "Content-Type: application/json" \
+              -d "{\"message\": \"❌ Tradelog deploy fallido — $(date '+%Y-%m-%d %H:%M')\"}"
