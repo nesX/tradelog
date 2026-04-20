@@ -113,7 +113,7 @@ export const errorHandler = (err, req, res, next) => {
 
   // Error de Multer (upload de archivos)
   if (err.code === 'LIMIT_FILE_SIZE') {
-    return sendError(res, 'El archivo excede el tamaño máximo permitido', 400, 'FILE_TOO_LARGE');
+    return sendError(res, 'El archivo excede el tamaño máximo de 1MB', 400, 'FILE_TOO_LARGE');
   }
 
   if (err.code === 'LIMIT_UNEXPECTED_FILE') {

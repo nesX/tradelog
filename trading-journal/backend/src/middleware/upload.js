@@ -72,7 +72,7 @@ export const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       err.code = 'LIMIT_FILE_SIZE';
-      err.message = 'El archivo excede el tamaño máximo de 5MB';
+      err.message = 'El archivo excede el tamaño máximo de 1MB';
     } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
       err.message = 'Campo de archivo inesperado';
     }

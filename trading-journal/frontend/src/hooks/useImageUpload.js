@@ -1,8 +1,5 @@
 import { useState, useCallback } from 'react';
-
-/**
- * Hook para manejo de upload de múltiples imágenes
- */
+import { compressImage } from '../utils/imageCompression.js';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -29,7 +26,7 @@ export const useImageUpload = () => {
   /**
    * Procesa y agrega archivos
    */
-  const addFiles = useCallback((newFiles) => {
+  const addFiles = useCallback(async (newFiles) => {
     setError(null);
 
     const filesToAdd = Array.from(newFiles);
@@ -41,7 +38,6 @@ export const useImageUpload = () => {
     }
 
     const validFiles = [];
-    const newPreviews = [];
     const errors = [];
 
     for (const file of filesToAdd) {
@@ -60,30 +56,37 @@ export const useImageUpload = () => {
       }
 
       validFiles.push(file);
-
-      // Crear preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        newPreviews.push({
-          id: `${Date.now()}-${file.name}`,
-          file,
-          url: reader.result,
-        });
-
-        if (newPreviews.length === validFiles.length) {
-          setPreviews((prev) => [...prev, ...newPreviews]);
-        }
-      };
-      reader.readAsDataURL(file);
     }
 
     if (errors.length > 0) {
       setError(errors.join(' '));
     }
 
-    if (validFiles.length > 0) {
-      setFiles((prev) => [...prev, ...validFiles]);
-    }
+    if (validFiles.length === 0) return;
+
+    // Comprimir todos los archivos válidos antes de guardar en estado
+    const compressedFiles = await Promise.all(validFiles.map((f) => compressImage(f)));
+
+    // Generar previews de los archivos ya comprimidos
+    const newPreviews = await Promise.all(
+      compressedFiles.map(
+        (file) =>
+          new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              resolve({
+                id: `${Date.now()}-${file.name}`,
+                file,
+                url: reader.result,
+              });
+            };
+            reader.readAsDataURL(file);
+          })
+      )
+    );
+
+    setFiles((prev) => [...prev, ...compressedFiles]);
+    setPreviews((prev) => [...prev, ...newPreviews]);
   }, [files]);
 
   /**

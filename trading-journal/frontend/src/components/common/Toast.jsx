@@ -57,7 +57,7 @@ const ToastItem = ({ id, type = 'info', message, onClose }) => {
 
   return (
     <div
-      className={`flex items-start p-4 rounded-lg border-l-4 shadow-lg ${config.bgColor} ${config.borderColor} animate-slide-in`}
+      className={`flex items-start p-4 rounded-lg border-l-4 shadow-lg overflow-hidden ${config.bgColor} ${config.borderColor} animate-slide-in`}
       role="alert"
     >
       <Icon className={`w-5 h-5 ${config.iconColor} flex-shrink-0`} />

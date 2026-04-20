@@ -2,6 +2,10 @@ import { useState, useRef } from 'react';
 import { X, Upload, ImagePlus } from 'lucide-react';
 import { useAddImage, useDeleteImage, useUpdateImageCaption } from '../../hooks/useNotes.js';
 import ImageViewer from '../common/ImageViewer.jsx';
+import { compressImage } from '../../utils/imageCompression.js';
+import { useToast } from '../common/Toast.jsx';
+
+const MAX_SIZE_BEFORE_COMPRESSION = 5 * 1024 * 1024; // 5MB
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -17,6 +21,7 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
   const deleteImage = useDeleteImage();
   const updateCaption = useUpdateImageCaption();
   const fileInputRef = useRef(null);
+  const toast = useToast();
 
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerStartIndex, setViewerStartIndex] = useState(0);
@@ -36,9 +41,18 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files);
     for (const file of files) {
-      const formData = new FormData();
-      formData.append('image', file);
-      await addImage.mutateAsync({ blockId: block.id, formData, noteId });
+      if (file.size > MAX_SIZE_BEFORE_COMPRESSION) {
+        toast.error(`"${file.name}" supera el tamaño máximo de 5MB.`);
+        continue;
+      }
+      try {
+        const compressed = await compressImage(file);
+        const formData = new FormData();
+        formData.append('image', compressed);
+        await addImage.mutateAsync({ blockId: block.id, formData, noteId });
+      } catch (err) {
+        toast.error(err?.message || 'Error al subir la imagen.');
+      }
     }
     e.target.value = '';
   };
