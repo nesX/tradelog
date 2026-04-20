@@ -29,6 +29,7 @@ services:
       dockerfile: Dockerfile.prod
       args:
         VITE_API_URL: /api        # relativo: nginx hace el proxy
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     container_name: tradelog-frontend
     restart: always
     ports:
