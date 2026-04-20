@@ -5,6 +5,7 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 
+# Si la api es un dominio diferente
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
