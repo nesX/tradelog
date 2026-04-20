@@ -43,7 +43,7 @@ jobs:
           port:     ${{ secrets.VPS_PORT }}
           script: |
             set -e
-            cd ${{ secrets.TRADELOG_PROJECT_PATH }}
+            cd ${{ secrets.VPS_PROJECT_PATH }}
             git pull origin main
 
             REBUILT=""
