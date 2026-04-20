@@ -7,7 +7,7 @@ import { useToast } from '../common/Toast.jsx';
 
 const MAX_SIZE_BEFORE_COMPRESSION = 5 * 1024 * 1024; // 5MB
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 /**
  * Convierte las imágenes de la nota al formato que espera ImageViewer:
