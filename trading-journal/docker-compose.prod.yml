@@ -28,7 +28,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        VITE_API_URL: /api        # relativo: nginx hace el proxy
+        VITE_API_URL: ""          # vacío si es el mismo host, o la URL completa si es diferente (ej: http://localhost:3002)
         VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     container_name: tradelog-frontend
     restart: always

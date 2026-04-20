@@ -11,12 +11,12 @@ Cada proyecto tiene su propio `.env`. En la VPS los archivos quedan así:
 
 ```
 ~/market-tracker/.env                    ← variables de market-tracker (existente)
-~/tradelog/trading-journal/.env.prod     ← variables de tradelog (crear)
+~/tradelog/trading-journal/.env          ← variables de tradelog (crear)
 ```
 
-El compose carga solo `./.env.prod`. No se carga el `.env` de market-tracker porque
-tiene variables con los mismos nombres (`GOOGLE_CLIENT_ID`, `FRONTEND_URL`, etc.) que
-pisarían las de tradelog.
+El compose carga `./.env` (nombre exacto requerido). Docker Compose busca automáticamente
+este archivo para resolver interpolaciones como `${HOST_UPLOADS_DIR}` en los volúmenes,
+antes de levantar los contenedores. No usar otro nombre de archivo sin pasar `--env-file`.
 
 La conexión al postgres compartido se logra únicamente por la red Docker (`market-tracker_internal`)
 y el hostname `postgres` se fuerza en `environment:` del compose, sin necesidad de leer
@@ -25,8 +25,8 @@ las credenciales del otro proyecto.
 Copiá el example y completá los valores reales:
 
 ```bash
-cp .env.prod.example .env.prod
-nano .env.prod
+cp .env.prod.example .env
+nano .env
 ```
 
 Ver `.env.prod.example` para referencia de todas las variables necesarias.
@@ -220,7 +220,61 @@ sudo docker compose -f docker-compose.prod.yml up -d --build backend
 │   ├── database/
 │   ├── docker-compose.prod.yml
 │   ├── .env.prod.example     ← plantilla commiteada
-│   ├── .env.prod             ← variables reales (NO commitear, en .gitignore)
+│   ├── .env                  ← variables reales (NO commitear, en .gitignore)
 │   └── ...
 └── tradelog_backup.dump      ← dump inicial (puede eliminarse luego)
 ```
+
+---
+
+## 7. Problemas encontrados y soluciones
+
+### El nombre del archivo `.env` importa para Docker Compose
+
+**Problema:** El archivo de variables se llamaba `.env.prod` (o `.env.pro.tradelog`).
+Al ejecutar `docker compose up` sin `--env-file`, Docker Compose no podía resolver las
+variables `${HOST_UPLOADS_DIR}` y `${HOST_LOGS_DIR}` usadas en los volúmenes, arrojando:
+
+```
+invalid spec: :/usr/src/app/uploads: empty section between colons
+```
+
+**Causa:** Docker Compose resuelve las interpolaciones `${...}` del archivo compose
+**antes** de procesar los servicios, leyendo únicamente el archivo `.env` (nombre exacto)
+del mismo directorio. El `env_file:` declarado dentro del servicio se aplica demasiado
+tarde para este propósito.
+
+**Solución:** Renombrar el archivo a `.env`.
+
+---
+
+### Variables `VITE_*` no disponibles en el frontend en producción
+
+**Problema:** La página mostraba "Google Client ID no configurado" a pesar de que la
+variable estaba en el `.env`.
+
+**Causa:** Vite embebe las variables `VITE_*` directamente en el bundle JS durante el
+`npm run build`. En producción el frontend es HTML/JS estático — no lee variables de
+entorno en runtime. Si la variable no estaba disponible al momento del build, no queda
+en el bundle.
+
+**Solución:** Declarar la variable como `ARG` y `ENV` en el `Dockerfile.prod` antes
+del `RUN npm run build`, y pasarla desde el compose via `build.args`:
+
+En `docker-compose.prod.yml`:
+```yaml
+frontend:
+  build:
+    args:
+      VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+```
+
+En `Dockerfile.prod`:
+```dockerfile
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+RUN npm run build
+```
+
+Nota: `GOOGLE_CLIENT_ID` en el `.env` es la misma variable que usa el backend — el
+compose la mapea al nombre `VITE_GOOGLE_CLIENT_ID` que Vite requiere.
