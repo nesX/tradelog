@@ -33,7 +33,7 @@ export const getById = async (userId, noteId) => {
     `SELECT nb.*,
       COALESCE(
         (SELECT json_agg(
-          json_build_object('id', nbi.id, 'image_path', nbi.image_path, 'caption', nbi.caption, 'position', nbi.position)
+          json_build_object('id', nbi.id, 'image_path', nbi.image_path, 'caption', nbi.caption, 'position', nbi.position, 'created_at', nbi.created_at)
           ORDER BY nbi.position ASC
         )
         FROM note_block_images nbi WHERE nbi.block_id = nb.id), '[]'

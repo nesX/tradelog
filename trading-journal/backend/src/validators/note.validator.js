@@ -35,6 +35,8 @@ export const updateBlockSchema = Joi.object({
 export const updateCalloutMetadataSchema = Joi.object({
   style: Joi.string().valid('info', 'warning', 'success', 'error', 'note').optional(),
   icon: Joi.string().max(10).allow(null).optional(),
+  analysis_date: Joi.string().isoDate().allow(null, '').optional(),
+  symbols: Joi.array().items(Joi.string().max(20).uppercase()).max(10).optional(),
 });
 
 export const reorderBlocksSchema = Joi.object({

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { X, Upload, ImagePlus } from 'lucide-react';
-import { useAddImage, useDeleteImage, useUpdateImageCaption } from '../../hooks/useNotes.js';
+import { useAddImage, useDeleteImage, useUpdateBlockMetadata } from '../../hooks/useNotes.js';
 import ImageViewer from '../common/ImageViewer.jsx';
 import { compressImage } from '../../utils/imageCompression.js';
 import { useToast } from '../common/Toast.jsx';
@@ -9,29 +9,34 @@ const MAX_SIZE_BEFORE_COMPRESSION = 5 * 1024 * 1024; // 5MB
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-/**
- * Convierte las imágenes de la nota al formato que espera ImageViewer:
- * { filename: string }
- */
 const toViewerFormat = (images) =>
   (images || []).map((img) => ({ filename: img.image_path, id: img.id }));
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('es', { day: '2-digit', month: 'short' });
+};
 
 const NoteImageGalleryBlock = ({ block, noteId }) => {
   const addImage = useAddImage();
   const deleteImage = useDeleteImage();
-  const updateCaption = useUpdateImageCaption();
+  const updateMetadata = useUpdateBlockMetadata();
   const fileInputRef = useRef(null);
   const toast = useToast();
 
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerStartIndex, setViewerStartIndex] = useState(0);
-  const [editCaptionId, setEditCaptionId] = useState(null);
-  const [captionValue, setCaptionValue] = useState('');
+
+  // Estado local del footer de metadatos
+  const meta = block.metadata || {};
+  const [editingMeta, setEditingMeta] = useState(false);
+  const [dateValue, setDateValue] = useState(meta.analysis_date || '');
+  const [symbolInput, setSymbolInput] = useState('');
+  const [symbols, setSymbols] = useState(meta.symbols || []);
 
   const images = block.images || [];
   const viewerImages = toViewerFormat(images);
-
-  /* ---------- handlers ---------- */
 
   const openViewer = (idx) => {
     setViewerStartIndex(idx);
@@ -62,29 +67,37 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
     deleteImage.mutate({ imageId, noteId });
   };
 
-  const openCaptionEdit = (e, img) => {
-    e.stopPropagation();
-    setEditCaptionId(img.id);
-    setCaptionValue(img.caption || '');
+  const saveMeta = () => {
+    updateMetadata.mutate({
+      blockId: block.id,
+      noteId,
+      metadata: {
+        ...meta,
+        analysis_date: dateValue || null,
+        symbols,
+      },
+    });
+    setEditingMeta(false);
   };
 
-  const saveCaption = (imageId) => {
-    updateCaption.mutate({ imageId, caption: captionValue, noteId });
-    setEditCaptionId(null);
+  const addSymbol = (raw) => {
+    const sym = raw.trim().toUpperCase();
+    if (!sym || symbols.includes(sym) || symbols.length >= 10) return;
+    setSymbols((prev) => [...prev, sym]);
+    setSymbolInput('');
   };
 
-  /* ---------- render ---------- */
+  const removeSymbol = (sym) => setSymbols((prev) => prev.filter((s) => s !== sym));
+
+  const hasMetadata = meta.analysis_date || (meta.symbols && meta.symbols.length > 0);
 
   return (
     <div className="py-2 px-1">
 
-      {/* Tira horizontal de thumbnails — sólo si hay imágenes */}
       {images.length > 0 && (
-        <div className="flex gap-3 overflow-x-auto pb-2 mb-3">
+        <div className="flex gap-3 overflow-x-auto pb-2 mb-2">
           {images.map((img, idx) => (
-            <div key={img.id} className="group flex-shrink-0 flex flex-col items-center gap-1">
-
-              {/* Thumbnail */}
+            <div key={img.id} className="group flex-shrink-0">
               <div className="relative">
                 <button
                   onClick={() => openViewer(idx)}
@@ -95,14 +108,19 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
                 >
                   <img
                     src={`${API_BASE}/api/images/${img.image_path}`}
-                    alt={img.caption || `Imagen ${idx + 1}`}
+                    alt={`Imagen ${idx + 1}`}
                     className="w-full h-full object-cover"
                   />
-                  {/* Overlay hover */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-lg" />
+                  {img.created_at && (
+                    <span className="absolute bottom-1 left-1.5 text-[10px] leading-none
+                                     text-white/90 drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]
+                                     pointer-events-none select-none">
+                      {formatDate(img.created_at)}
+                    </span>
+                  )}
                 </button>
 
-                {/* Botón eliminar — esquina superior derecha */}
                 <button
                   onClick={(e) => handleDelete(e, img.id)}
                   className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center
@@ -113,43 +131,10 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
                   <X className="w-3 h-3" />
                 </button>
               </div>
-
-              {/* Caption editable */}
-              <div className="w-24">
-                {editCaptionId === img.id ? (
-                  <input
-                    autoFocus
-                    value={captionValue}
-                    onChange={(e) => setCaptionValue(e.target.value)}
-                    onBlur={() => saveCaption(img.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') saveCaption(img.id);
-                      if (e.key === 'Escape') setEditCaptionId(null);
-                    }}
-                    className="w-full text-xs text-center bg-transparent border-b border-blue-400
-                               outline-none text-gray-700 dark:text-gray-300 py-0.5"
-                    placeholder="Caption..."
-                    maxLength={200}
-                  />
-                ) : (
-                  <p
-                    onClick={(e) => openCaptionEdit(e, img)}
-                    className="text-xs text-center text-gray-500 dark:text-gray-400 truncate
-                               cursor-pointer hover:text-gray-700 dark:hover:text-gray-200
-                               transition-colors leading-tight"
-                    title={img.caption || 'Click para agregar caption'}
-                  >
-                    {img.caption || (
-                      <span className="italic opacity-40">caption...</span>
-                    )}
-                  </p>
-                )}
-              </div>
             </div>
           ))}
 
-          {/* Botón agregar — al final de la tira */}
-          <div className="flex-shrink-0 flex flex-col items-center gap-1">
+          <div className="flex-shrink-0">
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={addImage.isPending}
@@ -169,12 +154,10 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
                 </>
               )}
             </button>
-            <span className="text-xs text-transparent select-none">·</span>
           </div>
         </div>
       )}
 
-      {/* Zona de upload vacía — sólo si no hay imágenes */}
       {images.length === 0 && (
         <button
           onClick={() => fileInputRef.current?.click()}
@@ -197,7 +180,96 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
         </button>
       )}
 
-      {/* Input file oculto */}
+      {/* Footer de metadatos — fecha de análisis y símbolos */}
+      {editingMeta ? (
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+          <input
+            type="date"
+            value={dateValue}
+            onChange={(e) => setDateValue(e.target.value)}
+            className="border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5
+                       bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200
+                       text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+          />
+
+          {/* Chips de símbolos */}
+          <div className="flex flex-wrap gap-1">
+            {symbols.map((s) => (
+              <span key={s}
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded
+                           bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-mono">
+                {s}
+                <button onClick={() => removeSymbol(s)} className="hover:text-red-500">
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+
+          <input
+            type="text"
+            value={symbolInput}
+            onChange={(e) => setSymbolInput(e.target.value.toUpperCase())}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addSymbol(symbolInput); }
+            }}
+            onBlur={() => { if (symbolInput.trim()) addSymbol(symbolInput); }}
+            placeholder="Símbolo + Enter"
+            maxLength={20}
+            className="border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 w-32
+                       bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-mono
+                       text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 placeholder:font-sans"
+          />
+
+          <button
+            onClick={saveMeta}
+            className="px-2 py-0.5 rounded bg-blue-500 hover:bg-blue-600 text-white text-xs"
+          >
+            Guardar
+          </button>
+          <button
+            onClick={() => {
+              setDateValue(meta.analysis_date || '');
+              setSymbols(meta.symbols || []);
+              setSymbolInput('');
+              setEditingMeta(false);
+            }}
+            className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-700
+                       dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-xs"
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <div
+          onClick={() => setEditingMeta(true)}
+          className="mt-1 flex flex-wrap items-center gap-1.5 cursor-pointer group/meta min-h-[20px]"
+          title="Click para editar fecha y símbolos"
+        >
+          {hasMetadata ? (
+            <>
+              {meta.analysis_date && (
+                <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                  {new Date(meta.analysis_date).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+              )}
+              {meta.symbols?.map((s) => (
+                <span key={s}
+                  className="text-[11px] px-1.5 py-0 rounded
+                             bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-mono">
+                  {s}
+                </span>
+              ))}
+            </>
+          ) : (
+            <span className="text-[11px] text-gray-300 dark:text-gray-600 italic
+                             opacity-0 group-hover/meta:opacity-100 transition-opacity">
+              + fecha / símbolo
+            </span>
+          )}
+        </div>
+      )}
+
       <input
         ref={fileInputRef}
         type="file"
@@ -207,7 +279,6 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
         onChange={handleFileChange}
       />
 
-      {/* ImageViewer reutilizado del trade — se abre con la imagen clickeada */}
       {viewerImages.length > 0 && (
         <ImageViewer
           images={viewerImages}

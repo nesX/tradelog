@@ -116,8 +116,8 @@ export const updateBlockMetadata = async (userId, blockId, newMetadata) => {
   const block = await repo.getBlockById(blockId);
   if (!block) throw new NotFoundError('Bloque no encontrado');
   if (block.user_id !== userId) throw new NotFoundError('Bloque no encontrado');
-  if (block.block_type !== 'callout') {
-    throw new ValidationError('Solo se puede actualizar metadata de bloques callout');
+  if (!['callout', 'image_gallery'].includes(block.block_type)) {
+    throw new ValidationError('Solo se puede actualizar metadata de bloques callout o image_gallery');
   }
   const existing = block.metadata || {};
   const merged = { ...existing, ...newMetadata };
