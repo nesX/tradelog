@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const CALLOUT_STYLES = {
   info:    { bg: 'bg-blue-50 dark:bg-blue-950/30',   border: 'border-l-blue-500',   label: 'Información' },
@@ -128,7 +129,7 @@ const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => 
                          prose-code:px-1 prose-code:py-0.5 prose-code:rounded
                          prose-code:text-sm prose-code:font-mono"
             >
-              <ReactMarkdown>{value}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
             </div>
           ) : (
             <p className="text-sm text-gray-400 dark:text-gray-500 italic select-none">

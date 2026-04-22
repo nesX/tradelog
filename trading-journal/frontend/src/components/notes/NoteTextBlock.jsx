@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
   const [editing, setEditing] = useState(false);
@@ -96,7 +97,7 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
                      prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800
                      prose-a:text-blue-600 dark:prose-a:text-blue-400"
         >
-          <ReactMarkdown>{value}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
         </div>
       ) : (
         <p className="text-sm text-gray-300 dark:text-gray-600 italic select-none">
