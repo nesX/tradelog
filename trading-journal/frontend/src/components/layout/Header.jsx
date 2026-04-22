@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical, BookOpen, Menu, X } from 'lucide-react';
+import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical, BookOpen, Menu, X, LayoutDashboard } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext.jsx';
 import UserMenu from '../auth/UserMenu.jsx';
 
@@ -78,6 +78,14 @@ const Header = () => {
             >
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
+
+            <a
+              href="https://app.nesx.co"
+              title="Ir a app.nesx.co"
+              className="p-2 rounded-lg text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <LayoutDashboard className="w-5 h-5" />
+            </a>
 
             <div className="ml-2">
               <UserMenu />
