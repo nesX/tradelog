@@ -421,6 +421,81 @@ export const getTagsByIds = async (userId, tagIds) => {
 };
 
 // ============================================================
+// BÚSQUEDA
+// ============================================================
+
+const TAGS_AGG = `COALESCE(
+    (SELECT json_agg(json_build_object('id', nt.id, 'name', nt.name, 'color', nt.color))
+     FROM note_tag_assignments nta
+     JOIN note_tags nt ON nt.id = nta.tag_id
+     WHERE nta.note_id = n.id), '[]'
+  )`;
+
+const TAG_FILTER = `($2 = '{}'::int[] OR EXISTS (
+    SELECT 1 FROM note_tag_assignments nta_f
+    WHERE nta_f.note_id = n.id AND nta_f.tag_id = ANY($2)
+  ))`;
+
+const FTS_QUERY = `
+  SELECT
+    n.id, n.title, n.parent_note_id, n.updated_at,
+    ts_rank(to_tsvector('spanish', COALESCE(n.title, '')), websearch_to_tsquery('spanish', $1)) * 2
+      + COALESCE(nb.content_rank, 0) AS rank,
+    ts_headline('spanish', COALESCE(n.title, ''), websearch_to_tsquery('spanish', $1),
+      'MaxWords=8, MinWords=3, MaxFragments=1') AS title_headline,
+    COALESCE(ts_headline('spanish', COALESCE(nb.content_agg, ''), websearch_to_tsquery('spanish', $1),
+      'MaxWords=20, MinWords=5, MaxFragments=2, FragmentDelimiter=" … "'), '') AS content_snippet,
+    ${TAGS_AGG} AS tags
+  FROM notes n
+  LEFT JOIN LATERAL (
+    SELECT
+      string_agg(content, ' ' ORDER BY position) AS content_agg,
+      MAX(ts_rank(to_tsvector('spanish', COALESCE(content, '')), websearch_to_tsquery('spanish', $1))) AS content_rank,
+      bool_or(to_tsvector('spanish', COALESCE(content, '')) @@ websearch_to_tsquery('spanish', $1)) AS content_match
+    FROM note_blocks
+    WHERE note_id = n.id AND block_type IN ('text', 'callout')
+  ) nb ON true
+  WHERE
+    n.user_id = $2
+    AND n.deleted_at IS NULL
+    AND ($3 = '{}'::int[] OR EXISTS (
+      SELECT 1 FROM note_tag_assignments nta_f
+      WHERE nta_f.note_id = n.id AND nta_f.tag_id = ANY($3)
+    ))
+    AND (
+      to_tsvector('spanish', COALESCE(n.title, '')) @@ websearch_to_tsquery('spanish', $1)
+      OR nb.content_match = true
+    )
+  ORDER BY rank DESC, n.updated_at DESC
+  LIMIT $4
+`;
+
+const TAG_ONLY_QUERY = `
+  SELECT
+    n.id, n.title, n.parent_note_id, n.updated_at,
+    0 AS rank,
+    n.title AS title_headline,
+    '' AS content_snippet,
+    ${TAGS_AGG} AS tags
+  FROM notes n
+  WHERE
+    n.user_id = $1
+    AND n.deleted_at IS NULL
+    AND ${TAG_FILTER}
+  ORDER BY n.updated_at DESC
+  LIMIT $3
+`;
+
+export const search = async (userId, { q = '', tagIds = [], limit = 30 }) => {
+  if (q) {
+    const result = await pool.query(FTS_QUERY, [q, userId, tagIds, limit]);
+    return result.rows;
+  }
+  const result = await pool.query(TAG_ONLY_QUERY, [userId, tagIds, limit]);
+  return result.rows;
+};
+
+// ============================================================
 // EXPORTACIÓN
 // ============================================================
 

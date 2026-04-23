@@ -241,6 +241,7 @@ export const removeNoteTags = (noteId, tag_ids) =>
 
 export const exportNotesJSON = () => apiClient.get('/api/notes/export/json');
 export const exportNotesMarkdown = () => apiClient.get('/api/notes/export/markdown', { responseType: 'text' });
+export const searchNotes = (params) => apiClient.get('/api/notes/search', { params });
 
 // ==================
 // STATS

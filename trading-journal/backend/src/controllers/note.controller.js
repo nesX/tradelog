@@ -40,6 +40,13 @@ export const reorderNotes = async (req, res) => {
   sendSuccess(res, null, 'Notas reordenadas');
 };
 
+export const search = async (req, res) => {
+  const { q, tag_ids, limit } = req.query;
+  const tagIds = tag_ids ? tag_ids.split(',').map(Number).filter(Boolean) : [];
+  const results = await noteService.search(req.user.id, { q, tagIds, limit });
+  sendSuccess(res, results);
+};
+
 // ============================================================
 // BLOQUES
 // ============================================================

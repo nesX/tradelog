@@ -86,6 +86,13 @@ export const reorderNotes = async (userId, noteIds) => {
   await repo.reorderSiblings(userId, noteIds);
 };
 
+export const search = async (userId, { q, tagIds, limit }) => {
+  if (!q?.trim() && (!tagIds || tagIds.length === 0)) {
+    throw new ValidationError('Se requiere texto de búsqueda o al menos un tag');
+  }
+  return repo.search(userId, { q: q?.trim() ?? '', tagIds: tagIds ?? [], limit });
+};
+
 // ============================================================
 // BLOQUES
 // ============================================================

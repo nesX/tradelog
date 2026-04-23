@@ -18,6 +18,7 @@ import {
   removeTagsSchema,
   updateImageCaptionSchema,
   reorderImagesSchema,
+  noteSearchSchema,
 } from '../validators/note.validator.js';
 
 const router = Router();
@@ -33,6 +34,9 @@ router.get('/export/markdown', ctrl.exportMarkdown);
 
 // Árbol de notas
 router.get('/tree', ctrl.getTree);
+
+// Búsqueda full-texto
+router.get('/search', validate(noteSearchSchema, 'query'), ctrl.search);
 
 // Reordenar notas (no tiene :id)
 router.patch('/reorder', validate(reorderNotesSchema), ctrl.reorderNotes);

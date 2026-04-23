@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import * as api from '../api/endpoints.js';
 
 export const noteKeys = {
@@ -206,6 +206,16 @@ export const useAssignTags = () => {
     },
   });
 };
+
+export const useNoteSearch = ({ q, tagIds, limit, enabled = true }) =>
+  useQuery({
+    queryKey: [...noteKeys.all, 'search', { q, tagIds, limit }],
+    queryFn: () =>
+      api.searchNotes({ q, tag_ids: tagIds?.join(',') || undefined, limit }).then((r) => r.data),
+    enabled: enabled && (!!q?.trim() || (tagIds?.length ?? 0) > 0),
+    staleTime: 10_000,
+    placeholderData: keepPreviousData,
+  });
 
 export const useRemoveTags = () => {
   const qc = useQueryClient();

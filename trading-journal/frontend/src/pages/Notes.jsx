@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Tags, Menu, X, BookOpen } from 'lucide-react';
 import { useNoteTree, useCreateNote, useDeleteNote, useReorderNotes } from '../hooks/useNotes.js';
 import NoteTree from '../components/notes/NoteTree.jsx';
 import NoteTagManager from '../components/notes/NoteTagManager.jsx';
 import NoteExportMenu from '../components/notes/NoteExportMenu.jsx';
+import NoteSearch from '../components/notes/NoteSearch.jsx';
+import NoteSearchResults from '../components/notes/NoteSearchResults.jsx';
 import NoteEditor from './NoteEditor.jsx';
 
 const Notes = () => {
@@ -19,6 +21,10 @@ const Notes = () => {
 
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [searchParams, setSearchParams] = useState({ q: '', tagIds: [] });
+
+  const handleSearchChange = useCallback((params) => setSearchParams(params), []);
 
   const tree = treeData?.tree || [];
   const flat = treeData?.flat || [];
@@ -105,6 +111,9 @@ const Notes = () => {
           </div>
         </div>
 
+        {/* Búsqueda */}
+        <NoteSearch onSearchActive={setIsSearchActive} onChange={handleSearchChange} />
+
         {/* Árbol de notas */}
         <div className="flex-1 overflow-y-auto py-2 px-1.5">
           {isLoading ? (
@@ -163,7 +172,16 @@ const Notes = () => {
         </div>
 
         {/* Contenido */}
-        {selectedId ? (
+        {isSearchActive ? (
+          <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
+            <NoteSearchResults
+              q={searchParams.q}
+              tagIds={searchParams.tagIds}
+              flat={flat}
+              onSelectNote={handleSelectNote}
+            />
+          </div>
+        ) : selectedId ? (
           <div className="flex-1 bg-gray-50 dark:bg-gray-900">
             <NoteEditor embeddedId={selectedId} />
           </div>

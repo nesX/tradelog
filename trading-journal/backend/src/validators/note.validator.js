@@ -61,6 +61,12 @@ export const removeTagsSchema = Joi.object({
   tag_ids: Joi.array().items(Joi.number().integer().positive()).min(1).required(),
 });
 
+export const noteSearchSchema = Joi.object({
+  q: Joi.string().max(500).allow('').optional(),
+  tag_ids: Joi.string().pattern(/^\d+(,\d+)*$/).optional(),
+  limit: Joi.number().integer().min(1).max(100).default(30),
+});
+
 export const updateImageCaptionSchema = Joi.object({
   caption: Joi.string().max(1000).allow(null, '').optional(),
 });
