@@ -172,7 +172,11 @@ const Notes = () => {
         </div>
 
         {/* Contenido */}
-        {isSearchActive ? (
+        {selectedId ? (
+          <div className="flex-1 bg-gray-50 dark:bg-gray-900">
+            <NoteEditor embeddedId={selectedId} />
+          </div>
+        ) : isSearchActive ? (
           <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
             <NoteSearchResults
               q={searchParams.q}
@@ -180,10 +184,6 @@ const Notes = () => {
               flat={flat}
               onSelectNote={handleSelectNote}
             />
-          </div>
-        ) : selectedId ? (
-          <div className="flex-1 bg-gray-50 dark:bg-gray-900">
-            <NoteEditor embeddedId={selectedId} />
           </div>
         ) : (
           /* ── Empty state ── */
