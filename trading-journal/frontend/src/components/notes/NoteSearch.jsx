@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Search, X, ChevronDown } from 'lucide-react';
 import { useNoteTags } from '../../hooks/useNotes.js';
 
-const NoteSearch = ({ onSearchActive, onChange }) => {
+const NoteSearch = ({ onSearchActive, onChange, onEnter }) => {
   const [inputValue, setInputValue] = useState('');
   const [q, setQ] = useState('');
   const [selectedTagIds, setSelectedTagIds] = useState([]);
@@ -67,6 +67,7 @@ const NoteSearch = ({ onSearchActive, onChange }) => {
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && onEnter?.()}
           placeholder="Buscar notas…"
           className="w-full pl-8 pr-7 py-1.5 text-sm rounded-md
             bg-gray-100 dark:bg-gray-700

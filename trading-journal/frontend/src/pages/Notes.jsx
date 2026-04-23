@@ -112,7 +112,11 @@ const Notes = () => {
         </div>
 
         {/* Búsqueda */}
-        <NoteSearch onSearchActive={setIsSearchActive} onChange={handleSearchChange} />
+        <NoteSearch
+          onSearchActive={setIsSearchActive}
+          onChange={handleSearchChange}
+          onEnter={() => selectedId && navigate('/notes')}
+        />
 
         {/* Árbol de notas */}
         <div className="flex-1 overflow-y-auto py-2 px-1.5">
