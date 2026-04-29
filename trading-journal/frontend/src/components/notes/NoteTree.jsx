@@ -114,9 +114,28 @@ const NoteTree = ({ notes = [], flat = [], selectedNoteId, onSelect, onCreateChi
     onDragEnd: handleDragEnd,
   };
 
+  const handleDropAtEnd = useCallback((e) => {
+    e.preventDefault();
+    if (!dragId) return;
+    const dragged = notes.find((n) => n.id === dragId);
+    if (!dragged) { setDragId(null); setOverId(null); return; }
+    const filtered = notes.filter((n) => n.id !== dragId);
+    filtered.push(dragged);
+    onReorder(filtered.map((n) => n.id));
+    setDragId(null);
+    setOverId(null);
+  }, [dragId, notes, onReorder]);
+
   return (
     <div className="space-y-0.5">
       {renderTree(notes, 0, treeProps)}
+      {dragId && (
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDropAtEnd}
+          className="h-8 rounded-lg border-2 border-dashed border-blue-300 dark:border-blue-600 opacity-60 mt-1"
+        />
+      )}
     </div>
   );
 };
