@@ -9,6 +9,19 @@ import NoteSearch from '../components/notes/NoteSearch.jsx';
 import NoteSearchResults from '../components/notes/NoteSearchResults.jsx';
 import NoteEditor from './NoteEditor.jsx';
 
+const buildBreadcrumb = (parentId, flatNotes) => {
+  if (!parentId || !flatNotes) return null;
+  const map = {};
+  for (const n of flatNotes) map[n.id] = n;
+  const path = [];
+  let current = map[parentId];
+  while (current) {
+    path.unshift(current.title || 'Sin título');
+    current = current.parent_note_id ? map[current.parent_note_id] : null;
+  }
+  return path.length > 0 ? path.join(' › ') : null;
+};
+
 const Notes = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -231,32 +244,41 @@ const Notes = () => {
               ) : (
                 <ul className="divide-y divide-gray-100 dark:divide-gray-700">
                   {[...flat]
+                    .filter((n) => !n.deleted_at)
                     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                     .slice(0, 50)
-                    .map((note) => (
-                      <li key={note.id}>
-                        <button
-                          onClick={() => handleSelectNote(note.id)}
-                          className="w-full flex items-start gap-3 px-6 py-3.5
-                                     hover:bg-gray-50 dark:hover:bg-gray-700/50
-                                     transition-colors text-left"
-                        >
-                          <FileText className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
-                              {note.title || 'Sin título'}
-                            </p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                              {new Date(note.created_at).toLocaleDateString('es-ES', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                              })}
-                            </p>
-                          </div>
-                        </button>
-                      </li>
-                    ))}
+                    .map((note) => {
+                      const breadcrumb = buildBreadcrumb(note.parent_note_id, flat);
+                      return (
+                        <li key={note.id}>
+                          <button
+                            onClick={() => handleSelectNote(note.id)}
+                            className="w-full flex items-start gap-3 px-6 py-3.5
+                                       hover:bg-gray-50 dark:hover:bg-gray-700/50
+                                       transition-colors text-left"
+                          >
+                            <FileText className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                                {note.title || 'Sin título'}
+                              </p>
+                              {breadcrumb && (
+                                <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                                  {breadcrumb}
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                {new Date(note.created_at).toLocaleDateString('es-ES', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </p>
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
                 </ul>
               )}
             </div>
