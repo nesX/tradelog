@@ -18,6 +18,7 @@ router.get('/sessions', controller.listSessions);
 router.post('/sessions', validate(createSessionSchema, 'body'), controller.createSession);
 router.get('/sessions/:id', controller.getSession);
 router.patch('/sessions/:id/close', validate(closeSessionSchema, 'body'), controller.closeSession);
+router.patch('/sessions/:id/comment', controller.updateComment);
 router.get('/sessions/:id/continuation-data', controller.getContinuationData);
 
 // Trades

@@ -103,6 +103,17 @@ export const useDeleteTrade = () => {
   });
 };
 
+export const useUpdateComment = (sessionId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (comment) => api.updateBacktestComment(sessionId, comment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: backtestKeys.session(sessionId) });
+      queryClient.invalidateQueries({ queryKey: backtestKeys.sessions() });
+    },
+  });
+};
+
 // Helper para recalcular contadores optimistas
 const countTrades = (trades) => {
   const long_wins = trades.filter((t) => t.result === 'long_win').length;

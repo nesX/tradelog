@@ -68,6 +68,18 @@ export const closeSession = async (userId, sessionId, data) => {
 };
 
 /**
+ * Actualiza el comentario de estado anímico inicial
+ */
+export const updateComment = async (userId, sessionId, comment) => {
+  const session = await repo.findByIdRaw(sessionId, userId);
+  if (!session) {
+    throw new NotFoundError('Sesión no encontrada');
+  }
+  const updated = await repo.updateComment(sessionId, userId, comment);
+  return updated;
+};
+
+/**
  * Obtiene datos de una sesión para precargar en formulario de continuación
  */
 export const getSessionForContinuation = async (userId, sessionId) => {

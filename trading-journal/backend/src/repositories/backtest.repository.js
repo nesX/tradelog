@@ -109,6 +109,20 @@ export const create = async (data) => {
 };
 
 /**
+ * Actualiza el comentario de estado anímico inicial
+ */
+export const updateComment = async (id, userId, comment) => {
+  const sql = `
+    UPDATE backtest_sessions
+    SET mood_start_comment = $3
+    WHERE id = $1 AND user_id = $2
+    RETURNING *
+  `;
+  const result = await query(sql, [id, userId, comment || null]);
+  return result.rows[0] || null;
+};
+
+/**
  * Cierra una sesión
  */
 export const closeSession = async (id, userId, data) => {

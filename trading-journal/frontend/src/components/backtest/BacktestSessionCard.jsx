@@ -61,6 +61,13 @@ const BacktestSessionCard = ({ session }) => {
         )}
       </div>
 
+      {/* Comentario */}
+      {session.mood_start_comment && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">
+          {session.mood_start_comment}
+        </p>
+      )}
+
       {/* Stats */}
       {session.total_trades > 0 ? (
         <div className="flex items-center gap-3">

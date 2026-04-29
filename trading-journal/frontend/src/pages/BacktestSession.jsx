@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, GitBranch, Lock, Camera, X } from 'lucide-react';
-import { useSession, useAddTrade, useDeleteTrade, useCloseSession, useDeleteTradeImage } from '../hooks/useBacktest.js';
+import { ArrowLeft, GitBranch, Lock, Camera, X, Pencil, Check } from 'lucide-react';
+import { useSession, useAddTrade, useDeleteTrade, useCloseSession, useDeleteTradeImage, useUpdateComment } from '../hooks/useBacktest.js';
 import BacktestTradeButton, { RESULT_KEYS, getResultConfig } from '../components/backtest/BacktestTradeButton.jsx';
 import BacktestTradeList from '../components/backtest/BacktestTradeList.jsx';
 import BacktestCloseModal from '../components/backtest/BacktestCloseModal.jsx';
@@ -139,8 +139,12 @@ const BacktestSession = () => {
   const deleteTradeImage = useDeleteTradeImage(sessionId);
   const closeSession = useCloseSession();
 
+  const updateComment = useUpdateComment(sessionId);
+
   const [selectedResult, setSelectedResult] = useState(null);
   const [closeModalOpen, setCloseModalOpen] = useState(false);
+  const [editingComment, setEditingComment] = useState(false);
+  const [commentDraft, setCommentDraft] = useState('');
 
   if (isLoading) {
     return (
@@ -254,6 +258,70 @@ const BacktestSession = () => {
               </>
             )}
           </div>
+
+          {/* Comentario editable */}
+          {editingComment ? (
+            <div className="mt-2 space-y-2">
+              <textarea
+                autoFocus
+                value={commentDraft}
+                onChange={(e) => setCommentDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setEditingComment(false);
+                }}
+                rows={3}
+                maxLength={1000}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                placeholder="Añade un comentario a esta sesión..."
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingComment(false)}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={updateComment.isPending}
+                  onClick={() => {
+                    updateComment.mutate(commentDraft || null, {
+                      onSuccess: () => setEditingComment(false),
+                      onError: () => toast.error('Error al guardar el comentario'),
+                    });
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors disabled:opacity-50"
+                >
+                  <Check className="w-3 h-3" />
+                  Guardar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 flex items-start gap-2 group">
+              {session.mood_start_comment ? (
+                <p className="text-sm text-gray-600 dark:text-gray-400 flex-1">
+                  {session.mood_start_comment}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-400 dark:text-gray-500 italic flex-1">
+                  Sin comentario
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setCommentDraft(session.mood_start_comment || '');
+                  setEditingComment(true);
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all flex-shrink-0"
+                title="Editar comentario"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -321,14 +389,6 @@ const BacktestSession = () => {
                 Comentario de cierre
               </p>
               <p className="text-sm text-gray-700 dark:text-gray-300">{session.closing_comment}</p>
-            </div>
-          )}
-          {session.mood_start_comment && (
-            <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                Ánimo inicial
-              </p>
-              <p className="text-sm text-gray-700 dark:text-gray-300">{session.mood_start_comment}</p>
             </div>
           )}
           {session.mood_end_comment && (

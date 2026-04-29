@@ -52,6 +52,16 @@ export const getContinuationData = async (req, res, next) => {
   }
 };
 
+export const updateComment = async (req, res, next) => {
+  try {
+    const session = await service.updateComment(req.user.id, parseInt(req.params.id, 10), req.body.mood_start_comment ?? null);
+    sendSuccess(res, session, 'Comentario actualizado');
+  } catch (error) {
+    logger.error('BacktestController:updateComment', { error: error.message, userId: req.user?.id, sessionId: req.params.id });
+    next(error);
+  }
+};
+
 export const addTrade = async (req, res, next) => {
   try {
     const trade = await service.addTrade(req.user.id, parseInt(req.params.id, 10), req.body, req.file);
