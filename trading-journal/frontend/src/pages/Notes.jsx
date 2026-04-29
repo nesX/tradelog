@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Tags, Menu, X, BookOpen } from 'lucide-react';
+import { Plus, Tags, Menu, X, BookOpen, FileText, Clock } from 'lucide-react';
 import { useNoteTree, useCreateNote, useDeleteNote, useReorderNotes } from '../hooks/useNotes.js';
 import NoteTree from '../components/notes/NoteTree.jsx';
 import NoteTagManager from '../components/notes/NoteTagManager.jsx';
@@ -190,31 +190,75 @@ const Notes = () => {
             />
           </div>
         ) : (
-          /* ── Empty state ── */
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-xs px-6">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-50 dark:bg-blue-900/30
-                              flex items-center justify-center">
-                <BookOpen className="w-8 h-8 text-blue-500 dark:text-blue-400" />
+          /* ── Panel de inicio: notas recientes ── */
+          <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-gray-800">
+            {/* Cabecera con botón nueva nota */}
+            <div className="flex items-center justify-between px-6 py-4
+                            border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  Notas recientes
+                </span>
               </div>
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                {flat.length === 0 ? 'Crea tu primera nota' : 'Selecciona una nota'}
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-                {flat.length === 0
-                  ? 'Guarda ideas, investigación y análisis en un lugar privado.'
-                  : 'Elige una nota del panel izquierdo o crea una nueva.'}
-              </p>
               <button
                 onClick={handleCreateRoot}
                 disabled={createNote.isPending}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700
                            text-white text-sm font-medium rounded-lg transition-colors
                            disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus className="w-4 h-4" />
                 {createNote.isPending ? 'Creando...' : 'Nueva nota'}
               </button>
+            </div>
+
+            {/* Lista de notas recientes */}
+            <div className="flex-1 overflow-y-auto">
+              {flat.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full py-16 px-6">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-50 dark:bg-blue-900/30
+                                  flex items-center justify-center">
+                    <BookOpen className="w-8 h-8 text-blue-500 dark:text-blue-400" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
+                    Crea tu primera nota
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Guarda ideas, investigación y análisis en un lugar privado.
+                  </p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {[...flat]
+                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                    .slice(0, 50)
+                    .map((note) => (
+                      <li key={note.id}>
+                        <button
+                          onClick={() => handleSelectNote(note.id)}
+                          className="w-full flex items-start gap-3 px-6 py-3.5
+                                     hover:bg-gray-50 dark:hover:bg-gray-700/50
+                                     transition-colors text-left"
+                        >
+                          <FileText className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                              {note.title || 'Sin título'}
+                            </p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                              {new Date(note.created_at).toLocaleDateString('es-ES', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </p>
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+              )}
             </div>
           </div>
         )}
