@@ -68,14 +68,14 @@ export const closeSession = async (userId, sessionId, data) => {
 };
 
 /**
- * Actualiza el comentario de estado anímico inicial
+ * Actualiza la descripción de la sesión
  */
-export const updateComment = async (userId, sessionId, comment) => {
+export const updateDescription = async (userId, sessionId, description) => {
   const session = await repo.findByIdRaw(sessionId, userId);
   if (!session) {
     throw new NotFoundError('Sesión no encontrada');
   }
-  const updated = await repo.updateComment(sessionId, userId, comment);
+  const updated = await repo.updateDescription(sessionId, userId, description);
   return updated;
 };
 
@@ -180,6 +180,7 @@ const formatSession = (row) => ({
   period_end_date: row.period_end_date || null,
   mood_start_score: row.mood_start_score,
   mood_start_comment: row.mood_start_comment,
+  description: row.description || null,
   mood_end_score: row.mood_end_score,
   mood_end_comment: row.mood_end_comment,
   closing_comment: row.closing_comment,

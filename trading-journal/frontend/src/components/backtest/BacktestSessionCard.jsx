@@ -61,10 +61,10 @@ const BacktestSessionCard = ({ session }) => {
         )}
       </div>
 
-      {/* Comentario */}
-      {session.mood_start_comment && (
+      {/* Descripción */}
+      {session.description && (
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">
-          {session.mood_start_comment}
+          {session.description}
         </p>
       )}
 

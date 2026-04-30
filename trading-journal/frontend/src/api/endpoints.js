@@ -201,7 +201,7 @@ export const addBacktestTrade = (sessionId, data, imageFile = null) => {
   }
   return apiClient.post(`/api/backtest/sessions/${sessionId}/trades`, data);
 };
-export const updateBacktestComment = (id, comment) => apiClient.patch(`/api/backtest/sessions/${id}/comment`, { mood_start_comment: comment });
+export const updateBacktestDescription = (id, description) => apiClient.patch(`/api/backtest/sessions/${id}/description`, { description });
 export const deleteBacktestTrade = (tradeId) => apiClient.delete(`/api/backtest/trades/${tradeId}`);
 export const deleteBacktestTradeImage = (tradeId) => apiClient.delete(`/api/backtest/trades/${tradeId}/image`);
 

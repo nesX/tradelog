@@ -19,6 +19,7 @@ export const createSessionSchema = Joi.object({
   mood_start_score: Joi.number().integer().min(1).max(5).required()
     .messages({ 'any.required': 'El estado anímico inicial es obligatorio' }),
   mood_start_comment: Joi.string().max(1000).allow('', null).optional(),
+  description: Joi.string().max(2000).allow('', null).optional(),
   parent_session_id: Joi.number().integer().positive().optional(),
 });
 

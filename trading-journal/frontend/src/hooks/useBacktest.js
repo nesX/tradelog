@@ -103,10 +103,10 @@ export const useDeleteTrade = () => {
   });
 };
 
-export const useUpdateComment = (sessionId) => {
+export const useUpdateDescription = (sessionId) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (comment) => api.updateBacktestComment(sessionId, comment),
+    mutationFn: (description) => api.updateBacktestDescription(sessionId, description),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: backtestKeys.session(sessionId) });
       queryClient.invalidateQueries({ queryKey: backtestKeys.sessions() });

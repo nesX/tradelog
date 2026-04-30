@@ -26,6 +26,7 @@ const BacktestNew = () => {
     period_date: '',
     mood_start_score: null,
     mood_start_comment: '',
+    description: '',
   });
   const [parentData, setParentData] = useState(null);
   const [errors, setErrors] = useState({});
@@ -71,6 +72,7 @@ const BacktestNew = () => {
       period_date: form.period_date,
       mood_start_score: form.mood_start_score,
       mood_start_comment: form.mood_start_comment || undefined,
+      description: form.description || undefined,
     };
     if (parentId) payload.parent_session_id = parseInt(parentId, 10);
 
@@ -165,6 +167,21 @@ const BacktestNew = () => {
           label="Estado anímico inicial *"
         />
         {errors.mood && <p className="text-xs text-red-500 -mt-3">{errors.mood}</p>}
+
+        {/* Descripción */}
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Descripción
+          </label>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+            placeholder="Motivo del backtesting, qué esperas aprender, hipótesis a validar..."
+            maxLength={2000}
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
+          />
+        </div>
 
         {/* Botones */}
         <div className="flex gap-3 pt-1">

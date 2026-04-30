@@ -91,8 +91,8 @@ export const findByIdRaw = async (id, userId) => {
 export const create = async (data) => {
   const sql = `
     INSERT INTO backtest_sessions
-      (user_id, symbol, timeframe, period_date, mood_start_score, mood_start_comment, parent_session_id)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+      (user_id, symbol, timeframe, period_date, mood_start_score, mood_start_comment, description, parent_session_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING *
   `;
   const params = [
@@ -102,6 +102,7 @@ export const create = async (data) => {
     data.period_date,
     data.mood_start_score,
     data.mood_start_comment || null,
+    data.description || null,
     data.parent_session_id || null,
   ];
   const result = await query(sql, params);
@@ -109,16 +110,16 @@ export const create = async (data) => {
 };
 
 /**
- * Actualiza el comentario de estado anímico inicial
+ * Actualiza la descripción de la sesión
  */
-export const updateComment = async (id, userId, comment) => {
+export const updateDescription = async (id, userId, description) => {
   const sql = `
     UPDATE backtest_sessions
-    SET mood_start_comment = $3
+    SET description = $3
     WHERE id = $1 AND user_id = $2
     RETURNING *
   `;
-  const result = await query(sql, [id, userId, comment || null]);
+  const result = await query(sql, [id, userId, description || null]);
   return result.rows[0] || null;
 };
 

@@ -52,12 +52,12 @@ export const getContinuationData = async (req, res, next) => {
   }
 };
 
-export const updateComment = async (req, res, next) => {
+export const updateDescription = async (req, res, next) => {
   try {
-    const session = await service.updateComment(req.user.id, parseInt(req.params.id, 10), req.body.mood_start_comment ?? null);
-    sendSuccess(res, session, 'Comentario actualizado');
+    const session = await service.updateDescription(req.user.id, parseInt(req.params.id, 10), req.body.description ?? null);
+    sendSuccess(res, session, 'Descripción actualizada');
   } catch (error) {
-    logger.error('BacktestController:updateComment', { error: error.message, userId: req.user?.id, sessionId: req.params.id });
+    logger.error('BacktestController:updateDescription', { error: error.message, userId: req.user?.id, sessionId: req.params.id });
     next(error);
   }
 };
