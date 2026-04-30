@@ -35,6 +35,20 @@ export const moveNote = async (req, res) => {
   sendSuccess(res, data, 'Nota movida');
 };
 
+export const moveDndNote = async (req, res) => {
+  const noteId = parseInt(req.params.id, 10);
+  const { targetId, dropType } = req.body;
+  const data = await noteService.moveDnd({ noteId, targetId, dropType, userId: req.user.id });
+  sendSuccess(res, data, 'Nota movida');
+};
+
+export const moveBlockDnd = async (req, res) => {
+  const blockId = parseInt(req.params.blockId, 10);
+  const { targetBlockId, dropType } = req.body;
+  const data = await noteService.moveBlockDnd({ blockId, targetBlockId, dropType, userId: req.user.id });
+  sendSuccess(res, data, 'Bloque movido');
+};
+
 export const reorderNotes = async (req, res) => {
   await noteService.reorderNotes(req.user.id, req.body.note_ids);
   sendSuccess(res, null, 'Notas reordenadas');

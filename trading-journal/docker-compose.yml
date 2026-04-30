@@ -20,28 +20,32 @@ services:
 
   # 2. Backend Service (Express API)
   backend:
-    user: "1000:1000" # Esto asegura que los archivos creados por el backend tengan permisos adecuados en el host
+    user: "1000:1000"
     build: ./backend
     container_name: tradelog-backend
     restart: always
     depends_on:
-        db:
-          condition: service_healthy # El backend esperará a que la base de datos esté lista antes de iniciar, de lo contrario arranca primero el backend y luego la base de datos, lo que puede causar errores de conexión.          
+      db:
+        condition: service_healthy
     environment:
-    # This connects to the 'db' service using the same variables
-          DB_USER: ${DB_USER}
-          DB_PASSWORD: ${DB_PASSWORD}
-          DB_NAME: ${DB_NAME}
-          DB_HOST: db       # Aquí forzamos que el host sea el nombre del servicio
-          DB_PORT: 5432     # Puerto interno de Docker
-          UPLOAD_DIR: ${UPLOAD_DIR}
-          PORT: 3000
-          LOG_DIR: ${LOG_DIR}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_HOST: db
+      DB_PORT: 5432
+      UPLOAD_DIR: ${UPLOAD_DIR}
+      PORT: 3000
+      LOG_DIR: ${LOG_DIR}
     volumes:
+      # Sincroniza tu código en tiempo real
+      - ./backend:/usr/src/app
+      # Evita que tu carpeta node_modules local sobrescriba la del contenedor
+      - /usr/src/app/node_modules
       - ./backend/uploads:/usr/src/app/${UPLOAD_DIR}
       - ./backend/logs:/usr/src/app/${LOG_DIR}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
+    command: npm run dev
 
   # 3. Frontend Service (React/Vite)
   frontend:
@@ -49,11 +53,15 @@ services:
     container_name: tradelog-frontend
     restart: always
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     stdin_open: true
     environment:
       - VITE_API_URL=http://localhost:3000
+    volumes:
+      - ./frontend:/usr/src/app
+      - /usr/src/app/node_modules
+    command: npm run dev
 
-# This saves your database data even if the container stops
+# Los volúmenes van al mismo nivel que 'services'
 volumes:
   tradelog_db_data:

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import * as api from '../api/endpoints.js';
+import { applyOptimisticNoteMoveFlat, applyOptimisticBlockMove } from '../utils/treeManipulation.js';
 
 export const noteKeys = {
   all: ['notes'],
@@ -225,5 +226,53 @@ export const useRemoveTags = () => {
       qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
       qc.invalidateQueries({ queryKey: noteKeys.tree() });
     },
+  });
+};
+
+export const useMoveNoteDnd = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ noteId, targetId, dropType }) =>
+      api.moveNoteDnd(noteId, { targetId, dropType }),
+    onMutate: async ({ noteId, targetId, dropType }) => {
+      await qc.cancelQueries({ queryKey: noteKeys.tree() });
+      const previous = qc.getQueryData(noteKeys.tree());
+      qc.setQueryData(noteKeys.tree(), (old) => {
+        if (!old?.data) return old;
+        return { ...old, data: applyOptimisticNoteMoveFlat(old.data, noteId, targetId, dropType) };
+      });
+      return { previous };
+    },
+    onError: (_, __, context) => {
+      if (context?.previous) qc.setQueryData(noteKeys.tree(), context.previous);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: noteKeys.tree() }),
+  });
+};
+
+export const useMoveBlockDnd = (noteId) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ blockId, targetBlockId, dropType }) =>
+      api.moveBlockDnd(blockId, { targetBlockId, dropType }),
+    onMutate: async ({ blockId, targetBlockId, dropType }) => {
+      await qc.cancelQueries({ queryKey: noteKeys.detail(noteId) });
+      const previous = qc.getQueryData(noteKeys.detail(noteId));
+      qc.setQueryData(noteKeys.detail(noteId), (old) => {
+        if (!old?.data?.blocks) return old;
+        return {
+          ...old,
+          data: {
+            ...old.data,
+            blocks: applyOptimisticBlockMove(old.data.blocks, blockId, targetBlockId, dropType),
+          },
+        };
+      });
+      return { previous };
+    },
+    onError: (_, __, context) => {
+      if (context?.previous) qc.setQueryData(noteKeys.detail(noteId), context.previous);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) }),
   });
 };

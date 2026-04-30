@@ -1,5 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import NoteTreeItem from './NoteTreeItem.jsx';
+import { useMoveNoteDnd } from '../../hooks/useNotes.js';
 
 const STORAGE_KEY = 'note_tree_expanded';
 
@@ -18,8 +29,27 @@ const saveExpanded = (set) => {
   } catch {}
 };
 
-const renderTree = (nodes, depth, props) => {
-  return nodes.map((note) => (
+const findNodeInTree = (nodes, id) => {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    if (node.children?.length) {
+      const found = findNodeInTree(node.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+// 15% arriba → sibling-above, 15% abajo → sibling-below, 70% centro → child
+const computeZone = (pointerY, rect) => {
+  const ratio = (pointerY - rect.top) / rect.height;
+  if (ratio < 0.15) return 'sibling-above';
+  if (ratio > 0.85) return 'sibling-below';
+  return 'child';
+};
+
+const renderTree = (nodes, depth, props) =>
+  nodes.map((note) => (
     <NoteTreeItem
       key={note.id}
       note={note}
@@ -30,73 +60,69 @@ const renderTree = (nodes, depth, props) => {
       onSelect={() => props.onSelect(note.id)}
       onCreateChild={props.onCreateChild}
       onDelete={props.onDelete}
-      isDragging={props.dragId === note.id}
-      isDragOver={props.overId === note.id}
-      dragPosition={props.overId === note.id ? props.dragPosition : null}
-      onDragStart={() => props.onDragStart(note)}
-      onDragOver={(e, pos) => props.onDragOver(e, note, pos)}
-      onDrop={(e, pos) => props.onDrop(e, note, nodes, pos)}
-      onDragEnd={props.onDragEnd}
+      onMove={props.onMove}
+      overInfo={props.overInfo}
     >
-      {note.children && note.children.length > 0
-        ? renderTree(note.children, depth + 1, props)
-        : null}
+      {note.children?.length > 0 ? renderTree(note.children, depth + 1, props) : null}
     </NoteTreeItem>
   ));
-};
 
-const NoteTree = ({ notes = [], flat = [], selectedNoteId, onSelect, onCreateChild, onDelete, onReorder }) => {
+const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelete, onMove }) => {
   const [expandedIds, setExpandedIds] = useState(loadExpanded);
-  const [dragId, setDragId] = useState(null);
-  const [overId, setOverId] = useState(null);
-  const [dragPosition, setDragPosition] = useState('below');
+  const [activeNote, setActiveNote] = useState(null);
+  const [overInfo, setOverInfo] = useState({ noteId: null, zone: null });
+  const moveNote = useMoveNoteDnd();
 
   useEffect(() => {
     saveExpanded(expandedIds);
   }, [expandedIds]);
 
-  const toggle = (id) => {
+  const toggle = useCallback((id) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }, []);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragStart = ({ active }) => {
+    setActiveNote(findNodeInTree(notes, active.id));
+    setOverInfo({ noteId: null, zone: null });
   };
 
-  const handleDragStart = useCallback((note) => {
-    setDragId(note.id);
-  }, []);
-
-  const handleDragOver = useCallback((e, note, position) => {
-    e.preventDefault();
-    if (note.id === dragId) return;
-    setOverId(note.id);
-    setDragPosition(position);
-  }, [dragId]);
-
-  const handleDrop = useCallback((e, targetNote, siblings, position) => {
-    e.preventDefault();
-    const dragged = siblings.find((n) => n.id === dragId);
-    if (!dragged || dragId === targetNote.id) {
-      setDragId(null);
-      setOverId(null);
+  const handleDragMove = ({ activatorEvent, delta, over }) => {
+    if (!over?.data.current?.noteId) {
+      setOverInfo({ noteId: null, zone: null });
       return;
     }
+    const noteId = over.data.current.noteId;
+    const pointerY = activatorEvent.clientY + delta.y;
+    const zone = computeZone(pointerY, over.rect);
+    setOverInfo({ noteId, zone });
+  };
 
-    const filtered = siblings.filter((n) => n.id !== dragId);
-    const targetIdx = filtered.findIndex((n) => n.id === targetNote.id);
-    const insertIdx = position === 'above' ? targetIdx : targetIdx + 1;
-    filtered.splice(insertIdx, 0, dragged);
+  const handleDragEnd = ({ activatorEvent, delta, active, over }) => {
+    setActiveNote(null);
+    setOverInfo({ noteId: null, zone: null });
 
-    onReorder(filtered.map((n) => n.id));
-    setDragId(null);
-    setOverId(null);
-  }, [dragId, onReorder]);
+    if (!over?.data.current?.noteId) return;
+    const targetId = over.data.current.noteId;
+    if (active.id === targetId) return;
 
-  const handleDragEnd = useCallback(() => {
-    setDragId(null);
-    setOverId(null);
-  }, []);
+    const pointerY = activatorEvent.clientY + delta.y;
+    const dropType = computeZone(pointerY, over.rect);
+    moveNote.mutate({ noteId: active.id, targetId, dropType });
+  };
+
+  const handleDragCancel = () => {
+    setActiveNote(null);
+    setOverInfo({ noteId: null, zone: null });
+  };
 
   const treeProps = {
     expandedIds,
@@ -105,38 +131,30 @@ const NoteTree = ({ notes = [], flat = [], selectedNoteId, onSelect, onCreateChi
     onSelect,
     onCreateChild,
     onDelete,
-    dragId,
-    overId,
-    dragPosition,
-    onDragStart: handleDragStart,
-    onDragOver: handleDragOver,
-    onDrop: handleDrop,
-    onDragEnd: handleDragEnd,
+    onMove,
+    overInfo,
   };
 
-  const handleDropAtEnd = useCallback((e) => {
-    e.preventDefault();
-    if (!dragId) return;
-    const dragged = notes.find((n) => n.id === dragId);
-    if (!dragged) { setDragId(null); setOverId(null); return; }
-    const filtered = notes.filter((n) => n.id !== dragId);
-    filtered.push(dragged);
-    onReorder(filtered.map((n) => n.id));
-    setDragId(null);
-    setOverId(null);
-  }, [dragId, notes, onReorder]);
-
   return (
-    <div className="space-y-0.5">
-      {renderTree(notes, 0, treeProps)}
-      {dragId && (
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleDropAtEnd}
-          className="h-8 rounded-lg border-2 border-dashed border-blue-300 dark:border-blue-600 opacity-60 mt-1"
-        />
-      )}
-    </div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
+      <div className="space-y-0.5">
+        {renderTree(notes, 0, treeProps)}
+      </div>
+      <DragOverlay>
+        {activeNote ? (
+          <div className="bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-600 shadow-lg rounded-lg px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 opacity-90 cursor-grabbing max-w-[220px] truncate">
+            {activeNote.title || 'Sin título'}
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 };
 

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Tags, Menu, X, BookOpen, FileText, Clock } from 'lucide-react';
-import { useNoteTree, useCreateNote, useDeleteNote, useReorderNotes } from '../hooks/useNotes.js';
+import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search } from 'lucide-react';
+import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useMoveNote } from '../hooks/useNotes.js';
 import NoteTree from '../components/notes/NoteTree.jsx';
 import NoteTagManager from '../components/notes/NoteTagManager.jsx';
 import NoteExportMenu from '../components/notes/NoteExportMenu.jsx';
@@ -29,13 +29,16 @@ const Notes = () => {
 
   const { data: treeData, isLoading } = useNoteTree();
   const createNote = useCreateNote();
+  const createBlock = useCreateBlock();
   const deleteNote = useDeleteNote();
-  const reorderNotes = useReorderNotes();
 
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchParams, setSearchParams] = useState({ q: '', tagIds: [] });
+  const [moveNoteId, setMoveNoteId] = useState(null);
+  const [moveSearch, setMoveSearch] = useState('');
+  const moveNote = useMoveNote();
 
   const handleSearchChange = useCallback((params) => setSearchParams(params), []);
 
@@ -53,7 +56,12 @@ const Notes = () => {
 
   const handleCreateChild = async (parentId) => {
     const res = await createNote.mutateAsync({ parent_note_id: parentId });
-    navigate(`/notes/${res.data.id}`);
+    const newNoteId = res.data.id;
+    await createBlock.mutateAsync({
+      noteId: parentId,
+      data: { block_type: 'note_link', linked_note_id: newNoteId, position: 9999 },
+    });
+    navigate(`/notes/${newNoteId}`);
   };
 
   const handleSelectNote = (noteId) => {
@@ -65,6 +73,16 @@ const Notes = () => {
     if (!window.confirm(`¿Eliminar "${title}"? También se eliminarán sus sub-notas.`)) return;
     await deleteNote.mutateAsync(noteId);
     if (selectedId === noteId) navigate('/notes');
+  };
+
+  const handleOpenMove = (noteId) => {
+    setMoveNoteId(noteId);
+    setMoveSearch('');
+  };
+
+  const handleConfirmMove = async (parentId) => {
+    await moveNote.mutateAsync({ id: moveNoteId, parent_note_id: parentId });
+    setMoveNoteId(null);
   };
 
   return (
@@ -152,12 +170,11 @@ const Notes = () => {
           ) : (
             <NoteTree
               notes={tree}
-              flat={flat}
               selectedNoteId={selectedId}
               onSelect={handleSelectNote}
               onCreateChild={handleCreateChild}
               onDelete={handleDeleteNote}
-              onReorder={(note_ids) => reorderNotes.mutate(note_ids)}
+              onMove={handleOpenMove}
             />
           )}
         </div>
@@ -288,6 +305,108 @@ const Notes = () => {
 
       {/* Modal de tags */}
       <NoteTagManager isOpen={tagManagerOpen} onClose={() => setTagManagerOpen(false)} />
+
+      {/* Modal: mover nota dentro de otra */}
+      {moveNoteId && (() => {
+        const movingNote = flat.find((n) => n.id === moveNoteId);
+        const q = moveSearch.trim().toLowerCase();
+        const candidates = flat.filter(
+          (n) => n.id !== moveNoteId && (!q || n.title?.toLowerCase().includes(q))
+        );
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm flex flex-col max-h-[70vh]">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-2">
+                  <FolderInput className="w-4 h-4 text-blue-500" />
+                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    Mover nota
+                  </span>
+                </div>
+                <button
+                  onClick={() => setMoveNoteId(null)}
+                  className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Nota a mover */}
+              <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-200 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Moviendo:</p>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                  {movingNote?.title || 'Sin título'}
+                </p>
+              </div>
+
+              {/* Búsqueda */}
+              <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                  <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Buscar nota destino..."
+                    value={moveSearch}
+                    onChange={(e) => setMoveSearch(e.target.value)}
+                    className="flex-1 bg-transparent text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Lista de destinos */}
+              <div className="flex-1 overflow-y-auto py-1">
+                {/* Opción: mover a raíz */}
+                <button
+                  onClick={() => handleConfirmMove(null)}
+                  disabled={moveNote.isPending}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm
+                             hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors
+                             text-gray-600 dark:text-gray-300 disabled:opacity-50"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <span className="italic">Sin padre (nota raíz)</span>
+                </button>
+
+                <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
+
+                {candidates.length === 0 ? (
+                  <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-6">
+                    No hay notas coincidentes
+                  </p>
+                ) : (
+                  candidates.map((n) => {
+                    const bc = buildBreadcrumb(n.parent_note_id, flat);
+                    return (
+                      <button
+                        key={n.id}
+                        onClick={() => handleConfirmMove(n.id)}
+                        disabled={moveNote.isPending}
+                        className="w-full flex items-start gap-2 px-4 py-2 text-left
+                                   hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors
+                                   disabled:opacity-50"
+                      >
+                        <FileText className="w-3.5 h-3.5 mt-0.5 text-gray-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm text-gray-800 dark:text-gray-100 truncate">
+                            {n.title || 'Sin título'}
+                          </p>
+                          {bc && (
+                            <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                              {bc}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

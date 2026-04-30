@@ -17,6 +17,16 @@ export const moveNoteSchema = Joi.object({
   parent_note_id: Joi.number().integer().positive().allow(null).required(),
 });
 
+export const moveDndNoteSchema = Joi.object({
+  targetId: Joi.number().integer().positive().required(),
+  dropType: Joi.string().valid('sibling-above', 'sibling-below', 'child').required(),
+});
+
+export const moveBlockDndSchema = Joi.object({
+  targetBlockId: Joi.number().integer().positive().required(),
+  dropType: Joi.string().valid('sibling-above', 'sibling-below').required(),
+});
+
 export const createBlockSchema = Joi.object({
   block_type: Joi.string().valid('text', 'image_gallery', 'note_link', 'callout').required(),
   content: Joi.string().max(50000).allow(null, '').optional(),

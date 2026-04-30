@@ -1,4 +1,5 @@
 import path from 'path';
+import { generateKeyBetween } from 'fractional-indexing';
 import { config } from '../config/env.js';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 import { deleteFileIfExists } from '../utils/fileUtils.js';
@@ -84,6 +85,108 @@ export const reorderNotes = async (userId, noteIds) => {
   }
 
   await repo.reorderSiblings(userId, noteIds);
+};
+
+// ============================================================
+// DRAG & DROP — movimiento con fractional indexing
+// ============================================================
+
+/**
+ * Mueve una nota a una nueva posición/padre usando fractional indexing.
+ * Un único UPDATE por operación, sin reescribir hermanos.
+ *
+ * @param {Object} params
+ * @param {number} params.noteId     - Nota a mover (source)
+ * @param {number} params.targetId   - Nota referencia del destino
+ * @param {'sibling-above'|'sibling-below'|'child'} params.dropType
+ * @param {number} params.userId
+ */
+export const moveDnd = async ({ noteId, targetId, dropType, userId }) => {
+  if (noteId === targetId) {
+    throw new ValidationError('No puedes mover una nota sobre sí misma');
+  }
+
+  const [sourceNote, targetNote] = await Promise.all([
+    repo.findNoteByIdAndUser(noteId, userId),
+    repo.findNoteByIdAndUser(targetId, userId),
+  ]);
+
+  if (!sourceNote) throw new NotFoundError('Nota origen no encontrada');
+  if (!targetNote) throw new NotFoundError('Nota destino no encontrada');
+
+  // Evitar ciclos: el destino no puede ser descendiente del source
+  const descendantIds = await repo.getDescendantIds(noteId);
+  if (descendantIds.includes(targetId)) {
+    throw new ValidationError('No puedes mover una nota dentro de uno de sus descendientes');
+  }
+
+  let newParentId;
+  let newPosition;
+
+  if (dropType === 'child') {
+    // Anidar como hijo del target → al final de sus hijos
+    newParentId = targetId;
+    const lastChildPos = await repo.getLastChildPosition(targetId);
+    newPosition = generateKeyBetween(lastChildPos, null);
+  } else {
+    // Sibling: mismo padre que el target
+    newParentId = targetNote.parent_note_id;
+    const side = dropType === 'sibling-above' ? 'above' : 'below';
+    const { before, after } = await repo.getSiblingPositions(
+      newParentId,
+      userId,
+      targetNote.position,
+      side
+    );
+    newPosition = generateKeyBetween(before, after);
+  }
+
+  const updated = await repo.updateNoteParentAndPosition(noteId, newParentId, newPosition, userId);
+  if (!updated) throw new NotFoundError('No se pudo mover la nota');
+  return updated;
+};
+
+/**
+ * Mueve un bloque dentro de su nota con fractional indexing.
+ * Bloques no anidan: solo sibling-above / sibling-below.
+ *
+ * @param {Object} params
+ * @param {number} params.blockId       - Bloque a mover
+ * @param {number} params.targetBlockId - Bloque referencia del destino
+ * @param {'sibling-above'|'sibling-below'} params.dropType
+ * @param {number} params.userId
+ */
+export const moveBlockDnd = async ({ blockId, targetBlockId, dropType, userId }) => {
+  if (blockId === targetBlockId) {
+    throw new ValidationError('No puedes mover un bloque sobre sí mismo');
+  }
+  if (dropType === 'child') {
+    throw new ValidationError('Los bloques no pueden contener otros bloques');
+  }
+
+  const [sourceBlock, targetBlock] = await Promise.all([
+    repo.findBlockByIdAndUser(blockId, userId),
+    repo.findBlockByIdAndUser(targetBlockId, userId),
+  ]);
+
+  if (!sourceBlock) throw new NotFoundError('Bloque origen no encontrado');
+  if (!targetBlock) throw new NotFoundError('Bloque destino no encontrado');
+
+  if (sourceBlock.note_id !== targetBlock.note_id) {
+    throw new ValidationError('Mover bloques entre notas distintas no está soportado en V1');
+  }
+
+  const side = dropType === 'sibling-above' ? 'above' : 'below';
+  const { before, after } = await repo.getSiblingBlockPositions(
+    targetBlock.note_id,
+    targetBlock.position,
+    side
+  );
+  const newPosition = generateKeyBetween(before, after);
+
+  const updated = await repo.updateBlockPosition(blockId, newPosition, userId);
+  if (!updated) throw new NotFoundError('No se pudo mover el bloque');
+  return updated;
 };
 
 export const search = async (userId, { q, tagIds, limit }) => {

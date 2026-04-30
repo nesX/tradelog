@@ -1,4 +1,5 @@
 import { pool } from '../config/database.js';
+import { generateKeyBetween } from 'fractional-indexing';
 
 // ============================================================
 // NOTAS
@@ -61,13 +62,13 @@ export const getById = async (userId, noteId) => {
 };
 
 export const create = async (userId, { title = 'Sin título', parent_note_id = null }) => {
-  const posResult = await pool.query(
-    `SELECT COALESCE(MAX(position), -1) + 1 as next_pos
+  const lastResult = await pool.query(
+    `SELECT MAX(position) as last_pos
      FROM notes
      WHERE user_id = $1 AND parent_note_id IS NOT DISTINCT FROM $2 AND deleted_at IS NULL`,
     [userId, parent_note_id]
   );
-  const position = posResult.rows[0].next_pos;
+  const position = generateKeyBetween(lastResult.rows[0]?.last_pos || null, null);
 
   const result = await pool.query(
     `INSERT INTO notes (user_id, parent_note_id, title, position)
@@ -125,11 +126,14 @@ export const reorderSiblings = async (userId, noteIds) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    for (let i = 0; i < noteIds.length; i++) {
+    let prev = null;
+    for (const noteId of noteIds) {
+      const key = generateKeyBetween(prev, null);
       await client.query(
         `UPDATE notes SET position = $1 WHERE id = $2 AND user_id = $3`,
-        [i, noteIds[i], userId]
+        [key, noteId, userId]
       );
+      prev = key;
     }
     await client.query('COMMIT');
   } catch (err) {
@@ -141,6 +145,164 @@ export const reorderSiblings = async (userId, noteIds) => {
 };
 
 // Obtener todas las notas (IDs) de una lista de IDs para validación
+// ============================================================
+// DRAG & DROP — NOTAS
+// ============================================================
+
+/**
+ * Obtiene todos los IDs de descendientes de una nota (recursivo).
+ * Usado para validar ciclos al mover.
+ */
+export const getDescendantIds = async (noteId) => {
+  const result = await pool.query(
+    `WITH RECURSIVE descendants AS (
+       SELECT id FROM notes
+       WHERE parent_note_id = $1 AND deleted_at IS NULL
+       UNION ALL
+       SELECT n.id FROM notes n
+       INNER JOIN descendants d ON n.parent_note_id = d.id
+       WHERE n.deleted_at IS NULL
+     )
+     SELECT id FROM descendants`,
+    [noteId]
+  );
+  return result.rows.map((r) => r.id);
+};
+
+/**
+ * Busca una nota verificando propiedad del usuario.
+ */
+export const findNoteByIdAndUser = async (noteId, userId) => {
+  const result = await pool.query(
+    `SELECT id, user_id, parent_note_id, title, position
+     FROM notes
+     WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+    [noteId, userId]
+  );
+  return result.rows[0] || null;
+};
+
+/**
+ * Posición de la última nota hija de un padre dado.
+ * Retorna null si el padre no tiene hijos.
+ */
+export const getLastChildPosition = async (parentNoteId) => {
+  const result = await pool.query(
+    `SELECT position FROM notes
+     WHERE parent_note_id = $1 AND deleted_at IS NULL
+     ORDER BY position DESC
+     LIMIT 1`,
+    [parentNoteId]
+  );
+  return result.rows[0]?.position || null;
+};
+
+/**
+ * Obtiene posiciones inmediatamente antes y después de un target
+ * dentro del mismo padre. Usado para insertar como sibling.
+ *
+ * @param {number|null} parentNoteId
+ * @param {number} userId - Solo si parentNoteId es null (notas raíz)
+ * @param {string} targetPosition - Posición del nodo target
+ * @param {'above'|'below'} side
+ */
+export const getSiblingPositions = async (parentNoteId, userId, targetPosition, side) => {
+  const isRoot = parentNoteId === null;
+  const parentClause = isRoot
+    ? 'parent_note_id IS NULL AND user_id = $2'
+    : 'parent_note_id = $2';
+  const parentParam = isRoot ? userId : parentNoteId;
+
+  if (side === 'above') {
+    const before = await pool.query(
+      `SELECT position FROM notes
+       WHERE ${parentClause} AND deleted_at IS NULL AND position < $1
+       ORDER BY position DESC LIMIT 1`,
+      [targetPosition, parentParam]
+    );
+    return { before: before.rows[0]?.position || null, after: targetPosition };
+  } else {
+    const after = await pool.query(
+      `SELECT position FROM notes
+       WHERE ${parentClause} AND deleted_at IS NULL AND position > $1
+       ORDER BY position ASC LIMIT 1`,
+      [targetPosition, parentParam]
+    );
+    return { before: targetPosition, after: after.rows[0]?.position || null };
+  }
+};
+
+/**
+ * Persiste el move: actualiza padre y posición en una sola fila.
+ */
+export const updateNoteParentAndPosition = async (noteId, newParentId, newPosition, userId) => {
+  const result = await pool.query(
+    `UPDATE notes
+     SET parent_note_id = $1, position = $2, updated_at = NOW()
+     WHERE id = $3 AND user_id = $4 AND deleted_at IS NULL
+     RETURNING *`,
+    [newParentId, newPosition, noteId, userId]
+  );
+  return result.rows[0] || null;
+};
+
+// ============================================================
+// DRAG & DROP — BLOQUES
+// ============================================================
+
+/**
+ * Bloque con verificación de propiedad vía su nota.
+ */
+export const findBlockByIdAndUser = async (blockId, userId) => {
+  const result = await pool.query(
+    `SELECT b.id, b.note_id, b.position, b.block_type
+     FROM note_blocks b
+     INNER JOIN notes n ON n.id = b.note_id
+     WHERE b.id = $1 AND n.user_id = $2 AND n.deleted_at IS NULL`,
+    [blockId, userId]
+  );
+  return result.rows[0] || null;
+};
+
+/**
+ * Posiciones siblings dentro de la misma nota para DnD.
+ */
+export const getSiblingBlockPositions = async (noteId, targetPosition, side) => {
+  if (side === 'above') {
+    const before = await pool.query(
+      `SELECT position FROM note_blocks
+       WHERE note_id = $1 AND position < $2
+       ORDER BY position DESC LIMIT 1`,
+      [noteId, targetPosition]
+    );
+    return { before: before.rows[0]?.position || null, after: targetPosition };
+  } else {
+    const after = await pool.query(
+      `SELECT position FROM note_blocks
+       WHERE note_id = $1 AND position > $2
+       ORDER BY position ASC LIMIT 1`,
+      [noteId, targetPosition]
+    );
+    return { before: targetPosition, after: after.rows[0]?.position || null };
+  }
+};
+
+/**
+ * Actualiza solo la posición de un bloque (single-row UPDATE).
+ */
+export const updateBlockPosition = async (blockId, newPosition, userId) => {
+  const result = await pool.query(
+    `UPDATE note_blocks b
+     SET position = $1, updated_at = NOW()
+     FROM notes n
+     WHERE b.id = $2 AND b.note_id = n.id
+       AND n.user_id = $3 AND n.deleted_at IS NULL
+     RETURNING b.*`,
+    [newPosition, blockId, userId]
+  );
+  return result.rows[0] || null;
+};
+
 export const getNotesByIds = async (userId, noteIds) => {
   const result = await pool.query(
     `SELECT id, parent_note_id FROM notes
@@ -168,14 +330,25 @@ export const getImagePathsByNoteIds = async (noteIds) => {
 // ============================================================
 
 export const createBlock = async (noteId, { block_type, content = null, linked_note_id = null, position, metadata = {} }) => {
-  let pos = position;
-  if (pos === undefined || pos === null) {
-    const posResult = await pool.query(
-      `SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM note_blocks WHERE note_id = $1`,
-      [noteId]
-    );
-    pos = posResult.rows[0].next_pos;
+  const allBlocksResult = await pool.query(
+    `SELECT position FROM note_blocks WHERE note_id = $1 ORDER BY position ASC`,
+    [noteId]
+  );
+  const allPositions = allBlocksResult.rows.map((r) => r.position);
+
+  let before = null;
+  let after = null;
+  if (position !== undefined && position !== null) {
+    const insertIdx = Math.min(Math.max(0, position), allPositions.length);
+    before = allPositions[insertIdx - 1] ?? null;
+    after = allPositions[insertIdx] ?? null;
+  } else {
+    before = allPositions[allPositions.length - 1] ?? null;
+    after = null;
   }
+
+  const pos = generateKeyBetween(before, after);
+
   const result = await pool.query(
     `INSERT INTO note_blocks (note_id, block_type, content, linked_note_id, position, metadata)
      VALUES ($1, $2, $3, $4, $5, $6)
@@ -225,11 +398,14 @@ export const reorderBlocks = async (noteId, blockIds) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    for (let i = 0; i < blockIds.length; i++) {
+    let prev = null;
+    for (const blockId of blockIds) {
+      const key = generateKeyBetween(prev, null);
       await client.query(
         `UPDATE note_blocks SET position = $1 WHERE id = $2 AND note_id = $3`,
-        [i, blockIds[i], noteId]
+        [key, blockId, noteId]
       );
+      prev = key;
     }
     await client.query('COMMIT');
   } catch (err) {

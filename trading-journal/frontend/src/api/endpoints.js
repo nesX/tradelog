@@ -215,6 +215,8 @@ export const createNote = (data) => apiClient.post('/api/notes', data);
 export const updateNoteTitle = (id, title) => apiClient.patch(`/api/notes/${id}/title`, { title });
 export const deleteNote = (id) => apiClient.delete(`/api/notes/${id}`);
 export const moveNote = (id, parent_note_id) => apiClient.patch(`/api/notes/${id}/move`, { parent_note_id });
+export const moveNoteDnd = (id, payload) => apiClient.patch(`/api/notes/${id}/move-dnd`, payload);
+export const moveBlockDnd = (blockId, payload) => apiClient.patch(`/api/notes/blocks/${blockId}/move-dnd`, payload);
 export const reorderNotes = (note_ids) => apiClient.patch('/api/notes/reorder', { note_ids });
 
 export const createBlock = (noteId, data) => apiClient.post(`/api/notes/${noteId}/blocks`, data);

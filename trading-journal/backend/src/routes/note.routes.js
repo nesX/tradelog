@@ -8,6 +8,8 @@ import {
   updateNoteTitleSchema,
   reorderNotesSchema,
   moveNoteSchema,
+  moveDndNoteSchema,
+  moveBlockDndSchema,
   createBlockSchema,
   updateBlockSchema,
   updateCalloutMetadataSchema,
@@ -50,6 +52,7 @@ router.delete('/tags/:tagId', ctrl.deleteTag);
 // Bloques (rutas sin noteId param)
 router.patch('/blocks/:blockId', validate(updateBlockSchema), ctrl.updateBlock);
 router.patch('/blocks/:blockId/metadata', validate(updateCalloutMetadataSchema), ctrl.updateBlockMetadata);
+router.patch('/blocks/:blockId/move-dnd', validate(moveBlockDndSchema), ctrl.moveBlockDnd);
 router.delete('/blocks/:blockId', ctrl.deleteBlock);
 
 // Imágenes
@@ -72,6 +75,7 @@ router.get('/:id', ctrl.getNote);
 router.patch('/:id/title', validate(updateNoteTitleSchema), ctrl.updateNoteTitle);
 router.delete('/:id', ctrl.deleteNote);
 router.patch('/:id/move', validate(moveNoteSchema), ctrl.moveNote);
+router.patch('/:id/move-dnd', validate(moveDndNoteSchema), ctrl.moveDndNote);
 
 // Tags asignados a una nota
 router.post('/:noteId/tags', validate(assignTagsSchema), ctrl.assignTags);
