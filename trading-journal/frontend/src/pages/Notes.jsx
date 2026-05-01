@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag } from 'lucide-react';
 import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useMoveNote } from '../hooks/useNotes.js';
@@ -41,6 +41,10 @@ const Notes = () => {
   const [moveNoteId, setMoveNoteId] = useState(null);
   const [moveSearch, setMoveSearch] = useState('');
   const moveNote = useMoveNote();
+
+  useEffect(() => {
+    if (selectedId) setIsReviewActive(false);
+  }, [selectedId]);
 
   const handleSearchChange = useCallback((params) => setSearchParams(params), []);
 
