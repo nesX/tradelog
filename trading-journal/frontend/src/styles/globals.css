@@ -146,3 +146,12 @@
     @apply dark:bg-red-900/20;
   }
 }
+
+@keyframes highlightPulse {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgb(251 191 36 / 0.2); }
+}
+.highlight-pulse {
+  animation: highlightPulse 2.5s ease-in-out;
+  border-radius: 0.5rem;
+}

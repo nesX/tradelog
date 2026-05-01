@@ -468,3 +468,21 @@ export const exportAsMarkdown = async (userId) => {
 
   return renderMarkdownTree(notes, blocksMap, null, 1);
 };
+
+// ============================================================
+// SEGUIMIENTO DE BLOQUES
+// ============================================================
+
+export const toggleFollowUp = async (blockId, userId, requiresFollowUp) => {
+  const block = await repo.setFollowUp(blockId, userId, requiresFollowUp);
+  if (!block) throw new NotFoundError('Bloque no encontrado');
+  return block;
+};
+
+export const getReviewData = async (userId, recentHours = 24) => {
+  const [pending, recent] = await Promise.all([
+    repo.findPendingFollowUp(userId),
+    repo.findRecentActivity(userId, recentHours),
+  ]);
+  return { pending, recent, recentHours };
+};

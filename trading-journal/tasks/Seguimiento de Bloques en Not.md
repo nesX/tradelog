@@ -457,7 +457,7 @@ Estimado: la query de pendientes en una base con 100k bloques y 1k usuarios debe
 
 ## 7. Pasos de despliegue
 
-1. Ejecutar `migration_block_follow_up.sql` en producción.
+1. la `migration_block_follow_up.sql` se ejecuta manual
 2. Actualizar `schema.sql` para que entornos nuevos arranquen con la columna.
 3. Desplegar backend (compatible hacia atrás: la columna tiene default `false`, los clientes viejos siguen funcionando).
 4. Desplegar frontend.
@@ -482,3 +482,30 @@ Estimado: la query de pendientes en una base con 100k bloques y 1k usuarios debe
 - Exportar bloques pendientes como JSON (alimenta el caso de uso de IA).
 - Agrupación por nota padre en la vista de pendientes.
 - Métrica: tiempo promedio entre activar y resolver, como señal de productividad.
+
+
+
+
+Qué se creó/modificó:
+Base de datos
+
+019_migration_block_follow_up.sql — agrega requires_follow_up BOOLEAN a note_blocks + índices parciales
+Backend
+
+note.repository.js — +setFollowUp, findPendingFollowUp, findRecentActivity (queries con JOIN a notes para el user_id)
+note.service.js — +toggleFollowUp, getReviewData (paralelo con Promise.all)
+note.controller.js — +toggleFollowUp, getReview
+note.validator.js — +toggleFollowUpSchema
+note.routes.js — +GET /blocks/review (antes de /:blockId), PATCH /blocks/:blockId/follow-up
+Frontend
+
+endpoints.js — +toggleBlockFollowUp, getBlocksReview
+useBlockFollowUp.js — hook con invalidación selectiva
+useReview.js — hook con staleTime: 30s
+BlockFollowUpToggle.jsx — botón bandera ámbar
+NoteBlockList.jsx — integra toggle, borde ámbar border-l-2, id="block-{id}"
+Review.jsx — página con sección Pendientes + Actividad reciente con tabs 24h/48h/semana
+NoteEditor.jsx — scroll + animación al recibir ?highlight=blockId
+App.jsx — ruta /review
+Header.jsx — enlace "Revisión" con ícono Flag
+globals.css — animación highlight-pulse

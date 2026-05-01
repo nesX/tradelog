@@ -1,5 +1,6 @@
 import { sendSuccess, sendCreated, sendDeleted } from '../utils/response.js';
 import * as noteService from '../services/note.service.js';
+import { ValidationError } from '../middleware/errorHandler.js';
 
 // ============================================================
 // NOTAS
@@ -169,4 +170,23 @@ export const exportMarkdown = async (req, res) => {
   const content = await noteService.exportAsMarkdown(req.user.id);
   res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
   res.send(content);
+};
+
+// ============================================================
+// SEGUIMIENTO DE BLOQUES
+// ============================================================
+
+export const toggleFollowUp = async (req, res) => {
+  const blockId = parseInt(req.params.blockId, 10);
+  const block = await noteService.toggleFollowUp(blockId, req.user.id, Boolean(req.body.requires_follow_up));
+  sendSuccess(res, block, 'Estado de seguimiento actualizado');
+};
+
+export const getReview = async (req, res) => {
+  const hours = parseInt(req.query.hours, 10) || 24;
+  if (![24, 48, 168].includes(hours)) {
+    throw new ValidationError('hours debe ser 24, 48 o 168');
+  }
+  const data = await noteService.getReviewData(req.user.id, hours);
+  sendSuccess(res, data);
 };

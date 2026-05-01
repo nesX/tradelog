@@ -84,3 +84,7 @@ export const updateImageCaptionSchema = Joi.object({
 export const reorderImagesSchema = Joi.object({
   image_ids: Joi.array().items(Joi.number().integer().positive()).min(1).required(),
 });
+
+export const toggleFollowUpSchema = Joi.object({
+  requires_follow_up: Joi.boolean().required(),
+});

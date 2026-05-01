@@ -246,6 +246,11 @@ export const exportNotesJSON = () => apiClient.get('/api/notes/export/json');
 export const exportNotesMarkdown = () => apiClient.get('/api/notes/export/markdown', { responseType: 'text' });
 export const searchNotes = (params) => apiClient.get('/api/notes/search', { params });
 
+export const toggleBlockFollowUp = (blockId, requiresFollowUp) =>
+  apiClient.patch(`/api/notes/blocks/${blockId}/follow-up`, { requires_follow_up: requiresFollowUp });
+export const getBlocksReview = (hours = 24) =>
+  apiClient.get('/api/notes/blocks/review', { params: { hours } });
+
 // ==================
 // STATS
 // ==================

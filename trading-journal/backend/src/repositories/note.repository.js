@@ -719,3 +719,52 @@ export const getFullTree = async (userId) => {
     tags: tagsResult.rows,
   };
 };
+
+// ============================================================
+// SEGUIMIENTO DE BLOQUES
+// ============================================================
+
+export const setFollowUp = async (blockId, userId, requiresFollowUp) => {
+  const result = await pool.query(
+    `UPDATE note_blocks nb
+     SET requires_follow_up = $3
+     FROM notes n
+     WHERE nb.id = $1 AND nb.note_id = n.id AND n.user_id = $2 AND n.deleted_at IS NULL
+     RETURNING nb.*`,
+    [blockId, userId, requiresFollowUp]
+  );
+  return result.rows[0] || null;
+};
+
+export const findPendingFollowUp = async (userId) => {
+  const result = await pool.query(
+    `SELECT b.id, b.note_id, b.block_type, b.content, b.metadata,
+            b.requires_follow_up, b.created_at, b.updated_at,
+            n.title AS note_title, n.parent_note_id AS note_parent_id
+     FROM note_blocks b
+     INNER JOIN notes n ON n.id = b.note_id
+     WHERE n.user_id = $1
+       AND b.requires_follow_up = true
+       AND n.deleted_at IS NULL
+     ORDER BY b.updated_at ASC`,
+    [userId]
+  );
+  return result.rows;
+};
+
+export const findRecentActivity = async (userId, hoursBack) => {
+  const result = await pool.query(
+    `SELECT b.id, b.note_id, b.block_type, b.content, b.metadata,
+            b.requires_follow_up, b.created_at, b.updated_at,
+            n.title AS note_title, n.parent_note_id AS note_parent_id
+     FROM note_blocks b
+     INNER JOIN notes n ON n.id = b.note_id
+     WHERE n.user_id = $1
+       AND b.updated_at >= NOW() - ($2 || ' hours')::INTERVAL
+       AND n.deleted_at IS NULL
+     ORDER BY b.updated_at DESC
+     LIMIT 200`,
+    [userId, hoursBack]
+  );
+  return result.rows;
+};

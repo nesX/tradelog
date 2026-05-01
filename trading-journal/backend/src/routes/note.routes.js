@@ -21,6 +21,7 @@ import {
   updateImageCaptionSchema,
   reorderImagesSchema,
   noteSearchSchema,
+  toggleFollowUpSchema,
 } from '../validators/note.validator.js';
 
 const router = Router();
@@ -50,9 +51,12 @@ router.patch('/tags/:tagId', validate(updateTagSchema), ctrl.updateTag);
 router.delete('/tags/:tagId', ctrl.deleteTag);
 
 // Bloques (rutas sin noteId param)
+// Ruta estática /blocks/review ANTES de /blocks/:blockId para evitar conflictos
+router.get('/blocks/review', ctrl.getReview);
 router.patch('/blocks/:blockId', validate(updateBlockSchema), ctrl.updateBlock);
 router.patch('/blocks/:blockId/metadata', validate(updateCalloutMetadataSchema), ctrl.updateBlockMetadata);
 router.patch('/blocks/:blockId/move-dnd', validate(moveBlockDndSchema), ctrl.moveBlockDnd);
+router.patch('/blocks/:blockId/follow-up', validate(toggleFollowUpSchema), ctrl.toggleFollowUp);
 router.delete('/blocks/:blockId', ctrl.deleteBlock);
 
 // Imágenes

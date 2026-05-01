@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search } from 'lucide-react';
+import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag } from 'lucide-react';
 import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useMoveNote } from '../hooks/useNotes.js';
 import NoteTree from '../components/notes/NoteTree.jsx';
 import NoteTagManager from '../components/notes/NoteTagManager.jsx';
@@ -8,6 +8,7 @@ import NoteExportMenu from '../components/notes/NoteExportMenu.jsx';
 import NoteSearch from '../components/notes/NoteSearch.jsx';
 import NoteSearchResults from '../components/notes/NoteSearchResults.jsx';
 import NoteEditor from './NoteEditor.jsx';
+import Review from './Review.jsx';
 
 const buildBreadcrumb = (parentId, flatNotes) => {
   if (!parentId || !flatNotes) return null;
@@ -35,6 +36,7 @@ const Notes = () => {
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const [isReviewActive, setIsReviewActive] = useState(false);
   const [searchParams, setSearchParams] = useState({ q: '', tagIds: [] });
   const [moveNoteId, setMoveNoteId] = useState(null);
   const [moveSearch, setMoveSearch] = useState('');
@@ -65,6 +67,7 @@ const Notes = () => {
   };
 
   const handleSelectNote = (noteId) => {
+    setIsReviewActive(false);
     navigate(`/notes/${noteId}`);
     setSidebarOpen(false);
   };
@@ -86,7 +89,7 @@ const Notes = () => {
   };
 
   return (
-    <div className="flex bg-gray-50 dark:bg-gray-900">
+    <div className="-mx-4 sm:-mx-6 lg:-mx-8 flex h-[calc(100vh-112px)] overflow-hidden bg-gray-50 dark:bg-gray-900">
 
       {/* ── Sidebar ── */}
       {/* Overlay para mobile */}
@@ -99,9 +102,8 @@ const Notes = () => {
 
       <aside
         className={`
-          fixed md:sticky md:top-16 inset-y-0 left-0 z-40 md:z-auto
-          w-72 md:w-64 lg:w-72 flex-shrink-0
-          md:h-[calc(100vh-64px)] md:self-start
+          fixed md:relative inset-y-0 left-0 z-40 md:z-auto
+          w-72 md:w-64 lg:w-72 flex-shrink-0 h-full
           bg-white dark:bg-gray-800
           border-r border-gray-200 dark:border-gray-700
           flex flex-col
@@ -179,6 +181,28 @@ const Notes = () => {
           )}
         </div>
 
+        {/* Recientes + Revisión */}
+        <div className="px-3 pb-1.5 flex flex-col gap-1">
+          <button
+            onClick={() => { setIsReviewActive(false); navigate('/notes'); setSidebarOpen(false); }}
+            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm
+                       text-gray-600 dark:text-gray-300
+                       hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Clock className="w-4 h-4 text-gray-400" />
+            Recientes
+          </button>
+          <button
+            onClick={() => { setIsReviewActive(true); setSidebarOpen(false); }}
+            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm
+                       bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400
+                       hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+          >
+            <Flag className="w-4 h-4 text-amber-500" fill="currentColor" />
+            Revisión
+          </button>
+        </div>
+
         {/* Exportación al pie del sidebar */}
         <div className="px-3 py-2.5 border-t border-gray-200 dark:border-gray-700">
           <NoteExportMenu />
@@ -186,7 +210,7 @@ const Notes = () => {
       </aside>
 
       {/* ── Panel principal ── */}
-      <main className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <main className="flex-1 overflow-y-auto flex flex-col min-w-0">
 
         {/* Topbar visible solo en mobile */}
         <div className="md:hidden flex items-center gap-2 px-4 py-2.5
@@ -206,7 +230,11 @@ const Notes = () => {
         </div>
 
         {/* Contenido */}
-        {selectedId ? (
+        {isReviewActive ? (
+          <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
+            <Review />
+          </div>
+        ) : selectedId ? (
           <div className="flex-1 bg-gray-50 dark:bg-gray-900">
             <NoteEditor embeddedId={selectedId} />
           </div>

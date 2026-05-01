@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Trash2, GripVertical, FolderInput, X } from 'lucide-react';
+import { BlockFollowUpToggle } from './BlockFollowUpToggle.jsx';
 import {
   DndContext,
   DragOverlay,
@@ -64,7 +65,10 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
 
   return (
     <div ref={setNodeRef} style={style}>
-      <div className="group relative">
+      <div
+        id={`block-${block.id}`}
+        className={`group relative${block.requires_follow_up ? ' border-l-2 border-amber-400 pl-3' : ''}`}
+      >
         {/* Floating actions to the right */}
         <div
           className="absolute -right-8 top-1/2 -translate-y-1/2
@@ -87,6 +91,9 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
           >
             <GripVertical className="w-3.5 h-3.5" />
           </button>
+
+          {/* Toggle seguimiento */}
+          <BlockFollowUpToggle block={block} noteId={noteId} />
 
           {/* Mover sub-nota dentro de otra (solo note_link) */}
           {block.block_type === 'note_link' && (

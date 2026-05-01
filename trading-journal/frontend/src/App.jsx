@@ -15,6 +15,7 @@ import BacktestSession from './pages/BacktestSession.jsx';
 import BacktestNew from './pages/BacktestNew.jsx';
 import Notes from './pages/Notes.jsx';
 import NoteEditor from './pages/NoteEditor.jsx';
+import Review from './pages/Review.jsx';
 
 // Configuración de React Query
 const queryClient = new QueryClient({
@@ -131,6 +132,16 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <Notes />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/review"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Review />
                       </Layout>
                     </ProtectedRoute>
                   }

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Tag, X, Plus, Check, Pencil } from 'lucide-react';
 import {
   useNote,
@@ -14,6 +14,7 @@ import NoteTagBadge from '../components/notes/NoteTagBadge.jsx';
 
 const NoteEditor = ({ embeddedId }) => {
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const noteId = embeddedId ? parseInt(embeddedId) : parseInt(params.id);
 
   const { data: note, isLoading, error } = useNote(noteId);
@@ -54,6 +55,18 @@ const NoteEditor = ({ embeddedId }) => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Scroll y resaltar bloque al navegar desde la vista de Revisión (?highlight=blockId)
+  useEffect(() => {
+    const blockId = searchParams.get('highlight');
+    if (!blockId || !note) return;
+    const el = document.getElementById(`block-${blockId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('highlight-pulse');
+    const timer = setTimeout(() => el.classList.remove('highlight-pulse'), 2500);
+    return () => clearTimeout(timer);
+  }, [searchParams, note]);
 
   /* ---------- loading / error ---------- */
 
