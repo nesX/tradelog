@@ -24,7 +24,7 @@ export const AuthProvider = ({ children }) => {
 
       try {
         const response = await getCurrentUser();
-        setUser(response.data);
+        setUser(response.data?.user);
         setToken(savedToken);
         setIsAuthenticated(true);
       } catch (error) {
@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       // Mensaje más amigable para usuario no autorizado
       let errorMessage = error.message || 'Error al iniciar sesión';
-      if (error.code === 'USER_NOT_AUTHORIZED') {
+      if (error.code === 'USER_NOT_AUTHORIZED' || error.code === 'NOT_AUTHORIZED') {
         errorMessage = 'Tu cuenta no está autorizada para acceder. Contacta al administrador.';
       }
 

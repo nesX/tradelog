@@ -40,26 +40,32 @@ export const authenticateWithGoogle = async (idToken) => {
     throw new AppError('Email no verificado en Google', 401, 'EMAIL_NOT_VERIFIED');
   }
 
-  // Buscar usuario en la base de datos
-  const user = await userRepository.findByEmail(googleUser.email);
+  // Validar whitelist: solo emails pre-creados y no eliminados pueden hacer login
+  const user = await userRepository.findActiveByEmail(googleUser.email);
 
   if (!user) {
     logger.warn('Intento de login con email no autorizado', { email: googleUser.email });
-    throw new AppError('Usuario no autorizado', 403, 'USER_NOT_AUTHORIZED');
+    throw new AppError(
+      'Tu email no está autorizado. Contacta al administrador.',
+      403,
+      'NOT_AUTHORIZED'
+    );
   }
 
-  // Actualizar último login
-  await userRepository.updateLastLogin(user.id);
+  // Actualizar último login (fire-and-forget para no agregar latencia)
+  userRepository.touchLastLogin(user.id).catch((err) =>
+    logger.error('Error actualizando last_login', { error: err.message })
+  );
 
-  logger.info('Usuario autenticado', { userId: user.id, email: user.email });
+  logger.info('Usuario autenticado', { userId: user.id, email: user.email, role: user.role });
 
-  // Generar JWT
   const token = generateToken(user);
 
   return {
     user: {
       id: user.id,
       email: user.email,
+      role: user.role,
     },
     token,
   };
@@ -73,6 +79,7 @@ export const generateToken = (user) => {
     {
       userId: user.id,
       email: user.email,
+      role: user.role,
     },
     config.jwt.secret,
     {
@@ -105,9 +112,14 @@ export const getCurrentUser = async (userId) => {
     throw new AppError('Usuario no encontrado', 404, 'USER_NOT_FOUND');
   }
 
+  if (user.deleted_at) {
+    throw new AppError('Usuario no encontrado', 404, 'USER_NOT_FOUND');
+  }
+
   return {
     id: user.id,
     email: user.email,
+    role: user.role,
     createdAt: user.created_at,
     lastLoginAt: user.last_login_at,
   };

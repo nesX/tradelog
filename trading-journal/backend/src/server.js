@@ -18,6 +18,8 @@ import statsRoutes from './routes/stats.routes.js';
 import systemRoutes from './routes/system.routes.js';
 import backtestRoutes from './routes/backtest.routes.js';
 import noteRoutes from './routes/note.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import { initSuperAdmin } from './services/admin.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,6 +61,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api', systemRoutes);
 app.use('/api/backtest', backtestRoutes);
 app.use('/api/notes', noteRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Ruta de health check
 app.get('/api/health', (req, res) => {
@@ -95,6 +98,9 @@ const startServer = async () => {
 
     // Crear directorio de uploads si no existe
     await ensureDirectoryExists(uploadsPath);
+
+    // Bootstrap del super_admin
+    await initSuperAdmin();
 
     // Iniciar servidor
     app.listen(config.port, () => {

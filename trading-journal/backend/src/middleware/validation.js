@@ -57,6 +57,11 @@ export const validate = (schema, property = 'body') => {
 };
 
 /**
+ * Alias para validar query params
+ */
+export const validateQuery = (schema) => validate(schema, 'query');
+
+/**
  * Middleware para validar múltiples propiedades
  * @param {Object} schemas - Objeto con schemas para cada propiedad
  * @returns {Function} Middleware de validación

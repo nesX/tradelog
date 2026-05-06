@@ -30,6 +30,7 @@ export const authenticate = async (req, res, next) => {
     req.user = {
       id: payload.userId,
       email: payload.email,
+      role: payload.role || 'user',
     };
 
     logger.debug('Usuario autenticado', { userId: req.user.id });
@@ -66,11 +67,11 @@ export const optionalAuth = async (req, res, next) => {
     req.user = {
       id: payload.userId,
       email: payload.email,
+      role: payload.role || 'user',
     };
 
     next();
   } catch (error) {
-    // Si hay error de verificación, simplemente no autenticamos
     req.user = null;
     next();
   }

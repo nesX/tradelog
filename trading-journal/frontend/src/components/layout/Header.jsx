@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical, BookOpen, Menu, X, LayoutDashboard } from 'lucide-react';
+import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical, BookOpen, Menu, X, LayoutDashboard, Users } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import UserMenu from '../auth/UserMenu.jsx';
 
 const Header = () => {
   const location = useLocation();
   const { isDark, toggleTheme } = useTheme();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -19,6 +22,7 @@ const Header = () => {
   const secondaryNav = [
     { path: '/stats', label: 'Estadísticas', icon: BarChart3 },
     { path: '/backtest', label: 'Backtesting', icon: FlaskConical },
+    ...(isAdmin ? [{ path: '/admin/users', label: 'Usuarios', icon: Users }] : []),
   ];
 
   const isActive = (path) =>

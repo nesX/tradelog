@@ -4,6 +4,8 @@ import { ThemeProvider } from './contexts/ThemeContext.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { ToastProvider } from './components/common/Toast.jsx';
 import ProtectedRoute from './components/auth/ProtectedRoute.jsx';
+import AdminRoute from './components/auth/AdminRoute.jsx';
+import Users from './pages/admin/Users.jsx';
 import Layout from './components/layout/Layout.jsx';
 import Home from './pages/Home.jsx';
 import CreateTrade from './pages/CreateTrade.jsx';
@@ -154,6 +156,16 @@ function App() {
                         <BacktestNew />
                       </Layout>
                     </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/users"
+                  element={
+                    <AdminRoute>
+                      <Layout>
+                        <Users />
+                      </Layout>
+                    </AdminRoute>
                   }
                 />
               </Routes>

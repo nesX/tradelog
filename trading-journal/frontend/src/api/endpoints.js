@@ -252,6 +252,16 @@ export const getBlocksReview = (hours = 24) =>
   apiClient.get('/api/notes/blocks/review', { params: { hours } });
 
 // ==================
+// ADMIN — gestión de usuarios
+// ==================
+
+export const listUsers = (params) => apiClient.get('/api/admin/users', { params });
+export const getAdminUser = (id) => apiClient.get(`/api/admin/users/${id}`);
+export const createAdminUser = (data) => apiClient.post('/api/admin/users', data);
+export const updateAdminUserRole = (id, role) => apiClient.patch(`/api/admin/users/${id}/role`, { role });
+export const deleteAdminUser = (id) => apiClient.delete(`/api/admin/users/${id}`);
+
+// ==================
 // STATS
 // ==================
 

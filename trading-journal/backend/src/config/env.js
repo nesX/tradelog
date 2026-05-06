@@ -38,6 +38,9 @@ const envSchema = Joi.object({
   // Google OAuth
   GOOGLE_CLIENT_ID: Joi.string().required(),
 
+  // Super admin bootstrap
+  SUPER_ADMIN_EMAIL: Joi.string().email().optional(),
+
   // Frontend URL
   FRONTEND_URL: Joi.string().default('http://localhost:5173'),
 }).unknown();

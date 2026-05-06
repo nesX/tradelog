@@ -5,6 +5,9 @@
 export const USER_FIELDS = [
   'id',
   'email',
+  'role',
+  'created_by',
+  'deleted_at',
   'created_at',
   'updated_at',
   'last_login_at',
