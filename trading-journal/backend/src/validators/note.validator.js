@@ -3,6 +3,12 @@ import Joi from 'joi';
 export const createNoteSchema = Joi.object({
   title: Joi.string().max(500).optional().default('Sin título'),
   parent_note_id: Joi.number().integer().positive().allow(null).optional(),
+  type: Joi.string().valid('note', 'section').default('note'),
+}).custom((value, helpers) => {
+  if (value.type === 'section' && value.parent_note_id != null) {
+    return helpers.error('any.invalid');
+  }
+  return value;
 });
 
 export const updateNoteTitleSchema = Joi.object({

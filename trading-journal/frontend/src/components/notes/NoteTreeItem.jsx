@@ -20,7 +20,7 @@ const NoteTreeItem = ({
   // evitando que el rect de un padre incluya el espacio de sus hijos.
   const { setNodeRef: setDropRef } = useDroppable({
     id: `note-drop-${note.id}`,
-    data: { noteId: note.id },
+    data: { noteId: note.id, type: 'note' },
   });
 
   return (
@@ -37,7 +37,7 @@ const NoteTreeItem = ({
       {/* Fila visible — es el único droppable */}
       <div
         ref={setDropRef}
-        className={`group flex items-center gap-1 rounded-lg cursor-pointer select-none transition-colors
+        className={`group flex items-center gap-1 cursor-pointer select-none transition-colors
           ${zone === 'child'
             ? 'ring-2 ring-blue-400 dark:ring-blue-500 bg-blue-50 dark:bg-blue-900/30'
             : isSelected

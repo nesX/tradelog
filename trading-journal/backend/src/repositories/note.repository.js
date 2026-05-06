@@ -7,7 +7,7 @@ import { generateKeyBetween } from 'fractional-indexing';
 
 export const getTree = async (userId) => {
   const result = await pool.query(
-    `SELECT n.id, n.parent_note_id, n.title, n.position, n.created_at, n.updated_at,
+    `SELECT n.id, n.parent_note_id, n.title, n.position, n.type, n.created_at, n.updated_at,
       (SELECT COUNT(*) FROM note_blocks nb WHERE nb.note_id = n.id) as block_count,
       COALESCE(
         (SELECT json_agg(json_build_object('id', nt.id, 'name', nt.name, 'color', nt.color))
@@ -17,7 +17,7 @@ export const getTree = async (userId) => {
       ) as tags
     FROM notes n
     WHERE n.user_id = $1 AND n.deleted_at IS NULL
-    ORDER BY n.position ASC, n.created_at ASC`,
+    ORDER BY n.position COLLATE "C" ASC, n.created_at ASC`,
     [userId]
   );
   return result.rows;
@@ -43,7 +43,7 @@ export const getById = async (userId, noteId) => {
     FROM note_blocks nb
     LEFT JOIN notes ln ON ln.id = nb.linked_note_id AND ln.deleted_at IS NULL
     WHERE nb.note_id = $1
-    ORDER BY nb.position ASC`,
+    ORDER BY nb.position COLLATE "C" ASC`,
     [noteId]
   );
 
@@ -61,20 +61,24 @@ export const getById = async (userId, noteId) => {
   return note;
 };
 
-export const create = async (userId, { title = 'Sin título', parent_note_id = null }) => {
+export const create = async (userId, { title = 'Sin título', parent_note_id = null, type = 'note' }) => {
+
   const lastResult = await pool.query(
-    `SELECT MAX(position) as last_pos
+    `SELECT position as last_pos
      FROM notes
-     WHERE user_id = $1 AND parent_note_id IS NOT DISTINCT FROM $2 AND deleted_at IS NULL`,
+     WHERE user_id = $1 AND parent_note_id IS NOT DISTINCT FROM $2 AND deleted_at IS NULL
+     ORDER BY position COLLATE "C" DESC
+     LIMIT 1`,
     [userId, parent_note_id]
   );
-  const position = generateKeyBetween(lastResult.rows[0]?.last_pos || null, null);
+
+  const position = generateKeyBetween(lastResult.rows[0]?.last_pos ?? null, null);
 
   const result = await pool.query(
-    `INSERT INTO notes (user_id, parent_note_id, title, position)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO notes (user_id, parent_note_id, title, position, type)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [userId, parent_note_id, title, position]
+    [userId, parent_note_id, title, position, type]
   );
   return result.rows[0];
 };
@@ -174,7 +178,7 @@ export const getDescendantIds = async (noteId) => {
  */
 export const findNoteByIdAndUser = async (noteId, userId) => {
   const result = await pool.query(
-    `SELECT id, user_id, parent_note_id, title, position
+    `SELECT id, user_id, parent_note_id, title, position, type
      FROM notes
      WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [noteId, userId]
@@ -190,11 +194,11 @@ export const getLastChildPosition = async (parentNoteId) => {
   const result = await pool.query(
     `SELECT position FROM notes
      WHERE parent_note_id = $1 AND deleted_at IS NULL
-     ORDER BY position DESC
+     ORDER BY position COLLATE "C" DESC
      LIMIT 1`,
     [parentNoteId]
   );
-  return result.rows[0]?.position || null;
+  return result.rows[0]?.position ?? null;
 };
 
 /**
@@ -206,7 +210,7 @@ export const getLastChildPosition = async (parentNoteId) => {
  * @param {string} targetPosition - Posición del nodo target
  * @param {'above'|'below'} side
  */
-export const getSiblingPositions = async (parentNoteId, userId, targetPosition, side) => {
+export const getSiblingPositions = async (parentNoteId, userId, targetPosition, side, excludeNoteId = null) => {
   const isRoot = parentNoteId === null;
   const parentClause = isRoot
     ? 'parent_note_id IS NULL AND user_id = $2'
@@ -214,21 +218,27 @@ export const getSiblingPositions = async (parentNoteId, userId, targetPosition, 
   const parentParam = isRoot ? userId : parentNoteId;
 
   if (side === 'above') {
+    const params = [targetPosition, parentParam];
+    let excludeClause = '';
+    if (excludeNoteId !== null) { params.push(excludeNoteId); excludeClause = ` AND id != $${params.length}`; }
     const before = await pool.query(
       `SELECT position FROM notes
-       WHERE ${parentClause} AND deleted_at IS NULL AND position < $1
-       ORDER BY position DESC LIMIT 1`,
-      [targetPosition, parentParam]
+       WHERE ${parentClause} AND deleted_at IS NULL AND position COLLATE "C" < $1${excludeClause}
+       ORDER BY position COLLATE "C" DESC LIMIT 1`,
+      params
     );
-    return { before: before.rows[0]?.position || null, after: targetPosition };
+    return { before: before.rows[0]?.position ?? null, after: targetPosition };
   } else {
+    const params = [targetPosition, parentParam];
+    let excludeClause = '';
+    if (excludeNoteId !== null) { params.push(excludeNoteId); excludeClause = ` AND id != $${params.length}`; }
     const after = await pool.query(
       `SELECT position FROM notes
-       WHERE ${parentClause} AND deleted_at IS NULL AND position > $1
-       ORDER BY position ASC LIMIT 1`,
-      [targetPosition, parentParam]
+       WHERE ${parentClause} AND deleted_at IS NULL AND position COLLATE "C" > $1${excludeClause}
+       ORDER BY position COLLATE "C" ASC LIMIT 1`,
+      params
     );
-    return { before: targetPosition, after: after.rows[0]?.position || null };
+    return { before: targetPosition, after: after.rows[0]?.position ?? null };
   }
 };
 
@@ -271,19 +281,19 @@ export const getSiblingBlockPositions = async (noteId, targetPosition, side) => 
   if (side === 'above') {
     const before = await pool.query(
       `SELECT position FROM note_blocks
-       WHERE note_id = $1 AND position < $2
-       ORDER BY position DESC LIMIT 1`,
+       WHERE note_id = $1 AND position COLLATE "C" < $2
+       ORDER BY position COLLATE "C" DESC LIMIT 1`,
       [noteId, targetPosition]
     );
-    return { before: before.rows[0]?.position || null, after: targetPosition };
+    return { before: before.rows[0]?.position ?? null, after: targetPosition };
   } else {
     const after = await pool.query(
       `SELECT position FROM note_blocks
-       WHERE note_id = $1 AND position > $2
-       ORDER BY position ASC LIMIT 1`,
+       WHERE note_id = $1 AND position COLLATE "C" > $2
+       ORDER BY position COLLATE "C" ASC LIMIT 1`,
       [noteId, targetPosition]
     );
-    return { before: targetPosition, after: after.rows[0]?.position || null };
+    return { before: targetPosition, after: after.rows[0]?.position ?? null };
   }
 };
 
@@ -634,6 +644,7 @@ const FTS_QUERY = `
   WHERE
     n.user_id = $2
     AND n.deleted_at IS NULL
+    AND n.type = 'note'
     AND ($3 = '{}'::int[] OR EXISTS (
       SELECT 1 FROM note_tag_assignments nta_f
       WHERE nta_f.note_id = n.id AND nta_f.tag_id = ANY($3)
@@ -657,6 +668,7 @@ const TAG_ONLY_QUERY = `
   WHERE
     n.user_id = $1
     AND n.deleted_at IS NULL
+    AND n.type = 'note'
     AND ${TAG_FILTER}
   ORDER BY n.updated_at DESC
   LIMIT $3
@@ -685,8 +697,8 @@ export const getFullTree = async (userId) => {
          WHERE nta.note_id = n.id), '[]'
       ) as tag_names
     FROM notes n
-    WHERE n.user_id = $1 AND n.deleted_at IS NULL
-    ORDER BY n.position ASC, n.created_at ASC`,
+    WHERE n.user_id = $1 AND n.deleted_at IS NULL AND n.type = 'note'
+    ORDER BY n.position COLLATE "C" ASC, n.created_at ASC`,
     [userId]
   );
 

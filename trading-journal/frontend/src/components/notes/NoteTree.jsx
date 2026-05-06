@@ -10,7 +10,9 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import NoteTreeItem from './NoteTreeItem.jsx';
+import SectionDivider from './SectionDivider.jsx';
 import { useMoveNoteDnd } from '../../hooks/useNotes.js';
+import { groupBySections } from '../../utils/notesGrouping.js';
 
 const STORAGE_KEY = 'note_tree_expanded';
 
@@ -48,7 +50,7 @@ const computeZone = (pointerY, rect) => {
   return 'child';
 };
 
-const renderTree = (nodes, depth, props) =>
+const renderNotes = (nodes, depth, props) =>
   nodes.map((note) => (
     <NoteTreeItem
       key={note.id}
@@ -63,11 +65,11 @@ const renderTree = (nodes, depth, props) =>
       onMove={props.onMove}
       overInfo={props.overInfo}
     >
-      {note.children?.length > 0 ? renderTree(note.children, depth + 1, props) : null}
+      {note.children?.length > 0 ? renderNotes(note.children, depth + 1, props) : null}
     </NoteTreeItem>
   ));
 
-const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelete, onMove }) => {
+const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelete, onMove, onRenameSection, onDeleteSection }) => {
   const [expandedIds, setExpandedIds] = useState(loadExpanded);
   const [activeNote, setActiveNote] = useState(null);
   const [overInfo, setOverInfo] = useState({ noteId: null, zone: null });
@@ -95,14 +97,20 @@ const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelet
     setOverInfo({ noteId: null, zone: null });
   };
 
-  const handleDragMove = ({ activatorEvent, delta, over }) => {
+  const handleDragMove = ({ activatorEvent, delta, active, over }) => {
     if (!over?.data.current?.noteId) {
       setOverInfo({ noteId: null, zone: null });
       return;
     }
     const noteId = over.data.current.noteId;
     const pointerY = activatorEvent.clientY + delta.y;
-    const zone = computeZone(pointerY, over.rect);
+    let zone = computeZone(pointerY, over.rect);
+
+    // Sections can't be parents — convert 'child' drop to 'sibling-below'
+    if (over.data.current?.type === 'section' && zone === 'child') zone = 'sibling-below';
+    // Sections can only live at root level — they can't be children of anything
+    if (active.data.current?.type === 'section' && zone === 'child') zone = 'sibling-below';
+
     setOverInfo({ noteId, zone });
   };
 
@@ -115,7 +123,12 @@ const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelet
     if (active.id === targetId) return;
 
     const pointerY = activatorEvent.clientY + delta.y;
-    const dropType = computeZone(pointerY, over.rect);
+    let dropType = computeZone(pointerY, over.rect);
+
+    // Apply same section constraints before firing the mutation
+    if (over.data.current?.type === 'section' && dropType === 'child') dropType = 'sibling-below';
+    if (active.data.current?.type === 'section' && dropType === 'child') dropType = 'sibling-below';
+
     moveNote.mutate({ noteId: active.id, targetId, dropType });
   };
 
@@ -135,6 +148,8 @@ const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelet
     overInfo,
   };
 
+  const groups = groupBySections(notes);
+
   return (
     <DndContext
       sensors={sensors}
@@ -144,8 +159,29 @@ const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelet
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="space-y-0.5">
-        {renderTree(notes, 0, treeProps)}
+      <div>
+        {groups.map((group, idx) => {
+          if (group.section === null) {
+            if (group.items.length === 0) return null;
+            return (
+              <div key={`ungrouped-${idx}`}>
+                {renderNotes(group.items, 0, treeProps)}
+              </div>
+            );
+          }
+          return (
+            <SectionDivider
+              key={group.section.id}
+              section={group.section}
+              itemCount={group.items.length}
+              overInfo={overInfo}
+              onRename={onRenameSection}
+              onDelete={onDeleteSection}
+            >
+              {renderNotes(group.items, 0, treeProps)}
+            </SectionDivider>
+          );
+        })}
       </div>
       <DragOverlay>
         {activeNote ? (

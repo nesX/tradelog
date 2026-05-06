@@ -1,7 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag } from 'lucide-react';
-import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useMoveNote } from '../hooks/useNotes.js';
+import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, Folder, ChevronDown } from 'lucide-react';
+import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useMoveNote, useUpdateNoteTitle } from '../hooks/useNotes.js';
+import { clearSectionCollapsed } from '../hooks/useSectionCollapsed.js';
 import NoteTree from '../components/notes/NoteTree.jsx';
 import NoteTagManager from '../components/notes/NoteTagManager.jsx';
 import NoteExportMenu from '../components/notes/NoteExportMenu.jsx';
@@ -41,10 +42,33 @@ const Notes = () => {
   const [moveNoteId, setMoveNoteId] = useState(null);
   const [moveSearch, setMoveSearch] = useState('');
   const moveNote = useMoveNote();
+  const updateTitle = useUpdateNoteTitle();
+
+  // "Nueva sección" inline creation state
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [creatingSection, setCreatingSection] = useState(false);
+  const [newSectionTitle, setNewSectionTitle] = useState('');
+  const sectionInputRef = useRef(null);
+  const addMenuRef = useRef(null);
 
   useEffect(() => {
     if (selectedId) setIsReviewActive(false);
   }, [selectedId]);
+
+  useEffect(() => {
+    if (creatingSection && sectionInputRef.current) {
+      sectionInputRef.current.focus();
+    }
+  }, [creatingSection]);
+
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    const handleClick = (e) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target)) setAddMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [addMenuOpen]);
 
   const handleSearchChange = useCallback((params) => setSearchParams(params), []);
 
@@ -58,6 +82,32 @@ const Notes = () => {
   const handleCreateRoot = async () => {
     const res = await createNote.mutateAsync({ parent_note_id: null });
     navigate(`/notes/${res.data.id}`);
+  };
+
+  const handleCreateSection = async () => {
+    const title = newSectionTitle.trim();
+    if (!title) { setCreatingSection(false); return; }
+    await createNote.mutateAsync({ title, parent_note_id: null, type: 'section' });
+    setNewSectionTitle('');
+    setCreatingSection(false);
+  };
+
+  const handleSectionInputKeyDown = (e) => {
+    if (e.key === 'Enter') handleCreateSection();
+    if (e.key === 'Escape') { setNewSectionTitle(''); setCreatingSection(false); }
+  };
+
+  const handleRenameSection = async (sectionId, newTitle) => {
+    await updateTitle.mutateAsync({ id: sectionId, title: newTitle });
+  };
+
+  const handleDeleteSection = (sectionId, title, itemCount) => {
+    const msg = itemCount > 0
+      ? `¿Eliminar la sección "${title}"?\n\nLas ${itemCount} nota${itemCount !== 1 ? 's' : ''} agrupadas quedarán bajo la sección anterior (o sueltas).\n\nLas notas no se borran.`
+      : `¿Eliminar la sección "${title}"?`;
+    if (!window.confirm(msg)) return;
+    clearSectionCollapsed(sectionId);
+    deleteNote.mutateAsync(sectionId);
   };
 
   const handleCreateChild = async (parentId) => {
@@ -130,15 +180,34 @@ const Notes = () => {
             >
               <Tags className="w-4 h-4" />
             </button>
-            <button
-              onClick={handleCreateRoot}
-              disabled={createNote.isPending}
-              className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 dark:hover:text-blue-400
-                         hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40"
-              title="Nueva nota raíz"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+            {/* Dropdown: nueva nota / nueva sección */}
+            <div className="relative" ref={addMenuRef}>
+              <button
+                onClick={() => setAddMenuOpen((o) => !o)}
+                disabled={createNote.isPending}
+                className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 dark:hover:text-blue-400
+                           hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40 flex items-center"
+                title="Nueva nota o sección"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              {addMenuOpen && (
+                <div className="absolute right-0 top-8 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
+                  <button
+                    onClick={() => { setAddMenuOpen(false); handleCreateRoot(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <FileText className="w-4 h-4 text-gray-400" /> Nueva nota
+                  </button>
+                  <button
+                    onClick={() => { setAddMenuOpen(false); setNewSectionTitle(''); setCreatingSection(true); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Folder className="w-4 h-4 text-gray-400" /> Nueva sección
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setSidebarOpen(false)}
               className="md:hidden p-1.5 rounded-md text-gray-400 hover:text-gray-700 transition-colors"
@@ -156,7 +225,7 @@ const Notes = () => {
         />
 
         {/* Árbol de notas */}
-        <div className="flex-1 overflow-y-auto py-2 px-1.5">
+        <div className="flex-1 overflow-y-auto pt-2">
           {isLoading ? (
             <div className="flex items-center justify-center py-10">
               <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -174,22 +243,42 @@ const Notes = () => {
               </button>
             </div>
           ) : (
-            <NoteTree
-              notes={tree}
-              selectedNoteId={selectedId}
-              onSelect={handleSelectNote}
-              onCreateChild={handleCreateChild}
-              onDelete={handleDeleteNote}
-              onMove={handleOpenMove}
-            />
+            <>
+              <NoteTree
+                notes={tree}
+                selectedNoteId={selectedId}
+                onSelect={handleSelectNote}
+                onCreateChild={handleCreateChild}
+                onDelete={handleDeleteNote}
+                onMove={handleOpenMove}
+                onRenameSection={handleRenameSection}
+                onDeleteSection={handleDeleteSection}
+              />
+              {creatingSection && (
+                <div className="px-2 py-1 mt-1">
+                  <input
+                    ref={sectionInputRef}
+                    type="text"
+                    placeholder="Nombre de la sección..."
+                    value={newSectionTitle}
+                    onChange={(e) => setNewSectionTitle(e.target.value)}
+                    onBlur={handleCreateSection}
+                    onKeyDown={handleSectionInputKeyDown}
+                    className="w-full px-2 py-1 text-xs font-semibold uppercase tracking-wide
+                               bg-gray-100 dark:bg-gray-700 rounded border border-blue-400
+                               text-gray-700 dark:text-gray-200 placeholder-gray-400 outline-none"
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
 
         {/* Recientes + Revisión */}
-        <div className="px-3 pb-1.5 flex flex-col gap-1">
+        <div className="px-3 pb-1.5 pt-1.5 flex flex-col gap-1 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={() => { setIsReviewActive(false); navigate('/notes'); setSidebarOpen(false); }}
-            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm
+            className="w-full flex items-center gap-2 px-2.5 py-2 text-sm
                        text-gray-600 dark:text-gray-300
                        hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
@@ -198,7 +287,7 @@ const Notes = () => {
           </button>
           <button
             onClick={() => { setIsReviewActive(true); setSidebarOpen(false); }}
-            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm
+            className="w-full flex items-center gap-2 px-2.5 py-2 text-sm
                        bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400
                        hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
           >
@@ -293,7 +382,7 @@ const Notes = () => {
               ) : (
                 <ul className="divide-y divide-gray-100 dark:divide-gray-700">
                   {[...flat]
-                    .filter((n) => !n.deleted_at)
+                    .filter((n) => !n.deleted_at && n.type !== 'section')
                     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                     .slice(0, 50)
                     .map((note) => {
@@ -343,7 +432,7 @@ const Notes = () => {
         const movingNote = flat.find((n) => n.id === moveNoteId);
         const q = moveSearch.trim().toLowerCase();
         const candidates = flat.filter(
-          (n) => n.id !== moveNoteId && (!q || n.title?.toLowerCase().includes(q))
+          (n) => n.id !== moveNoteId && n.type !== 'section' && (!q || n.title?.toLowerCase().includes(q))
         );
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

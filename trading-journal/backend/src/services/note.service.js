@@ -29,12 +29,19 @@ export const getNote = async (userId, noteId) => {
   return note;
 };
 
-export const createNote = async (userId, { title, parent_note_id }) => {
+export const createNote = async (userId, { title, parent_note_id, type = 'note' }) => {
+  if (type === 'section') {
+    if (parent_note_id) throw new ValidationError('Las secciones solo pueden crearse a nivel raíz');
+    if (!title || title.trim() === '') throw new ValidationError('La sección debe tener un nombre');
+  }
+
   if (parent_note_id) {
     const parent = await repo.getById(userId, parent_note_id);
     if (!parent) throw new NotFoundError('Nota padre no encontrada');
+    if (parent.type === 'section') throw new ValidationError('Una nota no puede tener una sección como padre');
   }
-  return repo.create(userId, { title, parent_note_id: parent_note_id || null });
+
+  return repo.create(userId, { title, parent_note_id: parent_note_id || null, type });
 };
 
 export const updateNoteTitle = async (userId, noteId, title) => {
@@ -47,7 +54,13 @@ export const deleteNote = async (userId, noteId) => {
   const note = await repo.getById(userId, noteId);
   if (!note) throw new NotFoundError('Nota no encontrada');
 
-  // Obtener todos los descendientes (incluyendo la nota misma) para limpiar imágenes
+  if (note.type === 'section') {
+    // Borrar solo el divisor; las notas que estaban bajo él no se tocan
+    await repo.softDelete(userId, noteId);
+    return;
+  }
+
+  // Para notas: cascade + limpieza de imágenes
   const deletedIds = await repo.softDelete(userId, noteId);
   const imagePaths = await repo.getImagePathsByNoteIds(deletedIds);
   await deleteFiles(imagePaths);
@@ -57,9 +70,14 @@ export const moveNote = async (userId, noteId, newParentId) => {
   const note = await repo.getById(userId, noteId);
   if (!note) throw new NotFoundError('Nota no encontrada');
 
+  if (note.type === 'section' && newParentId !== null && newParentId !== undefined) {
+    throw new ValidationError('Las secciones no pueden anidarse');
+  }
+
   if (newParentId !== null && newParentId !== undefined) {
     const parent = await repo.getById(userId, newParentId);
     if (!parent) throw new NotFoundError('Nota destino no encontrada');
+    if (parent.type === 'section') throw new ValidationError('Una nota no puede tener una sección como padre');
 
     const isDesc = await repo.isDescendant(noteId, newParentId);
     if (isDesc) {
@@ -120,6 +138,15 @@ export const moveDnd = async ({ noteId, targetId, dropType, userId }) => {
     throw new ValidationError('No puedes mover una nota dentro de uno de sus descendientes');
   }
 
+  // Secciones solo pueden ser siblings a nivel raíz, nunca children
+  if (sourceNote.type === 'section' && dropType === 'child') {
+    throw new ValidationError('Las secciones no pueden anidarse');
+  }
+  // Notas no pueden ser hijas de una sección
+  if (sourceNote.type === 'note' && dropType === 'child' && targetNote.type === 'section') {
+    throw new ValidationError('Una nota no puede tener una sección como padre');
+  }
+
   let newParentId;
   let newPosition;
 
@@ -136,7 +163,8 @@ export const moveDnd = async ({ noteId, targetId, dropType, userId }) => {
       newParentId,
       userId,
       targetNote.position,
-      side
+      side,
+      noteId
     );
     newPosition = generateKeyBetween(before, after);
   }
@@ -203,6 +231,7 @@ export const search = async (userId, { q, tagIds, limit }) => {
 export const createBlock = async (userId, noteId, data) => {
   const note = await repo.getById(userId, noteId);
   if (!note) throw new NotFoundError('Nota no encontrada');
+  if (note.type === 'section') throw new ValidationError('Las secciones no pueden tener bloques');
 
   if (data.block_type === 'note_link' && data.linked_note_id) {
     const linkedNote = await repo.getById(userId, data.linked_note_id);
