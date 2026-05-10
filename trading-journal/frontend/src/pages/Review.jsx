@@ -33,8 +33,8 @@ function BlockPreview({ content, blockType }) {
       </span>
     );
   }
-  if (blockType === 'note_link') {
-    return <span className="text-xs italic text-gray-400 dark:text-gray-500">Enlace a nota</span>;
+  if (blockType === 'reference') {
+    return <span className="text-xs italic text-gray-400 dark:text-gray-500">Referencia</span>;
   }
   const lines = content.split('\n').filter(Boolean).slice(0, 3).join(' ');
   const preview = lines.length > 120 ? lines.slice(0, 120) + '…' : lines;

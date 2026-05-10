@@ -12,7 +12,7 @@ import {
   moveBlockDndSchema,
   createBlockSchema,
   updateBlockSchema,
-  updateCalloutMetadataSchema,
+  updateBlockMetadataSchema,
   reorderBlocksSchema,
   createTagSchema,
   updateTagSchema,
@@ -54,7 +54,7 @@ router.delete('/tags/:tagId', ctrl.deleteTag);
 // Ruta estática /blocks/review ANTES de /blocks/:blockId para evitar conflictos
 router.get('/blocks/review', ctrl.getReview);
 router.patch('/blocks/:blockId', validate(updateBlockSchema), ctrl.updateBlock);
-router.patch('/blocks/:blockId/metadata', validate(updateCalloutMetadataSchema), ctrl.updateBlockMetadata);
+router.patch('/blocks/:blockId/metadata', validate(updateBlockMetadataSchema), ctrl.updateBlockMetadata);
 router.patch('/blocks/:blockId/move-dnd', validate(moveBlockDndSchema), ctrl.moveBlockDnd);
 router.patch('/blocks/:blockId/follow-up', validate(toggleFollowUpSchema), ctrl.toggleFollowUp);
 router.delete('/blocks/:blockId', ctrl.deleteBlock);

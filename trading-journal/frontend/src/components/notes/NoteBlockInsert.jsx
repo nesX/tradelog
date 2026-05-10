@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, AlignLeft, Image, Link, StickyNote } from 'lucide-react';
+import { Plus, AlignLeft, Image, Link, Link2, StickyNote } from 'lucide-react';
 import { useCreateBlock, useCreateNote } from '../../hooks/useNotes.js';
 import { useNavigate } from 'react-router-dom';
 
 const BLOCK_OPTIONS = [
   { type: 'text',          label: 'Texto',      icon: AlignLeft,  color: 'text-gray-500'   },
   { type: 'image_gallery', label: 'Imágenes',   icon: Image,      color: 'text-green-500'  },
-  { type: 'note_link',     label: 'Sub-nota',   icon: Link,       color: 'text-blue-500'   },
+  { type: 'sub_note',      label: 'Sub-nota',   icon: Link,       color: 'text-blue-500'   },
+  { type: 'reference',     label: 'Referencia', icon: Link2,      color: 'text-indigo-500' },
   { type: 'callout',       label: 'Destacado',  icon: StickyNote, color: 'text-yellow-500' },
 ];
 
@@ -27,14 +28,28 @@ const NoteBlockInsert = ({ noteId, position }) => {
 
   const insert = async (block_type) => {
     setOpen(false);
-    if (block_type === 'note_link') {
+    if (block_type === 'sub_note') {
       const noteRes = await createNote.mutateAsync({ parent_note_id: noteId });
       const subNote = noteRes.data;
       await createBlock.mutateAsync({
         noteId,
-        data: { block_type: 'note_link', linked_note_id: subNote.id, position },
+        data: {
+          block_type: 'reference',
+          linked_note_id: subNote.id,
+          position,
+          metadata: {
+            target_note_id: subNote.id,
+            target_block_id: null,
+            label: subNote.title || 'Sub-nota',
+          },
+        },
       });
       navigate(`/notes/${subNote.id}`);
+    } else if (block_type === 'reference') {
+      await createBlock.mutateAsync({
+        noteId,
+        data: { block_type: 'reference', position, metadata: { label: 'Referencia' } },
+      });
     } else if (block_type === 'callout') {
       await createBlock.mutateAsync({
         noteId,

@@ -20,7 +20,8 @@ import { CSS } from '@dnd-kit/utilities';
 import NoteTextBlock from './NoteTextBlock.jsx';
 import NoteCalloutBlock from './NoteCalloutBlock.jsx';
 import NoteImageGalleryBlock from './NoteImageGalleryBlock.jsx';
-import NoteLinkBlock from './NoteLinkBlock.jsx';
+import NoteReferenceBlock from './NoteReferenceBlock.jsx';
+import CopyReferenceButton from './CopyReferenceButton.jsx';
 import NoteBlockInsert from './NoteBlockInsert.jsx';
 import { useDeleteBlock, useCreateBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd, useMoveNote } from '../../hooks/useNotes.js';
 
@@ -45,9 +46,12 @@ function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus })
       {block.block_type === 'image_gallery' && (
         <NoteImageGalleryBlock block={block} noteId={noteId} />
       )}
-      {block.block_type === 'note_link' && (
+      {block.block_type === 'reference' && (
         <div className="px-3 py-1.5">
-          <NoteLinkBlock block={block} />
+          <NoteReferenceBlock
+            block={block}
+            onUpdateMetadata={(metadata) => onUpdateMetadata(block.id, metadata)}
+          />
         </div>
       )}
     </div>
@@ -95,8 +99,11 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
           {/* Toggle seguimiento */}
           <BlockFollowUpToggle block={block} noteId={noteId} />
 
-          {/* Mover sub-nota dentro de otra (solo note_link) */}
-          {block.block_type === 'note_link' && (
+          {/* Copiar referencia al bloque */}
+          <CopyReferenceButton noteId={noteId} blockId={block.id} />
+
+          {/* Mover sub-nota dentro de otra (solo bloques reference que apuntan a una nota completa) */}
+          {block.block_type === 'reference' && block.metadata?.target_note_id && !block.metadata?.target_block_id && (
             <button
               onClick={(e) => { e.stopPropagation(); e.preventDefault(); onOpenMoveSubNote(block.id); }}
               className="w-6 h-6 flex items-center justify-center rounded
@@ -140,11 +147,12 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
   );
 }
 
+const isSubNoteRef = (b) =>
+  b.block_type === 'reference' && b.metadata?.target_note_id && !b.metadata?.target_block_id;
+
 function MoveSubNoteModal({ blocks, moveSubNoteBlockId, onConfirm, onClose, isPending }) {
   const movingBlock = blocks.find((b) => b.id === moveSubNoteBlockId);
-  const targets = blocks.filter(
-    (b) => b.block_type === 'note_link' && b.id !== moveSubNoteBlockId && b.linked_note_id
-  );
+  const targets = blocks.filter((b) => isSubNoteRef(b) && b.id !== moveSubNoteBlockId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -167,7 +175,7 @@ function MoveSubNoteModal({ blocks, moveSubNoteBlockId, onConfirm, onClose, isPe
         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-200 dark:border-gray-700">
           <p className="text-xs text-gray-500 dark:text-gray-400">Moviendo:</p>
           <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
-            {movingBlock?.linked_note_title || 'Sub-nota'}
+            {movingBlock?.metadata?.label || 'Sub-nota'}
           </p>
         </div>
 
@@ -188,7 +196,7 @@ function MoveSubNoteModal({ blocks, moveSubNoteBlockId, onConfirm, onClose, isPe
               >
                 <FolderInput className="w-4 h-4 text-purple-400 flex-shrink-0" />
                 <span className="text-sm text-gray-800 dark:text-gray-100 truncate">
-                  {b.linked_note_title || 'Sub-nota sin título'}
+                  {b.metadata?.label || 'Sub-nota sin título'}
                 </span>
               </button>
             ))
@@ -233,18 +241,29 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
 
   const handleConfirmMoveSubNote = async (targetBlock) => {
     const movingBlock = blocks.find((b) => b.id === moveSubNoteBlockId);
-    if (!movingBlock?.linked_note_id || !targetBlock?.linked_note_id) return;
+    const movingTargetId = movingBlock?.metadata?.target_note_id;
+    const destinationTargetId = targetBlock?.metadata?.target_note_id;
+    if (!movingTargetId || !destinationTargetId) return;
 
     // 1. Cambiar parent_note_id de la sub-nota
-    await moveNote.mutateAsync({ id: movingBlock.linked_note_id, parent_note_id: targetBlock.linked_note_id });
+    await moveNote.mutateAsync({ id: movingTargetId, parent_note_id: destinationTargetId });
 
-    // 2. Eliminar el note_link block de la nota actual
+    // 2. Eliminar el reference block de la nota actual
     await deleteBlock.mutateAsync({ blockId: movingBlock.id, noteId });
 
-    // 3. Crear un note_link block al final de la nota destino
+    // 3. Crear un reference block al final de la nota destino
     await createBlock.mutateAsync({
-      noteId: targetBlock.linked_note_id,
-      data: { block_type: 'note_link', linked_note_id: movingBlock.linked_note_id, position: 9999 },
+      noteId: destinationTargetId,
+      data: {
+        block_type: 'reference',
+        linked_note_id: movingTargetId,
+        position: 9999,
+        metadata: {
+          target_note_id: movingTargetId,
+          target_block_id: null,
+          label: movingBlock.metadata?.label || 'Sub-nota',
+        },
+      },
     });
 
     setMoveSubNoteBlockId(null);

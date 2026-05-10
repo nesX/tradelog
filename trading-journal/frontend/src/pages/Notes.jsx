@@ -112,12 +112,21 @@ const Notes = () => {
 
   const handleCreateChild = async (parentId) => {
     const res = await createNote.mutateAsync({ parent_note_id: parentId });
-    const newNoteId = res.data.id;
+    const newNote = res.data;
     await createBlock.mutateAsync({
       noteId: parentId,
-      data: { block_type: 'note_link', linked_note_id: newNoteId, position: 9999 },
+      data: {
+        block_type: 'reference',
+        linked_note_id: newNote.id,
+        position: 9999,
+        metadata: {
+          target_note_id: newNote.id,
+          target_block_id: null,
+          label: newNote.title || 'Sub-nota',
+        },
+      },
     });
-    navigate(`/notes/${newNoteId}`);
+    navigate(`/notes/${newNote.id}`);
   };
 
   const handleSelectNote = (noteId) => {

@@ -233,7 +233,7 @@ export const createBlock = async (userId, noteId, data) => {
   if (!note) throw new NotFoundError('Nota no encontrada');
   if (note.type === 'section') throw new ValidationError('Las secciones no pueden tener bloques');
 
-  if (data.block_type === 'note_link' && data.linked_note_id) {
+  if (data.block_type === 'reference' && data.linked_note_id) {
     const linkedNote = await repo.getById(userId, data.linked_note_id);
     if (!linkedNote) throw new NotFoundError('Nota vinculada no encontrada');
   }
@@ -255,8 +255,8 @@ export const updateBlockMetadata = async (userId, blockId, newMetadata) => {
   const block = await repo.getBlockById(blockId);
   if (!block) throw new NotFoundError('Bloque no encontrado');
   if (block.user_id !== userId) throw new NotFoundError('Bloque no encontrado');
-  if (!['callout', 'image_gallery'].includes(block.block_type)) {
-    throw new ValidationError('Solo se puede actualizar metadata de bloques callout o image_gallery');
+  if (!['callout', 'image_gallery', 'reference'].includes(block.block_type)) {
+    throw new ValidationError('Solo se puede actualizar metadata de bloques callout, image_gallery o reference');
   }
   const existing = block.metadata || {};
   const merged = { ...existing, ...newMetadata };
@@ -417,7 +417,12 @@ const buildNoteTree = (notes, blocksMap, parentId = null) => {
         if (b.block_type === 'image_gallery') {
           return { type: 'image_gallery', images: b.images || [] };
         }
-        return { type: 'note_link', linked_note_title: b.linked_note_title };
+        return {
+          type: 'reference',
+          label: b.metadata?.label || b.linked_note_title || 'Referencia',
+          target_note_id: b.metadata?.target_note_id ?? b.linked_note_id ?? null,
+          target_block_id: b.metadata?.target_block_id ?? null,
+        };
       }),
       children: buildNoteTree(notes, blocksMap, n.id),
     }));
@@ -454,8 +459,9 @@ const renderMarkdownTree = (notes, blocksMap, parentId = null, depth = 1) => {
           lines.push(`![${img.caption || ''}](${img.filename})`);
         }
         lines.push('');
-      } else if (block.block_type === 'note_link') {
-        lines.push(`→ Sub-nota: ${block.linked_note_title || 'Nota eliminada'}`);
+      } else if (block.block_type === 'reference') {
+        const label = block.metadata?.label || block.linked_note_title || 'Referencia';
+        lines.push(`→ ${label}`);
         lines.push('');
       }
     }

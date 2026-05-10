@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { Tag, X, Plus, Check, Pencil } from 'lucide-react';
 import {
   useNote,
@@ -11,10 +11,12 @@ import {
 import NoteBlockList from '../components/notes/NoteBlockList.jsx';
 import NoteBreadcrumb from '../components/notes/NoteBreadcrumb.jsx';
 import NoteTagBadge from '../components/notes/NoteTagBadge.jsx';
+import CopyReferenceButton from '../components/notes/CopyReferenceButton.jsx';
 
 const NoteEditor = ({ embeddedId }) => {
   const params = useParams();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const noteId = embeddedId ? parseInt(embeddedId) : parseInt(params.id);
 
   const { data: note, isLoading, error } = useNote(noteId);
@@ -57,16 +59,25 @@ const NoteEditor = ({ embeddedId }) => {
   }, []);
 
   // Scroll y resaltar bloque al navegar desde la vista de Revisión (?highlight=blockId)
+  // o desde una referencia con hash (#block-{id}).
   useEffect(() => {
-    const blockId = searchParams.get('highlight');
-    if (!blockId || !note) return;
-    const el = document.getElementById(`block-${blockId}`);
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.classList.add('highlight-pulse');
-    const timer = setTimeout(() => el.classList.remove('highlight-pulse'), 2500);
-    return () => clearTimeout(timer);
-  }, [searchParams, note]);
+    if (!note) return;
+    const fromQuery = searchParams.get('highlight');
+    const fromHash = location.hash?.startsWith('#block-')
+      ? location.hash.replace('#block-', '')
+      : null;
+    const blockId = fromQuery || fromHash;
+    if (!blockId) return;
+
+    const raf = requestAnimationFrame(() => {
+      const el = document.getElementById(`block-${blockId}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight-pulse');
+      setTimeout(() => el.classList.remove('highlight-pulse'), 2500);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [searchParams, location.hash, note]);
 
   /* ---------- loading / error ---------- */
 
@@ -173,6 +184,9 @@ const NoteEditor = ({ embeddedId }) => {
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
+              <div className="flex-shrink-0 mt-0.5">
+                <CopyReferenceButton noteId={noteId} variant="header" />
+              </div>
             </div>
           )}
         </div>

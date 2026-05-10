@@ -34,13 +34,16 @@ export const moveBlockDndSchema = Joi.object({
 });
 
 export const createBlockSchema = Joi.object({
-  block_type: Joi.string().valid('text', 'image_gallery', 'note_link', 'callout').required(),
+  block_type: Joi.string().valid('text', 'image_gallery', 'reference', 'callout').required(),
   content: Joi.string().max(50000).allow(null, '').optional(),
   linked_note_id: Joi.number().integer().positive().allow(null).optional(),
   position: Joi.number().integer().min(0).optional(),
   metadata: Joi.object({
     style: Joi.string().valid('info', 'warning', 'success', 'error', 'note').optional(),
     icon: Joi.string().max(10).allow(null).optional(),
+    target_note_id: Joi.number().integer().positive().allow(null).optional(),
+    target_block_id: Joi.number().integer().positive().allow(null).optional(),
+    label: Joi.string().trim().min(1).max(200).optional(),
   }).default({}),
 });
 
@@ -48,11 +51,14 @@ export const updateBlockSchema = Joi.object({
   content: Joi.string().max(50000).allow('').required(),
 });
 
-export const updateCalloutMetadataSchema = Joi.object({
+export const updateBlockMetadataSchema = Joi.object({
   style: Joi.string().valid('info', 'warning', 'success', 'error', 'note').optional(),
   icon: Joi.string().max(10).allow(null).optional(),
   analysis_date: Joi.string().isoDate().allow(null, '').optional(),
   symbols: Joi.array().items(Joi.string().max(20).uppercase()).max(10).optional(),
+  target_note_id: Joi.number().integer().positive().allow(null).optional(),
+  target_block_id: Joi.number().integer().positive().allow(null).optional(),
+  label: Joi.string().trim().min(1).max(200).optional(),
 });
 
 export const reorderBlocksSchema = Joi.object({
