@@ -104,8 +104,8 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
             <CopyReferenceButton noteId={noteId} blockId={block.id} />
           )}
 
-          {/* Mover sub-nota dentro de otra (solo bloques reference que apuntan a una nota completa) */}
-          {block.block_type === 'reference' && block.metadata?.target_note_id && !block.metadata?.target_block_id && (
+          {/* Mover sub-nota dentro de otra (solo bloques reference que son sub-notas reales) */}
+          {block.block_type === 'reference' && block.linked_note_id && (
             <button
               onClick={(e) => { e.stopPropagation(); e.preventDefault(); onOpenMoveSubNote(block.id); }}
               className="w-6 h-6 flex items-center justify-center rounded
@@ -149,8 +149,7 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
   );
 }
 
-const isSubNoteRef = (b) =>
-  b.block_type === 'reference' && b.metadata?.target_note_id && !b.metadata?.target_block_id;
+const isSubNoteRef = (b) => b.block_type === 'reference' && Boolean(b.linked_note_id);
 
 function MoveSubNoteModal({ blocks, moveSubNoteBlockId, onConfirm, onClose, isPending }) {
   const movingBlock = blocks.find((b) => b.id === moveSubNoteBlockId);
@@ -177,7 +176,7 @@ function MoveSubNoteModal({ blocks, moveSubNoteBlockId, onConfirm, onClose, isPe
         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-200 dark:border-gray-700">
           <p className="text-xs text-gray-500 dark:text-gray-400">Moviendo:</p>
           <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
-            {movingBlock?.metadata?.label || 'Sub-nota'}
+            {movingBlock?.linked_note_title || movingBlock?.metadata?.label || 'Sub-nota'}
           </p>
         </div>
 
@@ -198,7 +197,7 @@ function MoveSubNoteModal({ blocks, moveSubNoteBlockId, onConfirm, onClose, isPe
               >
                 <FolderInput className="w-4 h-4 text-purple-400 flex-shrink-0" />
                 <span className="text-sm text-gray-800 dark:text-gray-100 truncate">
-                  {b.metadata?.label || 'Sub-nota sin título'}
+                  {b.linked_note_title || b.metadata?.label || 'Sub-nota sin título'}
                 </span>
               </button>
             ))
@@ -243,8 +242,8 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
 
   const handleConfirmMoveSubNote = async (targetBlock) => {
     const movingBlock = blocks.find((b) => b.id === moveSubNoteBlockId);
-    const movingTargetId = movingBlock?.metadata?.target_note_id;
-    const destinationTargetId = targetBlock?.metadata?.target_note_id;
+    const movingTargetId = movingBlock?.linked_note_id;
+    const destinationTargetId = targetBlock?.linked_note_id;
     if (!movingTargetId || !destinationTargetId) return;
 
     // 1. Cambiar parent_note_id de la sub-nota
@@ -263,7 +262,7 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
         metadata: {
           target_note_id: movingTargetId,
           target_block_id: null,
-          label: movingBlock.metadata?.label || 'Sub-nota',
+          label: movingBlock.linked_note_title || movingBlock.metadata?.label || 'Sub-nota',
         },
       },
     });

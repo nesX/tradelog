@@ -419,7 +419,7 @@ const buildNoteTree = (notes, blocksMap, parentId = null) => {
         }
         return {
           type: 'reference',
-          label: b.metadata?.label || b.linked_note_title || 'Referencia',
+          label: b.linked_note_title || b.metadata?.label || 'Referencia',
           target_note_id: b.metadata?.target_note_id ?? b.linked_note_id ?? null,
           target_block_id: b.metadata?.target_block_id ?? null,
         };
@@ -460,7 +460,7 @@ const renderMarkdownTree = (notes, blocksMap, parentId = null, depth = 1) => {
         }
         lines.push('');
       } else if (block.block_type === 'reference') {
-        const label = block.metadata?.label || block.linked_note_title || 'Referencia';
+        const label = block.linked_note_title || block.metadata?.label || 'Referencia';
         lines.push(`→ ${label}`);
         lines.push('');
       }
