@@ -99,8 +99,10 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
           {/* Toggle seguimiento */}
           <BlockFollowUpToggle block={block} noteId={noteId} />
 
-          {/* Copiar referencia al bloque */}
-          <CopyReferenceButton noteId={noteId} blockId={block.id} />
+          {/* Copiar referencia al bloque (no aplica a bloques que ya son referencias) */}
+          {block.block_type !== 'reference' && (
+            <CopyReferenceButton noteId={noteId} blockId={block.id} />
+          )}
 
           {/* Mover sub-nota dentro de otra (solo bloques reference que apuntan a una nota completa) */}
           {block.block_type === 'reference' && block.metadata?.target_note_id && !block.metadata?.target_block_id && (
