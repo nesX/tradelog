@@ -73,10 +73,10 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
         id={`block-${block.id}`}
         className={`group relative${block.requires_follow_up ? ' border-l-2 border-amber-400 pl-3' : ''}`}
       >
-        {/* Floating actions to the right */}
+        {/* Floating actions to the right (grid 2x2) */}
         <div
-          className="absolute -right-8 top-1/2 -translate-y-1/2
-                     flex flex-col gap-0.5
+          className="absolute -right-14 top-1/2 -translate-y-1/2
+                     grid grid-cols-2 gap-0.5
                      opacity-0 group-hover:opacity-100 transition-opacity z-10"
         >
           {/* Drag handle */}
