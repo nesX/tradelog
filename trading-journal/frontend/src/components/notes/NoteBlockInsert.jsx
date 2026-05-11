@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, AlignLeft, Image, Link, Link2, StickyNote } from 'lucide-react';
+import { Plus, AlignLeft, Image, Link, Link2, StickyNote, TrendingUp } from 'lucide-react';
 import { useCreateBlock, useCreateNote } from '../../hooks/useNotes.js';
 import { useNavigate } from 'react-router-dom';
 
 const BLOCK_OPTIONS = [
-  { type: 'text',          label: 'Texto',      icon: AlignLeft,  color: 'text-gray-500'   },
-  { type: 'image_gallery', label: 'Imágenes',   icon: Image,      color: 'text-green-500'  },
-  { type: 'sub_note',      label: 'Sub-nota',   icon: Link,       color: 'text-blue-500'   },
-  { type: 'reference',     label: 'Referencia', icon: Link2,      color: 'text-indigo-500' },
-  { type: 'callout',       label: 'Destacado',  icon: StickyNote, color: 'text-yellow-500' },
+  { type: 'text',            label: 'Texto',      icon: AlignLeft,  color: 'text-gray-500'    },
+  { type: 'image_gallery',   label: 'Imágenes',   icon: Image,      color: 'text-green-500'   },
+  { type: 'trade_reference', label: 'Trades',     icon: TrendingUp, color: 'text-emerald-500' },
+  { type: 'sub_note',        label: 'Sub-nota',   icon: Link,       color: 'text-blue-500'    },
+  { type: 'reference',       label: 'Enlace interno', icon: Link2,  color: 'text-indigo-500'  },
+  { type: 'callout',         label: 'Destacado',  icon: StickyNote, color: 'text-yellow-500'  },
 ];
 
 const NoteBlockInsert = ({ noteId, position }) => {
@@ -49,6 +50,11 @@ const NoteBlockInsert = ({ noteId, position }) => {
       await createBlock.mutateAsync({
         noteId,
         data: { block_type: 'reference', position, metadata: { label: 'Referencia' } },
+      });
+    } else if (block_type === 'trade_reference') {
+      await createBlock.mutateAsync({
+        noteId,
+        data: { block_type: 'trade_reference', position, metadata: {} },
       });
     } else if (block_type === 'callout') {
       await createBlock.mutateAsync({

@@ -34,7 +34,7 @@ export const moveBlockDndSchema = Joi.object({
 });
 
 export const createBlockSchema = Joi.object({
-  block_type: Joi.string().valid('text', 'image_gallery', 'reference', 'callout').required(),
+  block_type: Joi.string().valid('text', 'image_gallery', 'reference', 'callout', 'trade_reference').required(),
   content: Joi.string().max(50000).allow(null, '').optional(),
   linked_note_id: Joi.number().integer().positive().allow(null).optional(),
   position: Joi.number().integer().min(0).optional(),
@@ -45,6 +45,10 @@ export const createBlockSchema = Joi.object({
     target_block_id: Joi.number().integer().positive().allow(null).optional(),
     label: Joi.string().trim().min(1).max(200).optional(),
   }).default({}),
+});
+
+export const addTradeToBlockSchema = Joi.object({
+  trade_id: Joi.number().integer().positive().required(),
 });
 
 export const updateBlockSchema = Joi.object({

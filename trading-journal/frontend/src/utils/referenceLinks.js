@@ -33,3 +33,21 @@ export const parseReferenceUrl = (input) => {
 
   return { noteId, blockId };
 };
+
+// ----------------------------------------------------------------
+// Referencias a trades
+// Formato: /?trade={id} (query param sobre Home)
+// ----------------------------------------------------------------
+
+export const buildTradeUrl = (tradeId) => `${getBaseUrl()}/?trade=${tradeId}`;
+
+const TRADE_REGEX = /[?&]trade=(\d+)/;
+
+export const parseTradeUrl = (input) => {
+  if (!input || typeof input !== 'string') return null;
+  const match = input.trim().match(TRADE_REGEX);
+  if (!match) return null;
+  const tradeId = parseInt(match[1], 10);
+  if (!Number.isFinite(tradeId) || tradeId <= 0) return null;
+  return { tradeId };
+};

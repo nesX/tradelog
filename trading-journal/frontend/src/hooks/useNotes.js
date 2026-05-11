@@ -250,6 +250,26 @@ export const useMoveNoteDnd = () => {
   });
 };
 
+export const useAddTradeToBlock = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ blockId, tradeId }) => api.addTradeToBlock(blockId, tradeId),
+    onSuccess: (_, { noteId }) => {
+      if (noteId) qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
+    },
+  });
+};
+
+export const useRemoveTradeFromBlock = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ blockId, tradeId }) => api.removeTradeFromBlock(blockId, tradeId),
+    onSuccess: (_, { noteId }) => {
+      if (noteId) qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
+    },
+  });
+};
+
 export const useMoveBlockDnd = (noteId) => {
   const qc = useQueryClient();
   return useMutation({

@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Edit2, Trash2, MoreVertical } from 'lucide-react';
+import { Edit2, Trash2, MoreVertical, Link2 } from 'lucide-react';
 import ImageViewer from '../common/ImageViewer.jsx';
 import Modal from '../common/Modal.jsx';
 import { useSystems } from '../../hooks/useSystems.js';
+import { useToast } from '../common/Toast.jsx';
+import { buildTradeUrl } from '../../utils/referenceLinks.js';
 import {
   formatDate,
   formatNumber,
@@ -22,6 +24,17 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
   const menuRef = useRef(null);
   const buttonRef = useRef(null);
   const pnl = formatPnL(trade.pnl);
+  const toast = useToast();
+
+  const handleCopyReference = async () => {
+    try {
+      await navigator.clipboard.writeText(buildTradeUrl(trade.id));
+      toast.success('Trade copiado');
+    } catch {
+      toast.error('No se pudo copiar la referencia');
+    }
+    setShowActions(false);
+  };
 
   // Obtener nombre del sistema primario (si existe)
   const { data: systems = [] } = useSystems();
@@ -198,6 +211,13 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
               >
                 <Edit2 className="w-4 h-4 mr-2" />
                 Editar
+              </button>
+              <button
+                onClick={handleCopyReference}
+                className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <Link2 className="w-4 h-4 mr-2" />
+                Copiar
               </button>
               <button
                 onClick={() => {

@@ -22,6 +22,7 @@ import {
   reorderImagesSchema,
   noteSearchSchema,
   toggleFollowUpSchema,
+  addTradeToBlockSchema,
 } from '../validators/note.validator.js';
 
 const router = Router();
@@ -69,6 +70,10 @@ router.post(
 router.patch('/blocks/:blockId/images/reorder', validate(reorderImagesSchema), ctrl.reorderImages);
 router.patch('/images/:imageId', validate(updateImageCaptionSchema), ctrl.updateImage);
 router.delete('/images/:imageId', ctrl.deleteImage);
+
+// Trades dentro de un bloque trade_reference
+router.post('/blocks/:blockId/trades', validate(addTradeToBlockSchema), ctrl.addTradeToBlock);
+router.delete('/blocks/:blockId/trades/:tradeId', ctrl.removeTradeFromBlock);
 
 // ---------------------------------------------------------------
 // CRUD de notas

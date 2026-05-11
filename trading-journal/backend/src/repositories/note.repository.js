@@ -39,6 +39,24 @@ export const getById = async (userId, noteId) => {
         )
         FROM note_block_images nbi WHERE nbi.block_id = nb.id), '[]'
       ) as images,
+      COALESCE(
+        (SELECT json_agg(
+          json_build_object(
+            'id', t.id,
+            'symbol', t.symbol,
+            'side', t.trade_type,
+            'status', t.status,
+            'pnl', t.pnl,
+            'pnl_percentage', t.pnl_percentage,
+            'entry_date', t.entry_date,
+            'first_image', (SELECT ti.filename FROM trade_images ti
+                            WHERE ti.trade_id = t.id ORDER BY ti.id ASC LIMIT 1)
+          ) ORDER BY nbt.position ASC
+        )
+        FROM note_block_trades nbt
+        LEFT JOIN trades t ON t.id = nbt.trade_id AND t.deleted_at IS NULL
+        WHERE nbt.block_id = nb.id), '[]'
+      ) as trades,
       ln.title as linked_note_title
     FROM note_blocks nb
     LEFT JOIN notes ln ON ln.id = nb.linked_note_id AND ln.deleted_at IS NULL
@@ -512,6 +530,45 @@ export const getImagesByBlockId = async (blockId) => {
 };
 
 // ============================================================
+// TRADES DE BLOQUE (trade_reference)
+// ============================================================
+
+export const getBlockOwner = async (blockId) => {
+  const result = await pool.query(
+    `SELECT n.user_id, n.id AS note_id, nb.block_type
+     FROM note_blocks nb
+     JOIN notes n ON n.id = nb.note_id
+     WHERE nb.id = $1 AND n.deleted_at IS NULL`,
+    [blockId]
+  );
+  return result.rows[0] || null;
+};
+
+export const addTradeToBlock = async (blockId, tradeId) => {
+  const posResult = await pool.query(
+    `SELECT COALESCE(MAX(position), -1) + 1 AS next_pos
+     FROM note_block_trades WHERE block_id = $1`,
+    [blockId]
+  );
+  const position = posResult.rows[0].next_pos;
+  const result = await pool.query(
+    `INSERT INTO note_block_trades (block_id, trade_id, position)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (block_id, trade_id) DO NOTHING
+     RETURNING *`,
+    [blockId, tradeId, position]
+  );
+  return result.rows[0] || null;
+};
+
+export const removeTradeFromBlock = async (blockId, tradeId) => {
+  await pool.query(
+    `DELETE FROM note_block_trades WHERE block_id = $1 AND trade_id = $2`,
+    [blockId, tradeId]
+  );
+};
+
+// ============================================================
 // TAGS
 // ============================================================
 
@@ -711,7 +768,16 @@ export const getFullTree = async (userId) => {
           ORDER BY nbi.position ASC
         )
         FROM note_block_images nbi WHERE nbi.block_id = nb.id), '[]'
-      ) as images
+      ) as images,
+      COALESCE(
+        (SELECT json_agg(
+          json_build_object('id', t.id, 'symbol', t.symbol)
+          ORDER BY nbt.position ASC
+        )
+        FROM note_block_trades nbt
+        LEFT JOIN trades t ON t.id = nbt.trade_id AND t.deleted_at IS NULL
+        WHERE nbt.block_id = nb.id), '[]'
+      ) as trades
     FROM note_blocks nb
     JOIN notes n ON n.id = nb.note_id
     LEFT JOIN notes ln ON ln.id = nb.linked_note_id AND ln.deleted_at IS NULL

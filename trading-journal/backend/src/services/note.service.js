@@ -4,6 +4,7 @@ import { config } from '../config/env.js';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 import { deleteFileIfExists } from '../utils/fileUtils.js';
 import * as repo from '../repositories/note.repository.js';
+import * as tradeRepo from '../repositories/trade.repository.js';
 
 const uploadsDir = () => path.resolve(config.upload.dir);
 
@@ -342,6 +343,27 @@ export const reorderImages = async (userId, blockId, imageIds) => {
 };
 
 // ============================================================
+// TRADES DE BLOQUE (trade_reference)
+// ============================================================
+
+export const addTradeToBlock = async (userId, blockId, tradeId) => {
+  const owner = await repo.getBlockOwner(blockId);
+  if (!owner || owner.user_id !== userId) throw new NotFoundError('Bloque no encontrado');
+  if (owner.block_type !== 'trade_reference') {
+    throw new ValidationError('Solo se pueden añadir trades a bloques trade_reference');
+  }
+  const trade = await tradeRepo.findById(userId, tradeId);
+  if (!trade) throw new NotFoundError('Trade no encontrado');
+  return repo.addTradeToBlock(blockId, tradeId);
+};
+
+export const removeTradeFromBlock = async (userId, blockId, tradeId) => {
+  const owner = await repo.getBlockOwner(blockId);
+  if (!owner || owner.user_id !== userId) throw new NotFoundError('Bloque no encontrado');
+  await repo.removeTradeFromBlock(blockId, tradeId);
+};
+
+// ============================================================
 // TAGS
 // ============================================================
 
@@ -417,6 +439,9 @@ const buildNoteTree = (notes, blocksMap, parentId = null) => {
         if (b.block_type === 'image_gallery') {
           return { type: 'image_gallery', images: b.images || [] };
         }
+        if (b.block_type === 'trade_reference') {
+          return { type: 'trade_reference', trades: b.trades || [] };
+        }
         return {
           type: 'reference',
           label: b.linked_note_title || b.metadata?.label || 'Referencia',
@@ -463,6 +488,15 @@ const renderMarkdownTree = (notes, blocksMap, parentId = null, depth = 1) => {
         const label = block.linked_note_title || block.metadata?.label || 'Referencia';
         lines.push(`→ ${label}`);
         lines.push('');
+      } else if (block.block_type === 'trade_reference') {
+        const trades = block.trades || [];
+        if (trades.length > 0) {
+          lines.push('**Trades referenciados:**');
+          for (const t of trades) {
+            if (t) lines.push(`- ${t.symbol} (#${t.id})`);
+          }
+          lines.push('');
+        }
       }
     }
 

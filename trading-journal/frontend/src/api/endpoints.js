@@ -251,6 +251,12 @@ export const toggleBlockFollowUp = (blockId, requiresFollowUp) =>
 export const getBlocksReview = (hours = 24) =>
   apiClient.get('/api/notes/blocks/review', { params: { hours } });
 
+// Trades dentro de un bloque trade_reference
+export const addTradeToBlock = (blockId, trade_id) =>
+  apiClient.post(`/api/notes/blocks/${blockId}/trades`, { trade_id });
+export const removeTradeFromBlock = (blockId, tradeId) =>
+  apiClient.delete(`/api/notes/blocks/${blockId}/trades/${tradeId}`);
+
 // ==================
 // ADMIN — gestión de usuarios
 // ==================

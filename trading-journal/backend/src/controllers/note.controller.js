@@ -124,6 +124,28 @@ export const reorderImages = async (req, res) => {
 };
 
 // ============================================================
+// TRADES DE BLOQUE (trade_reference)
+// ============================================================
+
+export const addTradeToBlock = async (req, res) => {
+  const data = await noteService.addTradeToBlock(
+    req.user.id,
+    parseInt(req.params.blockId),
+    parseInt(req.body.trade_id)
+  );
+  sendCreated(res, data, 'Trade añadido al bloque');
+};
+
+export const removeTradeFromBlock = async (req, res) => {
+  await noteService.removeTradeFromBlock(
+    req.user.id,
+    parseInt(req.params.blockId),
+    parseInt(req.params.tradeId)
+  );
+  sendDeleted(res, 'Trade removido del bloque');
+};
+
+// ============================================================
 // TAGS
 // ============================================================
 

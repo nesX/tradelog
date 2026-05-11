@@ -21,6 +21,7 @@ import NoteTextBlock from './NoteTextBlock.jsx';
 import NoteCalloutBlock from './NoteCalloutBlock.jsx';
 import NoteImageGalleryBlock from './NoteImageGalleryBlock.jsx';
 import NoteReferenceBlock from './NoteReferenceBlock.jsx';
+import NoteTradeReferenceBlock from './NoteTradeReferenceBlock.jsx';
 import CopyReferenceButton from './CopyReferenceButton.jsx';
 import NoteBlockInsert from './NoteBlockInsert.jsx';
 import { useDeleteBlock, useCreateBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd, useMoveNote } from '../../hooks/useNotes.js';
@@ -52,6 +53,11 @@ function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus })
             block={block}
             onUpdateMetadata={(metadata) => onUpdateMetadata(block.id, metadata)}
           />
+        </div>
+      )}
+      {block.block_type === 'trade_reference' && (
+        <div className="px-3 py-1.5">
+          <NoteTradeReferenceBlock block={block} noteId={noteId} />
         </div>
       )}
     </div>
