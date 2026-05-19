@@ -273,7 +273,7 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept="*"
         multiple
         className="hidden"
         onChange={handleFileChange}

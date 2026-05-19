@@ -29,6 +29,15 @@ const ImageViewer = ({
       setCurrentIndex(startIndex);
     }
   }, [isOpen, startIndex]);
+
+  // Mantener currentIndex dentro de rango si cambia el número de imágenes
+  // (p. ej. tras eliminar una imagen desde el bloque de notas).
+  const imagesCount = Array.isArray(images) ? images.length : images ? 1 : 0;
+  useEffect(() => {
+    if (currentIndex > 0 && currentIndex >= imagesCount) {
+      setCurrentIndex(Math.max(0, imagesCount - 1));
+    }
+  }, [imagesCount, currentIndex]);
   const [imageErrors, setImageErrors] = useState({});
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -45,6 +54,7 @@ const ImageViewer = ({
 
   // Construir URL de imagen
   const getImageUrl = (image) => {
+    if (!image) return null;
     const filename = typeof image === 'string' ? image : image.filename;
     if (!filename) return null;
 

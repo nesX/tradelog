@@ -97,7 +97,7 @@ const TradeCommentArea = ({ result, onConfirm, onCancel, isLoading }) => {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept="*"
               onChange={handleImageChange}
               className="hidden"
             />

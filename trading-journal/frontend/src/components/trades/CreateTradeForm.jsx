@@ -557,7 +557,7 @@ const CreateTradeForm = ({
         >
           <input
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
+            accept="*"
             onChange={handleInputChange}
             className="hidden"
             id="image-upload"
