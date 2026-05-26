@@ -248,8 +248,13 @@ export const searchNotes = (params) => apiClient.get('/api/notes/search', { para
 
 export const toggleBlockFollowUp = (blockId, requiresFollowUp) =>
   apiClient.patch(`/api/notes/blocks/${blockId}/follow-up`, { requires_follow_up: requiresFollowUp });
-export const getBlocksReview = (hours = 24) =>
-  apiClient.get('/api/notes/blocks/review', { params: { hours } });
+export const getBlocksReview = (hours = 24, pendingHours = null) =>
+  apiClient.get('/api/notes/blocks/review', {
+    params: {
+      hours,
+      ...(pendingHours !== null && { pendingHours }),
+    },
+  });
 
 // Trades dentro de un bloque trade_reference
 export const addTradeToBlock = (blockId, trade_id) =>

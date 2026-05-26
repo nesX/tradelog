@@ -3,13 +3,13 @@ import { getBlocksReview } from '../api/endpoints.js';
 
 export const reviewKeys = {
   all: ['review'],
-  byHours: (hours) => ['review', hours],
+  byParams: (hours, pendingHours) => ['review', hours, pendingHours],
 };
 
-export function useReview(hours = 24) {
+export function useReview(hours = 24, pendingHours = null) {
   return useQuery({
-    queryKey: reviewKeys.byHours(hours),
-    queryFn: () => getBlocksReview(hours),
+    queryKey: reviewKeys.byParams(hours, pendingHours),
+    queryFn: () => getBlocksReview(hours, pendingHours),
     select: (response) => response.data,
     staleTime: 30_000,
   });

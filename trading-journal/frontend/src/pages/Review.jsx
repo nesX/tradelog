@@ -25,6 +25,27 @@ const HOURS_OPTIONS = [
   { value: 168, label: '1 semana' },
 ];
 
+function TimeRangeTabs({ value, onChange, includeAll = false }) {
+  const options = includeAll ? [{ value: null, label: 'Todos' }, ...HOURS_OPTIONS] : HOURS_OPTIONS;
+  return (
+    <div className="flex gap-1">
+      {options.map((opt) => (
+        <button
+          key={opt.label}
+          onClick={() => onChange(opt.value)}
+          className={`px-3 py-1 text-xs rounded-lg border transition-colors
+            ${value === opt.value
+              ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium'
+              : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function BlockPreview({ content, blockType }) {
   if (!content || blockType === 'image_gallery') {
     return (
@@ -96,7 +117,8 @@ function BlockItem({ block, showResolveButton }) {
 
 export default function Review() {
   const [hours, setHours] = useState(24);
-  const { data, isLoading } = useReview(hours);
+  const [pendingHours, setPendingHours] = useState(null); // null = "Todos"
+  const { data, isLoading } = useReview(hours, pendingHours);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-8">
@@ -107,17 +129,20 @@ export default function Review() {
 
       {/* Sección 1: Pendientes */}
       <section>
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-            Pendientes de seguimiento
-          </h2>
-          {!isLoading && data && (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full
-                             bg-amber-100 dark:bg-amber-900/40
-                             text-amber-700 dark:text-amber-400">
-              {data.pending.length}
-            </span>
-          )}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+              Pendientes de seguimiento
+            </h2>
+            {!isLoading && data && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full
+                               bg-amber-100 dark:bg-amber-900/40
+                               text-amber-700 dark:text-amber-400">
+                {data.pending.length}
+              </span>
+            )}
+          </div>
+          <TimeRangeTabs value={pendingHours} onChange={setPendingHours} includeAll />
         </div>
 
         {isLoading ? (
@@ -126,7 +151,9 @@ export default function Review() {
           </div>
         ) : data?.pending.length === 0 ? (
           <p className="text-sm text-gray-400 dark:text-gray-500 italic py-4">
-            No hay bloques en seguimiento.
+            {pendingHours === null
+              ? 'No hay bloques en seguimiento.'
+              : 'No hay pendientes en este rango.'}
           </p>
         ) : (
           <div className="space-y-2">
@@ -146,21 +173,7 @@ export default function Review() {
               Actividad reciente
             </h2>
           </div>
-          <div className="flex gap-1">
-            {HOURS_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setHours(opt.value)}
-                className={`px-3 py-1 text-xs rounded-lg border transition-colors
-                  ${hours === opt.value
-                    ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-                  }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <TimeRangeTabs value={hours} onChange={setHours} />
         </div>
 
         {isLoading ? (

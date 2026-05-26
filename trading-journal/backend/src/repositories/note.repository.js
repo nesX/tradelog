@@ -814,7 +814,13 @@ export const setFollowUp = async (blockId, userId, requiresFollowUp) => {
   return result.rows[0] || null;
 };
 
-export const findPendingFollowUp = async (userId) => {
+export const findPendingFollowUp = async (userId, hoursBack = null) => {
+  const params = [userId];
+  let timeFilter = '';
+  if (hoursBack !== null) {
+    params.push(hoursBack);
+    timeFilter = `AND b.updated_at >= NOW() - ($${params.length} || ' hours')::INTERVAL`;
+  }
   const result = await pool.query(
     `SELECT b.id, b.note_id, b.block_type, b.content, b.metadata,
             b.requires_follow_up, b.created_at, b.updated_at,
@@ -824,8 +830,9 @@ export const findPendingFollowUp = async (userId) => {
      WHERE n.user_id = $1
        AND b.requires_follow_up = true
        AND n.deleted_at IS NULL
+       ${timeFilter}
      ORDER BY b.updated_at ASC`,
-    [userId]
+    params
   );
   return result.rows;
 };

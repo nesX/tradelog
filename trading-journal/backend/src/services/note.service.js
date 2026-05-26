@@ -548,10 +548,10 @@ export const toggleFollowUp = async (blockId, userId, requiresFollowUp) => {
   return block;
 };
 
-export const getReviewData = async (userId, recentHours = 24) => {
+export const getReviewData = async (userId, recentHours = 24, pendingHours = null) => {
   const [pending, recent] = await Promise.all([
-    repo.findPendingFollowUp(userId),
+    repo.findPendingFollowUp(userId, pendingHours),
     repo.findRecentActivity(userId, recentHours),
   ]);
-  return { pending, recent, recentHours };
+  return { pending, recent, recentHours, pendingHours };
 };

@@ -205,10 +205,20 @@ export const toggleFollowUp = async (req, res) => {
 };
 
 export const getReview = async (req, res) => {
+  const allowedHours = [24, 48, 168];
   const hours = parseInt(req.query.hours, 10) || 24;
-  if (![24, 48, 168].includes(hours)) {
+  if (!allowedHours.includes(hours)) {
     throw new ValidationError('hours debe ser 24, 48 o 168');
   }
-  const data = await noteService.getReviewData(req.user.id, hours);
+
+  let pendingHours = null;
+  if (req.query.pendingHours && req.query.pendingHours !== 'all') {
+    pendingHours = parseInt(req.query.pendingHours, 10);
+    if (!allowedHours.includes(pendingHours)) {
+      throw new ValidationError('pendingHours debe ser 24, 48, 168 o "all"');
+    }
+  }
+
+  const data = await noteService.getReviewData(req.user.id, hours, pendingHours);
   sendSuccess(res, data);
 };
