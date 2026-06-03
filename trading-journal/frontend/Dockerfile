@@ -12,7 +12,7 @@ RUN npm install
 COPY . .
 
 # 5. Expose the Vite default port
-EXPOSE 5173
+EXPOSE 5179
 
 # 6. Run the development server
 # We use --host to make sure it's accessible outside the container

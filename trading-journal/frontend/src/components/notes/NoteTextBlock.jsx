@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkDirective from 'remark-directive';
+import remarkDirectiveRehype from 'remark-directive-rehype';
+import remarkMore from '../../utils/remarkMore';
+import MoreBlock from './MoreBlock';
+
+const MARKDOWN_PLUGINS = [remarkGfm, remarkDirective, remarkMore, remarkDirectiveRehype];
+const MARKDOWN_COMPONENTS = { more: MoreBlock };
 
 const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
   const [editing, setEditing] = useState(false);
@@ -81,7 +88,7 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
   /* ---------- MODO PREVIEW ---------- */
   return (
     <div
-      onClick={() => setEditing(true)}
+      onDoubleClick={() => setEditing(true)}
       className="group relative cursor-text rounded-xl px-4 py-3
                  hover:ring-1 hover:ring-gray-200 dark:hover:ring-gray-600/50
                  transition-colors min-h-[44px]"
@@ -97,11 +104,13 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
                      prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800
                      prose-a:text-blue-600 dark:prose-a:text-blue-400"
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS} components={MARKDOWN_COMPONENTS}>
+            {value}
+          </ReactMarkdown>
         </div>
       ) : (
         <p className="text-sm text-gray-300 dark:text-gray-600 italic select-none">
-          Haz click para escribir...
+          Haz doble click para escribir...
         </p>
       )}
 

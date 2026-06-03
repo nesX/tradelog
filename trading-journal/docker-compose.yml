@@ -34,7 +34,7 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       UPLOAD_DIR: ${UPLOAD_DIR}
-      PORT: 3000
+      PORT: 3088
       LOG_DIR: ${LOG_DIR}
     volumes:
       # Sincroniza tu código en tiempo real
@@ -44,7 +44,7 @@ services:
       - ./backend/uploads:/usr/src/app/${UPLOAD_DIR}
       - ./backend/logs:/usr/src/app/${LOG_DIR}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3088:3088"
     command: npm run dev
 
   # 3. Frontend Service (React/Vite)
@@ -53,10 +53,10 @@ services:
     container_name: tradelog-frontend
     restart: always
     ports:
-      - "127.0.0.1:5173:5173"
+      - "127.0.0.1:5179:5179"
     stdin_open: true
     environment:
-      - VITE_API_URL=http://localhost:3000
+      - VITE_API_URL=http://localhost:3088
     volumes:
       - ./frontend:/usr/src/app
       - /usr/src/app/node_modules

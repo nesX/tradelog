@@ -9,7 +9,7 @@ const envSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
     .default('development'),
-  PORT: Joi.number().default(5000),
+  PORT: Joi.number().default(3088),
 
   // Base de datos
   DB_HOST: Joi.string().default('localhost'),
@@ -23,7 +23,7 @@ const envSchema = Joi.object({
   MAX_FILE_SIZE: Joi.number().default(5242880), // 5MB
 
   // CORS
-  ALLOWED_ORIGINS: Joi.string().default('http://localhost:5173'),
+  ALLOWED_ORIGINS: Joi.string().default('http://localhost:5179'),
 
   // Logging
   LOG_LEVEL: Joi.string()
@@ -42,7 +42,7 @@ const envSchema = Joi.object({
   SUPER_ADMIN_EMAIL: Joi.string().email().optional(),
 
   // Frontend URL
-  FRONTEND_URL: Joi.string().default('http://localhost:5173'),
+  FRONTEND_URL: Joi.string().default('http://localhost:5179'),
 }).unknown();
 
 // Validar y extraer variables
