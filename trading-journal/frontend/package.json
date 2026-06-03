@@ -25,7 +25,10 @@
     "react-hook-form": "^7.71.1",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.30.3",
-    "remark-gfm": "^4.0.1"
+    "remark-directive": "4.0.0",
+    "remark-directive-rehype": "1.0.0",
+    "remark-gfm": "^4.0.1",
+    "unist-util-visit": "5.1.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.27",

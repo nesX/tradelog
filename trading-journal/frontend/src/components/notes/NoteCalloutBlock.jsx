@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkDirective from 'remark-directive';
+import remarkDirectiveRehype from 'remark-directive-rehype';
+import remarkMore from '../../utils/remarkMore';
+import MoreBlock from './MoreBlock';
+
+const MARKDOWN_PLUGINS = [remarkGfm, remarkDirective, remarkMore, remarkDirectiveRehype];
+const MARKDOWN_COMPONENTS = { more: MoreBlock };
 
 const CALLOUT_STYLES = {
   info:    { bg: 'bg-blue-50 dark:bg-blue-950/30',   border: 'border-l-blue-500',   label: 'Información' },
@@ -129,7 +136,9 @@ const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => 
                          prose-code:px-1 prose-code:py-0.5 prose-code:rounded
                          prose-code:text-sm prose-code:font-mono"
             >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS} components={MARKDOWN_COMPONENTS}>
+                {value}
+              </ReactMarkdown>
             </div>
           ) : (
             <p className="text-sm text-gray-400 dark:text-gray-500 italic select-none">
