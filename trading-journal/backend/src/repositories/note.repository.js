@@ -358,8 +358,11 @@ export const getImagePathsByNoteIds = async (noteIds) => {
 // ============================================================
 
 export const createBlock = async (noteId, { block_type, content = null, linked_note_id = null, position, metadata = {} }) => {
+  // COLLATE "C" para ordenar por bytes, igual que fractional-indexing y que el
+  // resto de consultas. Sin esto, una collation locale-aware desordena before/after
+  // y generateKeyBetween acaba generando claves duplicadas.
   const allBlocksResult = await pool.query(
-    `SELECT position FROM note_blocks WHERE note_id = $1 ORDER BY position ASC`,
+    `SELECT position FROM note_blocks WHERE note_id = $1 ORDER BY position COLLATE "C" ASC`,
     [noteId]
   );
   const allPositions = allBlocksResult.rows.map((r) => r.position);
@@ -373,6 +376,13 @@ export const createBlock = async (noteId, { block_type, content = null, linked_n
   } else {
     before = allPositions[allPositions.length - 1] ?? null;
     after = null;
+  }
+
+  // Salvaguarda ante datos antiguos con posiciones duplicadas: fractional-indexing
+  // exige before < after estrictamente. Si coinciden, insertamos tras la siguiente
+  // posición estrictamente mayor (o al final si no existe), evitando el crash.
+  if (before !== null && after !== null && before >= after) {
+    after = allPositions.find((p) => p > before) ?? null;
   }
 
   const pos = generateKeyBetween(before, after);

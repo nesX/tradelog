@@ -24,11 +24,12 @@ import NoteReferenceBlock from './NoteReferenceBlock.jsx';
 import NoteTradeReferenceBlock from './NoteTradeReferenceBlock.jsx';
 import CopyReferenceButton from './CopyReferenceButton.jsx';
 import NoteBlockInsert from './NoteBlockInsert.jsx';
+import NoteBlockAddButton from './NoteBlockAddButton.jsx';
 import { useDeleteBlock, useCreateBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd, useMoveNote } from '../../hooks/useNotes.js';
 
 function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus }) {
   return (
-    <div className="rounded-xl overflow-hidden">
+    <div className={`rounded-xl overflow-hidden${block.block_type === 'callout' ? ' my-3' : ''}`}>
       {block.block_type === 'text' && (
         <NoteTextBlock
           block={block}
@@ -73,17 +74,24 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
     opacity: isDragging ? 0.4 : 1,
   };
 
+  // El bloque de imágenes lleva un footer de metadatos que baja el centro
+  // geométrico del bloque; alineamos los controles sobre las miniaturas (h-24).
+  const actionTop = block.block_type === 'image_gallery' ? 'top-16' : 'top-1/2';
+
   return (
     <div ref={setNodeRef} style={style}>
       <div
         id={`block-${block.id}`}
         className={`group relative${block.requires_follow_up ? ' border-l-2 border-amber-400 pl-3' : ''}`}
       >
+        {/* Botón "+" en el margen izquierdo: inserta un bloque debajo */}
+        <NoteBlockAddButton noteId={noteId} position={idx + 1} topClass={actionTop} />
+
         {/* Floating actions to the right (grid 2x2) */}
         <div
-          className="absolute -right-14 top-1/2 -translate-y-1/2
+          className={`absolute -right-14 ${actionTop} -translate-y-1/2
                      grid grid-cols-2 gap-0.5
-                     opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                     opacity-0 group-hover:opacity-100 transition-opacity z-10`}
         >
           {/* Drag handle */}
           <button
@@ -149,8 +157,6 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
           saveStatus={saveStatus}
         />
       </div>
-
-      <NoteBlockInsert noteId={noteId} position={idx + 1} />
     </div>
   );
 }
@@ -333,6 +339,7 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
                 saveStatus={saveStatus[block.id]}
               />
             ))}
+            <NoteBlockInsert noteId={noteId} position={blocks.length} />
           </div>
         </SortableContext>
         <DragOverlay>

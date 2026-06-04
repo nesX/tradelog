@@ -17,7 +17,7 @@ const MoreBlock = ({ node, children }) => {
 
   return (
     <details
-      className="group/more my-2 rounded-xl
+      className="group/more rounded-xl
                  [&_summary::-webkit-details-marker]:hidden"
     >
       <summary
