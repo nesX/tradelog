@@ -4,9 +4,16 @@ import remarkGfm from 'remark-gfm';
 import remarkDirective from 'remark-directive';
 import remarkDirectiveRehype from 'remark-directive-rehype';
 import remarkMore from '../../utils/remarkMore';
+import remarkSafeDirectives from '../../utils/remarkSafeDirectives';
 import MoreBlock from './MoreBlock';
 
-const MARKDOWN_PLUGINS = [remarkGfm, remarkDirective, remarkMore, remarkDirectiveRehype];
+const MARKDOWN_PLUGINS = [
+  remarkGfm,
+  remarkDirective,
+  remarkMore,
+  remarkSafeDirectives,
+  remarkDirectiveRehype,
+];
 const MARKDOWN_COMPONENTS = { more: MoreBlock };
 
 const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
