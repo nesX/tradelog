@@ -95,7 +95,7 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
   /* ---------- MODO PREVIEW ---------- */
   return (
     <div
-      onDoubleClick={() => setEditing(true)}
+      onClick={() => setEditing(true)}
       className="group relative cursor-text rounded-xl px-4 py-3
                  hover:ring-1 hover:ring-gray-200 dark:hover:ring-gray-600/50
                  transition-colors min-h-[44px]"
@@ -117,7 +117,7 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
         </div>
       ) : (
         <p className="text-sm text-gray-300 dark:text-gray-600 italic select-none">
-          Haz doble click para escribir...
+          Haz click para escribir...
         </p>
       )}
 
