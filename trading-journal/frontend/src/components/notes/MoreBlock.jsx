@@ -11,9 +11,16 @@ import { ChevronRight } from 'lucide-react';
  * El título llega vía `node.properties.dataMoreTitle` (lo inyecta el plugin
  * `remarkMore` a partir del label de la directiva). Si falta, usa "Ver más".
  * `children` es el contenido ya renderizado por react-markdown.
+ *
+ * El `<summary>` detiene la propagación del click/doble-click: el toggle nativo
+ * de `<details>` sigue funcionando (no se hace `preventDefault`), pero el evento
+ * no burbujea hasta el bloque contenedor (callout/texto), que de otro modo
+ * entraría en modo edición al intentar expandir el bloque.
  */
 const MoreBlock = ({ node, children }) => {
   const title = node?.properties?.dataMoreTitle || 'Ver más';
+
+  const stopBubbling = (e) => e.stopPropagation();
 
   return (
     <details
@@ -21,6 +28,8 @@ const MoreBlock = ({ node, children }) => {
                  [&_summary::-webkit-details-marker]:hidden"
     >
       <summary
+        onClick={stopBubbling}
+        onDoubleClick={stopBubbling}
         className="flex items-center gap-1.5 cursor-pointer select-none list-none
                    py-2 text-sm font-semibold
                    text-gray-700 dark:text-gray-200
