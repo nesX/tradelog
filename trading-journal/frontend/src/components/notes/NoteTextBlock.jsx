@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import remarkDirective from 'remark-directive';
 import remarkDirectiveRehype from 'remark-directive-rehype';
 import remarkMore from '../../utils/remarkMore';
 import remarkSafeDirectives from '../../utils/remarkSafeDirectives';
+import preserveBlankLines from '../../utils/markdownSpacing';
 import MoreBlock from './MoreBlock';
 
 const MARKDOWN_PLUGINS = [
@@ -12,6 +14,7 @@ const MARKDOWN_PLUGINS = [
   remarkDirective,
   remarkMore,
   remarkSafeDirectives,
+  remarkBreaks,
   remarkDirectiveRehype,
 ];
 const MARKDOWN_COMPONENTS = { more: MoreBlock };
@@ -112,7 +115,7 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
                      prose-a:text-blue-600 dark:prose-a:text-blue-400"
         >
           <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS} components={MARKDOWN_COMPONENTS}>
-            {value}
+            {preserveBlankLines(value)}
           </ReactMarkdown>
         </div>
       ) : (
