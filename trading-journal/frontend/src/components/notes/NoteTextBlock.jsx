@@ -6,11 +6,13 @@ import remarkDirective from 'remark-directive';
 import remarkDirectiveRehype from 'remark-directive-rehype';
 import remarkMore from '../../utils/remarkMore';
 import remarkSafeDirectives from '../../utils/remarkSafeDirectives';
+import remarkNoSetext from '../../utils/remarkNoSetext';
 import preserveBlankLines from '../../utils/markdownSpacing';
 import MoreBlock from './MoreBlock';
 
 const MARKDOWN_PLUGINS = [
   remarkGfm,
+  remarkNoSetext,
   remarkDirective,
   remarkMore,
   remarkSafeDirectives,
