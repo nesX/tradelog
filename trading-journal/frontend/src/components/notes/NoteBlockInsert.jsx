@@ -21,15 +21,12 @@ const NoteBlockInsert = ({ noteId, position }) => {
   };
 
   return (
-    <div className="relative group flex items-center py-0.5" ref={ref}>
-      {/* Línea */}
-      <div className="flex-1 h-px bg-transparent group-hover:bg-gray-200 dark:group-hover:bg-gray-700 transition-colors" />
-
+    <div className="relative group flex items-center justify-center py-0.5" ref={ref}>
       {/* Botón + */}
       <button
         onClick={() => !loading && setOpen((v) => !v)}
         disabled={loading}
-        className="mx-1.5 flex-shrink-0 w-6 h-6 flex items-center justify-center
+        className="flex-shrink-0 w-6 h-6 flex items-center justify-center
                    rounded-full border border-gray-200 dark:border-gray-700
                    bg-white dark:bg-gray-800
                    text-gray-400 hover:text-blue-600 dark:hover:text-blue-400
@@ -44,8 +41,6 @@ const NoteBlockInsert = ({ noteId, position }) => {
           : <Plus className="w-3.5 h-3.5" />
         }
       </button>
-
-      <div className="flex-1 h-px bg-transparent group-hover:bg-gray-200 dark:group-hover:bg-gray-700 transition-colors" />
 
       {/* Menú flotante */}
       {open && (
