@@ -25,6 +25,7 @@ import NoteTradeReferenceBlock from './NoteTradeReferenceBlock.jsx';
 import CopyReferenceButton from './CopyReferenceButton.jsx';
 import NoteBlockInsert from './NoteBlockInsert.jsx';
 import NoteBlockAddButton from './NoteBlockAddButton.jsx';
+import ConfirmDialog from '../common/ConfirmDialog.jsx';
 import { useDeleteBlock, useCreateBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd, useMoveNote } from '../../hooks/useNotes.js';
 
 function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus }) {
@@ -135,7 +136,7 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
           )}
 
           <button
-            onClick={() => onDelete(block.id)}
+            onClick={() => onDelete(block)}
             className="w-6 h-6 flex items-center justify-center rounded
                        bg-white dark:bg-gray-800
                        border border-red-200 dark:border-red-900/60
@@ -160,6 +161,26 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
     </div>
   );
 }
+
+// ¿El bloque tiene contenido que se perdería al eliminarlo? Se usa para pedir
+// confirmación solo cuando hay algo que perder (el botón de eliminar está pegado
+// a otros controles y se puede accionar por accidente).
+const blockHasContent = (block) => {
+  switch (block.block_type) {
+    case 'text':
+    case 'callout':
+      return Boolean((block.content || '').trim());
+    case 'image_gallery':
+      return (block.images || []).length > 0;
+    case 'trade_reference':
+      return (block.trades || []).length > 0;
+    case 'reference':
+      return Boolean(block.linked_note_id);
+    default:
+      // Tipos desconocidos: pedir confirmación por seguridad.
+      return true;
+  }
+};
 
 const isSubNoteRef = (b) => b.block_type === 'reference' && Boolean(b.linked_note_id);
 
@@ -230,6 +251,7 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
   const [saveStatus, setSaveStatus] = useState({});
   const [activeBlockId, setActiveBlockId] = useState(null);
   const [moveSubNoteBlockId, setMoveSubNoteBlockId] = useState(null);
+  const [pendingDeleteBlock, setPendingDeleteBlock] = useState(null);
 
   const handleUpdate = useCallback(async (blockId, content) => {
     setSaveStatus((s) => ({ ...s, [blockId]: 'Guardando...' }));
@@ -251,6 +273,25 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
   const handleUpdateMetadata = useCallback((blockId, metadata) => {
     updateBlockMetadata.mutate({ blockId, metadata, noteId });
   }, [updateBlockMetadata, noteId]);
+
+  const handleDelete = useCallback((block) => {
+    // Bloques vacíos se borran sin fricción; los que tienen contenido piden
+    // confirmación (el botón de eliminar está pegado a otros controles y se
+    // puede accionar por accidente).
+    if (blockHasContent(block)) {
+      setPendingDeleteBlock(block);
+      return;
+    }
+    deleteBlock.mutate({ blockId: block.id, noteId });
+  }, [deleteBlock, noteId]);
+
+  const confirmDelete = () => {
+    if (!pendingDeleteBlock) return;
+    deleteBlock.mutate(
+      { blockId: pendingDeleteBlock.id, noteId },
+      { onSettled: () => setPendingDeleteBlock(null) }
+    );
+  };
 
   const handleConfirmMoveSubNote = async (targetBlock) => {
     const movingBlock = blocks.find((b) => b.id === moveSubNoteBlockId);
@@ -332,7 +373,7 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
                 block={block}
                 noteId={noteId}
                 idx={idx}
-                onDelete={(blockId) => deleteBlock.mutate({ blockId, noteId })}
+                onDelete={handleDelete}
                 onUpdate={handleUpdate}
                 onUpdateMetadata={handleUpdateMetadata}
                 onOpenMoveSubNote={setMoveSubNoteBlockId}
@@ -362,6 +403,16 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
           isPending={moveNote.isPending || deleteBlock.isPending || createBlock.isPending}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={pendingDeleteBlock !== null}
+        onClose={() => setPendingDeleteBlock(null)}
+        onConfirm={confirmDelete}
+        title="Eliminar bloque"
+        message="Este bloque tiene contenido que se perderá y no se puede deshacer. ¿Quieres eliminarlo?"
+        confirmLabel="Eliminar"
+        isLoading={deleteBlock.isPending}
+      />
     </>
   );
 };
