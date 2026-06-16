@@ -120,7 +120,7 @@ TanStack Query: `staleTime=30s`, `refetchOnWindowFocus=false`, **NO persistence 
 - `notes` (jerárquico) → `note_blocks` → (`note_block_images`, `note_block_trades`) y `note_tag_assignments` → `note_tags`
 - `backtest_sessions` → `backtest_trades`
 
-Columnas generadas en `trades`: `pnl` y `pnl_percentage` (STORED). Soft-delete con `deleted_at` solo en `trades`. Drag-and-drop via `fractional-indexing`. Migrations secuenciales (`001_` a `023_`). Detalle: [`docs/architecture/database.md`](docs/architecture/database.md).
+Columnas generadas en `trades`: `pnl` y `pnl_percentage` (STORED). Soft-delete con `deleted_at` en `trades` y `notes` (el de notas es recursivo: marca la nota y sus descendientes). Drag-and-drop via `fractional-indexing`. Migrations secuenciales (`001_` a `024_`). Detalle: [`docs/architecture/database.md`](docs/architecture/database.md).
 
 ## CSV Import
 

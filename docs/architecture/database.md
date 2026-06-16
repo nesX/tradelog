@@ -83,14 +83,14 @@ Modelo jerárquico tipo Notion con bloques tipados y reordenamiento por `fractio
 
 | Tabla | Propósito |
 |-------|-----------|
-| `notes` | Nodo del árbol de notas. Campos: `id`, `user_id`, `title`, `parent_id` (self-FK), `position` (string fractional), `is_section_divider`. |
-| `note_blocks` | Bloques dentro de una nota: `type` ('text', 'callout', 'image-gallery', 'trade-reference'), `content` (JSON), `position`, `follow_up_required` (bool), `follow_up_done` (bool). |
-| `note_block_images` | Imágenes asociadas a un bloque image-gallery. `position` fractional. |
-| `note_block_trades` | Trades referenciados desde un bloque `trade-reference`. M:N entre `note_blocks` y `trades`. |
+| `notes` | Nodo del árbol de notas. Campos: `id`, `user_id`, `title`, `parent_note_id` (self-FK), `position` (string fractional), `type` (`'note'` \| `'section'`), `deleted_at` (soft-delete). |
+| `note_blocks` | Bloques dentro de una nota: `block_type` (`text`, `image_gallery`, `reference`, `callout`, `trade_reference`), `content` (TEXT), `metadata` (JSONB), `position` (string fractional), `requires_follow_up` (bool). |
+| `note_block_images` | Imágenes asociadas a un bloque `image_gallery`. `position` INTEGER (reorden por índice, no fractional). |
+| `note_block_trades` | Trades referenciados desde un bloque `trade_reference`. M:N entre `note_blocks` y `trades`. |
 | `note_tags` | Tags globales por usuario. |
 | `note_tag_assignments` | M:N entre `notes` y `note_tags`. |
 
-Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_migration_notes_search.sql`, `017_migration_dnd.sql`, `018_migration_fix_positions.sql`, `019_migration_block_follow_up.sql`, `020_migration_note_sections.sql`, `022_migration_references.sql`, `023_migration_trade_reference_block.sql`.
+Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_migration_notes_search.sql`, `017_migration_dnd.sql`, `018_migration_fix_positions.sql`, `019_migration_block_follow_up.sql`, `020_migration_note_sections.sql`, `022_migration_references.sql`, `023_migration_trade_reference_block.sql`, `024_migration_block_updated_at_skip_reorder.sql`.
 
 #### Búsqueda full-text
 
@@ -123,7 +123,7 @@ users.id ──┐  ON DELETE CASCADE (en la mayoría de los hijos):
            │   └── signals.system_id            (CASCADE)
            │
            ├── notes.user_id
-           │   ├── notes.parent_id              (self, CASCADE)
+           │   ├── notes.parent_note_id         (self, CASCADE)
            │   ├── note_blocks.note_id          (CASCADE)
            │   │   ├── note_block_images.block_id   (CASCADE)
            │   │   └── note_block_trades.block_id   (CASCADE)
@@ -137,7 +137,7 @@ users.id ──┐  ON DELETE CASCADE (en la mayoría de los hijos):
                └── backtest_trades.session_id       (CASCADE)
 ```
 
-> **Importante**: solo `trades` tiene soft-delete (`deleted_at`). Notas, backtests, etc. se borran físicamente. El service de notas implementa borrado en cascada vía SQL FK.
+> **Importante**: `trades` **y** `notes` tienen soft-delete (`deleted_at`). Borrar una nota es un soft-delete recursivo (marca la nota y sus descendientes); las filas de `note_blocks` / `note_block_images` se conservan, y de disco solo se eliminan los archivos de imagen con más de 24h (los recientes sobreviven por si el borrado fue accidental — ver `note.service.deleteNote`). Backtests y el resto se borran físicamente (cascada vía FK).
 
 ## Índices
 

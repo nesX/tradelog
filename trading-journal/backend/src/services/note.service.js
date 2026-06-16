@@ -61,9 +61,11 @@ export const deleteNote = async (userId, noteId) => {
     return;
   }
 
-  // Para notas: cascade + limpieza de imágenes
+  // Para notas: soft-delete recursivo + limpieza de archivos de imagen.
+  // Solo se borran de disco las imágenes con más de 24h (las recientes se
+  // conservan por si el borrado fue accidental; ver repo).
   const deletedIds = await repo.softDelete(userId, noteId);
-  const imagePaths = await repo.getImagePathsByNoteIds(deletedIds);
+  const imagePaths = await repo.getDeletableImagePathsByNoteIds(deletedIds);
   await deleteFiles(imagePaths);
 };
 

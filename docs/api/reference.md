@@ -305,16 +305,16 @@ Timeframes del usuario.
 | `GET` | `/api/notes/export/json` | Export completo. |
 | `GET` | `/api/notes/export/markdown` | Export como markdown. |
 | `PATCH` | `/api/notes/reorder` | Reordenar nodos (sin cambiar parent). |
-| `GET` | `/api/notes/blocks/review` | Bloques con `follow_up_required` activo. |
+| `GET` | `/api/notes/blocks/review` | Seguimiento pendiente (`requires_follow_up`) + actividad reciente. Query: `hours` (24/48/168), `pendingHours`. |
 
 ### CRUD de notas
 
 | Método | Ruta | Notas |
 |--------|------|-------|
-| `POST` | `/api/notes` | Crear nota. Body: `{ title, parent_id?, is_section_divider? }`. |
+| `POST` | `/api/notes` | Crear nota. Body: `{ title?, parent_note_id?, type? }` (`type` ∈ `note` \| `section`). |
 | `GET` | `/api/notes/:id` | Detalle con bloques. |
 | `PATCH` | `/api/notes/:id/title` | Renombrar. |
-| `DELETE` | `/api/notes/:id` | Borra (cascade a bloques e imágenes). |
+| `DELETE` | `/api/notes/:id` | Soft-delete recursivo (nota + descendientes vía `deleted_at`). Conserva las filas de bloques/imágenes; de disco solo borra archivos de imagen con >24h. |
 | `PATCH` | `/api/notes/:id/move` | Mover (cambia parent). |
 | `PATCH` | `/api/notes/:id/move-dnd` | Mover con drag-and-drop (cambia parent + position fractional). |
 
@@ -326,11 +326,11 @@ Timeframes del usuario.
 
 | Método | Ruta | Notas |
 |--------|------|-------|
-| `POST` | `/api/notes/:noteId/blocks` | Crear bloque (`type` ∈ `text`, `callout`, `image-gallery`, `trade-reference`). |
+| `POST` | `/api/notes/:noteId/blocks` | Crear bloque (`block_type` ∈ `text`, `image_gallery`, `reference`, `callout`, `trade_reference`). |
 | `PATCH` | `/api/notes/blocks/:blockId` | Actualizar contenido. |
 | `PATCH` | `/api/notes/blocks/:blockId/metadata` | Actualizar metadata (variante de callout, etc.). |
-| `PATCH` | `/api/notes/blocks/:blockId/move-dnd` | Mover bloque entre notas/posiciones. |
-| `PATCH` | `/api/notes/blocks/:blockId/follow-up` | Toggle de seguimiento (`follow_up_required`, `follow_up_done`). |
+| `PATCH` | `/api/notes/blocks/:blockId/move-dnd` | Reordenar bloque dentro de la nota (DnD; cross-nota no soportado en V1). |
+| `PATCH` | `/api/notes/blocks/:blockId/follow-up` | Toggle de seguimiento. Body: `{ requires_follow_up: boolean }`. |
 | `PATCH` | `/api/notes/:noteId/blocks/reorder` | Reordenar bloques dentro de una nota. |
 | `DELETE` | `/api/notes/blocks/:blockId` | Borrar bloque. |
 

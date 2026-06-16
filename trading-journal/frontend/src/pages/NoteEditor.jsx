@@ -30,6 +30,8 @@ const NoteEditor = ({ embeddedId }) => {
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const tagPickerRef = useRef(null);
   const titleInputRef = useRef(null);
+  const skipBlurRef = useRef(false);
+  const scrolledBlockRef = useRef(null);
 
   // Auto-foco en título si es una nota recién creada (título por defecto)
   useEffect(() => {
@@ -68,10 +70,14 @@ const NoteEditor = ({ embeddedId }) => {
       : null;
     const blockId = fromQuery || fromHash;
     if (!blockId) return;
+    // Scroll una sola vez por bloque: `note` cambia de referencia en cada refetch
+    // (p. ej. al editar un bloque) y sin esta guarda re-scrollearía en cada cambio.
+    if (scrolledBlockRef.current === blockId) return;
 
     const raf = requestAnimationFrame(() => {
       const el = document.getElementById(`block-${blockId}`);
-      if (!el) return;
+      if (!el) return; // el bloque aún no está montado; reintenta en el próximo refetch
+      scrolledBlockRef.current = blockId;
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.classList.add('highlight-pulse');
       setTimeout(() => el.classList.remove('highlight-pulse'), 2500);
@@ -110,7 +116,7 @@ const NoteEditor = ({ embeddedId }) => {
     setEditTitle(true);
   };
 
-  const saveTitle = () => {
+  const commitTitle = () => {
     const trimmed = titleValue.trim() || 'Sin título';
     if (trimmed !== note.title) {
       updateTitle.mutate({ id: noteId, title: trimmed });
@@ -118,9 +124,27 @@ const NoteEditor = ({ embeddedId }) => {
     setEditTitle(false);
   };
 
+  // onBlur del input: guarda, salvo que el cierre venga de Enter/✓/Escape (que ya
+  // gestionan el guardado). Al desmontarse el input se dispara un blur extra; este
+  // ref evita el doble PATCH y que Escape termine guardando.
+  const handleTitleBlur = () => {
+    if (skipBlurRef.current) {
+      skipBlurRef.current = false;
+      return;
+    }
+    commitTitle();
+  };
+
   const handleTitleKey = (e) => {
-    if (e.key === 'Enter') saveTitle();
-    if (e.key === 'Escape') setEditTitle(false);
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      skipBlurRef.current = true;
+      commitTitle();
+    } else if (e.key === 'Escape') {
+      skipBlurRef.current = true;
+      setTitleValue(note.title);
+      setEditTitle(false);
+    }
   };
 
   const toggleTag = (tagId) => {
@@ -151,7 +175,7 @@ const NoteEditor = ({ embeddedId }) => {
                 ref={titleInputRef}
                 value={titleValue}
                 onChange={(e) => setTitleValue(e.target.value)}
-                onBlur={saveTitle}
+                onBlur={handleTitleBlur}
                 onKeyDown={handleTitleKey}
                 className="flex-1 text-2xl font-bold bg-transparent border-b-2 border-blue-500
                            outline-none text-gray-900 dark:text-white py-0.5 leading-tight"
@@ -159,7 +183,13 @@ const NoteEditor = ({ embeddedId }) => {
                 maxLength={500}
               />
               <button
-                onClick={saveTitle}
+                onMouseDown={(e) => {
+                  // onMouseDown + preventDefault: no perder el foco antes del click
+                  // (evitaría el blur previo y un guardado doble). Guarda una vez.
+                  e.preventDefault();
+                  skipBlurRef.current = true;
+                  commitTitle();
+                }}
                 className="flex-shrink-0 p-1 rounded text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
               >
                 <Check className="w-4 h-4" />

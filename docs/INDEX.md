@@ -45,6 +45,7 @@ Si no sabés por dónde empezar: [`getting-started.md`](getting-started.md).
 - [`analysis/scaling.md`](analysis/scaling.md) — **Escalado low-budget** con fases.
 - [`analysis/offline-strategy.md`](analysis/offline-strategy.md) — **Offline-first** y compute en cliente.
 - [`analysis/security.md`](analysis/security.md) — Auditoría de seguridad y gaps.
+- [`analysis/notes-known-issues.md`](analysis/notes-known-issues.md) — Issues conocidos y deuda técnica del sistema de Notas.
 
 ## 🗺 Roadmap y decisiones
 

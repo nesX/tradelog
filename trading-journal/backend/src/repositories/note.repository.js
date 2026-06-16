@@ -319,9 +319,12 @@ export const getSiblingBlockPositions = async (noteId, targetPosition, side) => 
  * Actualiza solo la posición de un bloque (single-row UPDATE).
  */
 export const updateBlockPosition = async (blockId, newPosition, userId) => {
+  // No tocar updated_at: un reorden no es "actividad" para la vista de Revisión.
+  // El trigger update_note_blocks_updated_at excluye los cambios de solo-posición
+  // (ver 024_migration_block_updated_at_skip_reorder.sql).
   const result = await pool.query(
     `UPDATE note_blocks b
-     SET position = $1, updated_at = NOW()
+     SET position = $1
      FROM notes n
      WHERE b.id = $2 AND b.note_id = n.id
        AND n.user_id = $3 AND n.deleted_at IS NULL
@@ -340,14 +343,18 @@ export const getNotesByIds = async (userId, noteIds) => {
   return result.rows;
 };
 
-// Obtener imágenes de todos los bloques de notas dadas (para limpieza de archivos)
-export const getImagePathsByNoteIds = async (noteIds) => {
+// Rutas de imágenes BORRABLES de los bloques de notas dadas (limpieza de archivos
+// al eliminar una nota). Se excluyen las imágenes subidas en las últimas 24h:
+// si el borrado de la nota fue accidental, el archivo reciente sobrevive en disco
+// (las filas en BD ya se conservan, porque el borrado de nota es soft-delete).
+export const getDeletableImagePathsByNoteIds = async (noteIds) => {
   if (!noteIds || noteIds.length === 0) return [];
   const result = await pool.query(
     `SELECT nbi.image_path
      FROM note_block_images nbi
      JOIN note_blocks nb ON nb.id = nbi.block_id
-     WHERE nb.note_id = ANY($1)`,
+     WHERE nb.note_id = ANY($1)
+       AND nbi.created_at < NOW() - INTERVAL '1 day'`,
     [noteIds]
   );
   return result.rows.map((r) => r.image_path);
