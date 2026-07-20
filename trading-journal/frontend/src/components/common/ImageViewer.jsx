@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, ZoomIn, Maximize2, Minimize2, X } from 'lucide-react';
 import Modal from './Modal.jsx';
+import { useSwipe } from '../../hooks/useSwipe.js';
 
 /**
  * Componente para visualizar múltiples imágenes con modal de galería
@@ -73,6 +74,13 @@ const ImageViewer = ({
   const goToPrev = () => {
     setCurrentIndex((prev) => (prev - 1 + imageList.length) % imageList.length);
   };
+
+  // Swipe / arrastre horizontal para navegar entre imágenes (tablet y mouse).
+  // Izquierda → siguiente, derecha → anterior. Sin efecto si hay una sola imagen.
+  const swipe = useSwipe({
+    onSwipeLeft: imageList.length > 1 ? goToNext : undefined,
+    onSwipeRight: imageList.length > 1 ? goToPrev : undefined,
+  });
 
   const toggleFullscreen = () => {
     setIsFullscreen((prev) => !prev);
@@ -163,14 +171,18 @@ const ImageViewer = ({
             <Maximize2 className="w-5 h-5" />
           </button>
 
-          {/* Imagen actual */}
-          <div className="flex justify-center items-center min-h-[300px]">
+          {/* Imagen actual (deslizable para navegar) */}
+          <div
+            className="flex justify-center items-center min-h-[300px] touch-pan-y select-none"
+            {...swipe}
+          >
             <img
               src={getImageUrl(imageList[currentIndex])}
               alt={`${alt} ${currentIndex + 1}`}
               className="max-h-[70vh] object-contain rounded-lg cursor-pointer"
               onError={() => handleImageError(currentIndex)}
               onClick={toggleFullscreen}
+              draggable={false}
             />
           </div>
 
@@ -276,12 +288,14 @@ const ImageViewer = ({
             {currentIndex + 1} / {imageList.length}
           </div>
 
-          {/* Imagen en pantalla completa */}
+          {/* Imagen en pantalla completa (deslizable para navegar) */}
           <img
             src={getImageUrl(imageList[currentIndex])}
             alt={`${alt} ${currentIndex + 1}`}
-            className="max-h-screen max-w-screen object-contain p-4"
+            className="max-h-screen max-w-screen object-contain p-4 touch-pan-y select-none"
             onError={() => handleImageError(currentIndex)}
+            draggable={false}
+            {...swipe}
           />
 
           {/* Controles de navegación */}
@@ -326,7 +340,7 @@ const ImageViewer = ({
 
           {/* Instrucciones */}
           <div className="absolute bottom-4 right-4 text-white text-sm opacity-50">
-            ESC para salir | Flechas para navegar
+            Desliza o usa las flechas · ESC para salir
           </div>
         </div>
       )}
