@@ -58,20 +58,21 @@ const Header = () => {
             </span>
           </Link>
 
-          {/* Desktop nav — full */}
-          <nav className="hidden sm:flex items-center space-x-1">
+          {/* Nav horizontal — íconos en tablet (md), íconos + texto en desktop (lg+) */}
+          <nav className="hidden md:flex items-center space-x-1">
             {[...primaryNav, ...secondaryNav].map(({ path, label, icon: Icon }) => (
               <Link
                 key={path}
                 to={path}
+                title={label}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
                   ${isActive(path)
                     ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
                   }`}
               >
-                <Icon className="w-4 h-4 mr-2" />
-                {label}
+                <Icon className="w-4 h-4 lg:mr-2" />
+                <span className="hidden lg:inline">{label}</span>
               </Link>
             ))}
 
@@ -96,8 +97,8 @@ const Header = () => {
             </div>
           </nav>
 
-          {/* Mobile nav */}
-          <div className="flex sm:hidden items-center gap-1" ref={menuRef}>
+          {/* Mobile nav (phones < md): íconos primarios + hamburguesa */}
+          <div className="flex md:hidden items-center gap-1" ref={menuRef}>
             {/* Primary links — icon only */}
             {primaryNav.map(({ path, label, icon: Icon }) => (
               <Link
