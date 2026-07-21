@@ -155,3 +155,47 @@
   animation: highlightPulse 2.5s ease-in-out;
   border-radius: 0.5rem;
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Scrollbars finos y sutiles (estilo Firefox) en todos los navegadores.
+   Chrome/Blink por defecto los dibuja gruesos y notorios; esto los deja
+   delgados, redondeados y semi-transparentes, igual que Firefox.
+   ────────────────────────────────────────────────────────────── */
+
+/* Estándar — Firefox y Chromium ≥ 121. Estas propiedades se heredan,
+   así que basta declararlas en la raíz. */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.28) transparent; /* thumb / track */
+}
+:root.dark {
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+/* WebKit/Blink — Chrome, Edge, Safari y Chromium antiguos.
+   Los pseudo-elementos no se heredan → se aplican de forma universal. */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(15, 23, 42, 0.28);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(15, 23, 42, 0.45);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.dark *::-webkit-scrollbar-thumb,
+.dark::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.22);
+}
+.dark *::-webkit-scrollbar-thumb:hover,
+.dark::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.38);
+}
