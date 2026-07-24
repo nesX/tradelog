@@ -31,7 +31,6 @@ const NoteBlockInsert = ({ noteId, position }) => {
                    bg-white dark:bg-gray-800
                    text-gray-400 hover:text-blue-600 dark:hover:text-blue-400
                    hover:border-blue-400 dark:hover:border-blue-500
-                   opacity-0 group-hover:opacity-100
                    transition-all shadow-sm
                    disabled:opacity-30 disabled:cursor-not-allowed"
         title="Insertar bloque"

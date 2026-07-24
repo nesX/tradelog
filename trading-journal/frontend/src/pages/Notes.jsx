@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, Folder, ChevronDown } from 'lucide-react';
+import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, Folder, ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useMoveNote, useUpdateNoteTitle } from '../hooks/useNotes.js';
 import { clearSectionCollapsed } from '../hooks/useSectionCollapsed.js';
 import NoteTree from '../components/notes/NoteTree.jsx';
@@ -36,6 +36,12 @@ const Notes = () => {
 
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Colapsar el sidebar en pantallas md+ (tablet/desktop). Persistido en
+  // localStorage para respetar la preferencia entre sesiones. En mobile el
+  // panel sigue funcionando como drawer (sidebarOpen), sin verse afectado.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('notes-sidebar-collapsed') === '1'
+  );
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isReviewActive, setIsReviewActive] = useState(false);
   const [searchParams, setSearchParams] = useState({ q: '', tagIds: [] });
@@ -54,6 +60,10 @@ const Notes = () => {
   useEffect(() => {
     if (selectedId) setIsReviewActive(false);
   }, [selectedId]);
+
+  useEffect(() => {
+    localStorage.setItem('notes-sidebar-collapsed', sidebarCollapsed ? '1' : '0');
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     if (creatingSection && sectionInputRef.current) {
@@ -166,12 +176,15 @@ const Notes = () => {
       <aside
         className={`
           fixed md:relative inset-y-0 left-0 z-40 md:z-auto
-          w-72 md:w-64 lg:w-72 flex-shrink-0 h-full
+          w-72 flex-shrink-0 h-full
           bg-white dark:bg-gray-800
           border-r border-gray-200 dark:border-gray-700
           flex flex-col
-          transform transition-transform duration-200 ease-in-out
+          transform transition-all duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          ${sidebarCollapsed
+            ? 'md:w-0 md:min-w-0 md:border-r-0 md:opacity-0 md:overflow-hidden md:pointer-events-none'
+            : 'md:w-64 lg:w-72'}
         `}
       >
         {/* Cabecera del sidebar */}
@@ -222,6 +235,15 @@ const Notes = () => {
               className="md:hidden p-1.5 rounded-md text-gray-400 hover:text-gray-700 transition-colors"
             >
               <X className="w-4 h-4" />
+            </button>
+            {/* Ocultar panel (solo tablet/desktop) */}
+            <button
+              onClick={() => setSidebarCollapsed(true)}
+              className="hidden md:inline-flex p-1.5 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200
+                         hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              title="Ocultar panel"
+            >
+              <PanelLeftClose className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -330,6 +352,24 @@ const Notes = () => {
               : 'Notas'}
           </span>
         </div>
+
+        {/* Botón para mostrar el panel cuando está oculto (solo tablet/desktop) */}
+        {sidebarCollapsed && (
+          <button
+            onClick={() => setSidebarCollapsed(false)}
+            className="hidden md:inline-flex items-center gap-1.5 self-start sticky top-0 z-20
+                       m-2 px-2.5 py-1.5 rounded-md
+                       bg-white/90 dark:bg-gray-800/90 backdrop-blur
+                       border border-gray-200 dark:border-gray-700 shadow-sm
+                       text-sm text-gray-500 dark:text-gray-400
+                       hover:text-gray-700 dark:hover:text-gray-200
+                       hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            title="Mostrar panel de notas"
+          >
+            <PanelLeftOpen className="w-4 h-4" />
+            <span className="text-xs font-medium">Notas</span>
+          </button>
+        )}
 
         {/* Contenido */}
         {isReviewActive ? (
