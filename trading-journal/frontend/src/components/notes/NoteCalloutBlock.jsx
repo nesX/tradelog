@@ -1,4 +1,3 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkDirective from 'remark-directive';
@@ -6,6 +5,7 @@ import remarkDirectiveRehype from 'remark-directive-rehype';
 import remarkMore from '../../utils/remarkMore';
 import remarkSafeDirectives from '../../utils/remarkSafeDirectives';
 import MoreBlock from './MoreBlock';
+import { useAutosaveTextarea } from '../../hooks/useAutosaveTextarea';
 
 const MARKDOWN_PLUGINS = [
   remarkGfm,
@@ -35,49 +35,12 @@ const DOT_COLORS = {
 };
 
 const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(block.content || '');
-  const textareaRef = useRef(null);
-  const debounceRef = useRef(null);
+  const { value, editing, startEditing, textareaRef, handleChange, handleBlur } =
+    useAutosaveTextarea({ block, onUpdate });
 
   const metadata = block.metadata || {};
   const style = metadata.style || 'info';
   const { bg, border, label } = CALLOUT_STYLES[style] || CALLOUT_STYLES.info;
-
-  useEffect(() => {
-    if (!editing) setValue(block.content || '');
-  }, [block.content, editing]);
-
-  useEffect(() => {
-    if (editing && textareaRef.current) {
-      const ta = textareaRef.current;
-      ta.style.height = 'auto';
-      ta.style.height = ta.scrollHeight + 'px';
-      ta.focus();
-      ta.setSelectionRange(ta.value.length, ta.value.length);
-    }
-  }, [editing]);
-
-  const autoResize = (el) => {
-    el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
-  };
-
-  const handleChange = useCallback((e) => {
-    const newValue = e.target.value;
-    setValue(newValue);
-    autoResize(e.target);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => onUpdate(newValue), 1000);
-  }, [onUpdate]);
-
-  useEffect(() => () => clearTimeout(debounceRef.current), []);
-
-  const handleBlur = () => {
-    clearTimeout(debounceRef.current);
-    onUpdate(value);
-    setEditing(false);
-  };
 
   const handleStyleChange = (newStyle) => {
     onUpdateMetadata({ style: newStyle });
@@ -131,7 +94,7 @@ const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => 
         </div>
       ) : (
         <div
-          onClick={() => setEditing(true)}
+          onClick={startEditing}
           className="cursor-text min-h-[32px]"
         >
           {value ? (

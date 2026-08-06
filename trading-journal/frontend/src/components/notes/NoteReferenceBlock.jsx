@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Link2, ExternalLink, FileText, AlertCircle } from 'lucide-react';
-import {
-  parseReferenceUrl,
-  buildNoteUrl,
-  buildBlockUrl,
-} from '../../utils/referenceLinks.js';
+import { parseReferenceUrl } from '../../utils/referenceLinks.js';
 
-const getHref = (meta) => {
+// Ruta interna de react-router (relativa) hacia la nota/bloque referenciado. Usar
+// <Link to> en vez de <a href absoluto target="_blank"> evita sacar de la PWA
+// standalone al abrir una referencia interna.
+const getToPath = (meta) => {
   if (!meta?.target_note_id) return null;
   return meta.target_block_id
-    ? buildBlockUrl(meta.target_note_id, meta.target_block_id)
-    : buildNoteUrl(meta.target_note_id);
+    ? `/notes/${meta.target_note_id}#block-${meta.target_block_id}`
+    : `/notes/${meta.target_note_id}`;
 };
 
 // Las sub-notas conservan linked_note_id poblado; usamos el JOIN del repo
@@ -108,10 +107,8 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
       );
     }
     return (
-      <a
-        href={getHref(meta)}
-        target="_blank"
-        rel="noopener noreferrer"
+      <Link
+        to={getToPath(meta)}
         className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group"
       >
         <div className="flex-shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
@@ -121,7 +118,7 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
           {meta.label || 'Referencia'}
         </span>
         <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 flex-shrink-0" />
-      </a>
+      </Link>
     );
   }
 
@@ -152,7 +149,7 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
   }
 
   // Modo edición: bloque configurado → label editable + botón "Abrir".
-  const href = getHref(meta);
+  const toPath = getToPath(meta);
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition-colors group">
       <div className="flex-shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
@@ -168,15 +165,13 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
         maxLength={200}
         className="flex-1 bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 placeholder-gray-400 outline-none border-b border-transparent focus:border-blue-400 dark:focus:border-blue-500 transition-colors"
       />
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Abrir en pestaña nueva"
+      <Link
+        to={toPath}
+        title="Abrir referencia"
         className="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors flex-shrink-0"
       >
         Abrir <ExternalLink className="w-3 h-3" />
-      </a>
+      </Link>
     </div>
   );
 };

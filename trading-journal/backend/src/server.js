@@ -20,6 +20,7 @@ import backtestRoutes from './routes/backtest.routes.js';
 import noteRoutes from './routes/note.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import { initSuperAdmin } from './services/admin.service.js';
+import { purgeDeletedNotes } from './services/note.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,6 +87,29 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // ======================
+// Job de purga diferida de notas soft-deleted (+ sus imágenes en disco)
+// ======================
+const startNotePurgeJob = () => {
+  const hours = config.notePurge.intervalHours;
+  if (!hours || hours <= 0) {
+    logger.info('Purga de notas desactivada (NOTE_PURGE_INTERVAL_HOURS=0)');
+    return;
+  }
+  const run = async () => {
+    try {
+      const { purgedNotes, deletedFiles } = await purgeDeletedNotes();
+      if (purgedNotes > 0) {
+        logger.info(`Purga de notas: ${purgedNotes} notas y ${deletedFiles} archivos eliminados`);
+      }
+    } catch (err) {
+      logger.error('Error en la purga de notas', err);
+    }
+  };
+  run(); // pasada inicial al arrancar
+  setInterval(run, hours * 60 * 60 * 1000);
+};
+
+// ======================
 // Iniciar servidor
 // ======================
 const startServer = async () => {
@@ -101,6 +125,9 @@ const startServer = async () => {
 
     // Bootstrap del super_admin
     await initSuperAdmin();
+
+    // Job de purga diferida de notas soft-deleted
+    startNotePurgeJob();
 
     // Iniciar servidor
     app.listen(config.port, () => {

@@ -64,6 +64,32 @@ export const getClient = async () => {
 };
 
 /**
+ * Ejecuta `fn(client)` dentro de una transacción tomando primero un advisory lock
+ * por usuario (`pg_advisory_xact_lock`). Serializa las operaciones de mover/crear/
+ * reordenar del MISMO usuario, de modo que la validación (anti-ciclos, vecinos para
+ * fractional-indexing) y el UPDATE ocurran de forma atómica y sin carreras
+ * read-then-write entre pestañas. El lock se libera solo al terminar la transacción.
+ *
+ * @param {number} userId
+ * @param {(client: pg.PoolClient) => Promise<any>} fn
+ */
+export const withUserLock = async (userId, fn) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1)', [userId]);
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
  * Verifica la conexión a la base de datos
  * @returns {Promise<boolean>} true si la conexión es exitosa
  */

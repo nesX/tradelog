@@ -1,8 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, Folder, ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useMoveNote, useUpdateNoteTitle } from '../hooks/useNotes.js';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useRestoreNote, useMoveNote, useUpdateNoteTitle, noteKeys } from '../hooks/useNotes.js';
+import { insertSubNote } from '../hooks/useBlockInserter.js';
 import { clearSectionCollapsed } from '../hooks/useSectionCollapsed.js';
+import { useToast } from '../components/common/Toast.jsx';
+import ConfirmDialog from '../components/common/ConfirmDialog.jsx';
 import NoteTree from '../components/notes/NoteTree.jsx';
 import NoteTagManager from '../components/notes/NoteTagManager.jsx';
 import NoteExportMenu from '../components/notes/NoteExportMenu.jsx';
@@ -10,6 +14,29 @@ import NoteSearch from '../components/notes/NoteSearch.jsx';
 import NoteSearchResults from '../components/notes/NoteSearchResults.jsx';
 import NoteEditor from './NoteEditor.jsx';
 import Review from './Review.jsx';
+
+// Ids de todos los descendientes de una nota (a partir del array plano). Se usa
+// para excluirlos como destino en el modal "Mover nota" (mover a un descendiente
+// crearía un ciclo → error 400 genérico del backend).
+const collectDescendantIdsFlat = (flatNotes, rootId) => {
+  const childrenByParent = new Map();
+  for (const n of flatNotes) {
+    const list = childrenByParent.get(n.parent_note_id) || [];
+    list.push(n.id);
+    childrenByParent.set(n.parent_note_id, list);
+  }
+  const result = new Set();
+  const stack = [rootId];
+  while (stack.length) {
+    for (const childId of childrenByParent.get(stack.pop()) || []) {
+      if (!result.has(childId)) {
+        result.add(childId);
+        stack.push(childId);
+      }
+    }
+  }
+  return result;
+};
 
 const buildBreadcrumb = (parentId, flatNotes) => {
   if (!parentId || !flatNotes) return null;
@@ -29,10 +56,13 @@ const Notes = () => {
   const { id } = useParams();
   const selectedId = id ? parseInt(id) : null;
 
+  const queryClient = useQueryClient();
   const { data: treeData, isLoading } = useNoteTree();
   const createNote = useCreateNote();
   const createBlock = useCreateBlock();
   const deleteNote = useDeleteNote();
+  const restoreNote = useRestoreNote();
+  const toast = useToast();
 
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -47,6 +77,8 @@ const Notes = () => {
   const [searchParams, setSearchParams] = useState({ q: '', tagIds: [] });
   const [moveNoteId, setMoveNoteId] = useState(null);
   const [moveSearch, setMoveSearch] = useState('');
+  // Nota pendiente de confirmación de borrado (solo cuando tiene sub-notas).
+  const [pendingDeleteNote, setPendingDeleteNote] = useState(null);
   const moveNote = useMoveNote();
   const updateTitle = useUpdateNoteTitle();
 
@@ -56,6 +88,9 @@ const Notes = () => {
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const sectionInputRef = useRef(null);
   const addMenuRef = useRef(null);
+  // Guard contra doble creación: Enter + blur del input disparan handleCreateSection
+  // casi a la vez. El ref evita que el segundo entre mientras el primero está en vuelo.
+  const sectionSubmitRef = useRef(false);
 
   useEffect(() => {
     if (selectedId) setIsReviewActive(false);
@@ -95,11 +130,19 @@ const Notes = () => {
   };
 
   const handleCreateSection = async () => {
+    if (sectionSubmitRef.current) return;
     const title = newSectionTitle.trim();
     if (!title) { setCreatingSection(false); return; }
-    await createNote.mutateAsync({ title, parent_note_id: null, type: 'section' });
-    setNewSectionTitle('');
-    setCreatingSection(false);
+    sectionSubmitRef.current = true;
+    try {
+      await createNote.mutateAsync({ title, parent_note_id: null, type: 'section' });
+      setNewSectionTitle('');
+      setCreatingSection(false);
+    } catch {
+      // El toast global informa; se mantiene el input abierto para reintentar.
+    } finally {
+      sectionSubmitRef.current = false;
+    }
   };
 
   const handleSectionInputKeyDown = (e) => {
@@ -121,22 +164,13 @@ const Notes = () => {
   };
 
   const handleCreateChild = async (parentId) => {
-    const res = await createNote.mutateAsync({ parent_note_id: parentId });
-    const newNote = res.data;
-    await createBlock.mutateAsync({
-      noteId: parentId,
-      data: {
-        block_type: 'reference',
-        linked_note_id: newNote.id,
-        position: 9999,
-        metadata: {
-          target_note_id: newNote.id,
-          target_block_id: null,
-          label: newNote.title || 'Sub-nota',
-        },
-      },
-    });
-    navigate(`/notes/${newNote.id}`);
+    try {
+      const subNote = await insertSubNote({ createBlock, createNote, noteId: parentId, position: 9999 });
+      navigate(`/notes/${subNote.id}`);
+    } catch {
+      // El toast global informa el fallo. Si la sub-nota llegó a crearse aparece
+      // en el árbol (cuelga del padre); no forzamos navegación a un estado parcial.
+    }
   };
 
   const handleSelectNote = (noteId) => {
@@ -145,10 +179,50 @@ const Notes = () => {
     setSidebarOpen(false);
   };
 
-  const handleDeleteNote = async (noteId, title) => {
-    if (!window.confirm(`¿Eliminar "${title}"? También se eliminarán sus sub-notas.`)) return;
-    await deleteNote.mutateAsync(noteId);
-    if (selectedId === noteId) navigate('/notes');
+  // Ejecuta el borrado (soft-delete recursivo) y ofrece deshacer vía toast. El
+  // backend conserva el subtree durante la gracia de purga (NOTE_PURGE_DAYS), así
+  // que "Deshacer" lo restaura por completo.
+  const performDelete = async (noteId) => {
+    // Calcular el set afectado ANTES de mutar (el árbol aún los contiene) para
+    // navegar/limpiar caché si la nota abierta es la borrada o una de sus
+    // descendientes; si no, el editor seguiría mostrando una nota ya eliminada.
+    const affected = collectDescendantIdsFlat(flat, noteId);
+    affected.add(noteId);
+    const wasViewing = Boolean(selectedId && affected.has(selectedId));
+
+    try {
+      await deleteNote.mutateAsync(noteId);
+    } catch {
+      return; // el toast global informa el fallo
+    }
+    affected.forEach((id) => queryClient.removeQueries({ queryKey: noteKeys.detail(id) }));
+    if (wasViewing) navigate('/notes');
+
+    toast.success('Nota eliminada', {
+      duration: 6000,
+      action: {
+        label: 'Deshacer',
+        onClick: async () => {
+          try {
+            await restoreNote.mutateAsync(noteId);
+            if (wasViewing) navigate(`/notes/${noteId}`);
+          } catch {
+            // el toast global informa el fallo
+          }
+        },
+      },
+    });
+  };
+
+  const handleDeleteNote = (noteId, title) => {
+    // Con undo disponible, el borrado de una nota sin hijos es directo (patrón
+    // Gmail: borrar + deshacer). Si tiene sub-notas, confirmar mostrando el conteo.
+    const descendants = collectDescendantIdsFlat(flat, noteId);
+    if (descendants.size > 0) {
+      setPendingDeleteNote({ id: noteId, title, count: descendants.size });
+    } else {
+      performDelete(noteId);
+    }
   };
 
   const handleOpenMove = (noteId) => {
@@ -432,7 +506,12 @@ const Notes = () => {
                 <ul className="divide-y divide-gray-100 dark:divide-gray-700">
                   {[...flat]
                     .filter((n) => !n.deleted_at && n.type !== 'section')
-                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                    // Ordenar por última edición (updated_at) para que una nota
+                    // editada a diario suba; created_at como respaldo.
+                    .sort(
+                      (a, b) =>
+                        new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+                    )
                     .slice(0, 50)
                     .map((note) => {
                       const breadcrumb = buildBreadcrumb(note.parent_note_id, flat);
@@ -473,6 +552,25 @@ const Notes = () => {
         )}
       </main>
 
+      {/* Confirmación de borrado (solo cuando la nota tiene sub-notas) */}
+      <ConfirmDialog
+        isOpen={pendingDeleteNote !== null}
+        onClose={() => setPendingDeleteNote(null)}
+        onConfirm={() => {
+          const target = pendingDeleteNote;
+          setPendingDeleteNote(null);
+          if (target) performDelete(target.id);
+        }}
+        title="Eliminar nota"
+        message={
+          pendingDeleteNote
+            ? `Se eliminará "${pendingDeleteNote.title}" y sus ${pendingDeleteNote.count} sub-nota${pendingDeleteNote.count !== 1 ? 's' : ''}. Podrás deshacerlo unos segundos.`
+            : ''
+        }
+        confirmLabel="Eliminar"
+        isLoading={deleteNote.isPending}
+      />
+
       {/* Modal de tags */}
       <NoteTagManager isOpen={tagManagerOpen} onClose={() => setTagManagerOpen(false)} />
 
@@ -480,8 +578,13 @@ const Notes = () => {
       {moveNoteId && (() => {
         const movingNote = flat.find((n) => n.id === moveNoteId);
         const q = moveSearch.trim().toLowerCase();
+        const descendantIds = collectDescendantIdsFlat(flat, moveNoteId);
         const candidates = flat.filter(
-          (n) => n.id !== moveNoteId && n.type !== 'section' && (!q || n.title?.toLowerCase().includes(q))
+          (n) =>
+            n.id !== moveNoteId &&
+            !descendantIds.has(n.id) &&
+            n.type !== 'section' &&
+            (!q || n.title?.toLowerCase().includes(q))
         );
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

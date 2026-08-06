@@ -214,22 +214,21 @@ export const getNote = (id) => apiClient.get(`/api/notes/${id}`);
 export const createNote = (data) => apiClient.post('/api/notes', data);
 export const updateNoteTitle = (id, title) => apiClient.patch(`/api/notes/${id}/title`, { title });
 export const deleteNote = (id) => apiClient.delete(`/api/notes/${id}`);
+export const restoreNote = (id) => apiClient.post(`/api/notes/${id}/restore`);
 export const moveNote = (id, parent_note_id) => apiClient.patch(`/api/notes/${id}/move`, { parent_note_id });
 export const moveNoteDnd = (id, payload) => apiClient.patch(`/api/notes/${id}/move-dnd`, payload);
 export const moveBlockDnd = (blockId, payload) => apiClient.patch(`/api/notes/blocks/${blockId}/move-dnd`, payload);
-export const reorderNotes = (note_ids) => apiClient.patch('/api/notes/reorder', { note_ids });
+export const moveBlockToNote = (blockId, payload) => apiClient.patch(`/api/notes/blocks/${blockId}/move-to-note`, payload);
 
 export const createBlock = (noteId, data) => apiClient.post(`/api/notes/${noteId}/blocks`, data);
 export const updateBlock = (blockId, content) => apiClient.patch(`/api/notes/blocks/${blockId}`, { content });
 export const updateBlockMetadata = (blockId, metadata) => apiClient.patch(`/api/notes/blocks/${blockId}/metadata`, metadata);
 export const deleteBlock = (blockId) => apiClient.delete(`/api/notes/blocks/${blockId}`);
-export const reorderBlocks = (noteId, block_ids) => apiClient.patch(`/api/notes/${noteId}/blocks/reorder`, { block_ids });
 
 export const addBlockImage = (blockId, formData) =>
   apiClient.post(`/api/notes/blocks/${blockId}/images`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
-export const updateImageCaption = (imageId, caption) => apiClient.patch(`/api/notes/images/${imageId}`, { caption });
 export const deleteBlockImage = (imageId) => apiClient.delete(`/api/notes/images/${imageId}`);
 export const reorderBlockImages = (blockId, image_ids) =>
   apiClient.patch(`/api/notes/blocks/${blockId}/images/reorder`, { image_ids });
@@ -239,8 +238,6 @@ export const createNoteTag = (data) => apiClient.post('/api/notes/tags', data);
 export const updateNoteTag = (tagId, data) => apiClient.patch(`/api/notes/tags/${tagId}`, data);
 export const deleteNoteTag = (tagId) => apiClient.delete(`/api/notes/tags/${tagId}`);
 export const assignNoteTags = (noteId, tag_ids) => apiClient.post(`/api/notes/${noteId}/tags`, { tag_ids });
-export const removeNoteTags = (noteId, tag_ids) =>
-  apiClient.delete(`/api/notes/${noteId}/tags`, { data: { tag_ids } });
 
 export const exportNotesJSON = () => apiClient.get('/api/notes/export/json');
 export const exportNotesMarkdown = () => apiClient.get('/api/notes/export/markdown', { responseType: 'text' });

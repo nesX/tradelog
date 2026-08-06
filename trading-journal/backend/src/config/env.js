@@ -22,6 +22,10 @@ const envSchema = Joi.object({
   UPLOAD_DIR: Joi.string().default('./uploads'),
   MAX_FILE_SIZE: Joi.number().default(5242880), // 5MB
 
+  // Purga diferida de notas soft-deleted (y sus imágenes en disco)
+  NOTE_PURGE_DAYS: Joi.number().min(1).default(30), // gracia antes de borrar definitivamente
+  NOTE_PURGE_INTERVAL_HOURS: Joi.number().min(0).default(24), // 0 = desactivar el job
+
   // CORS
   ALLOWED_ORIGINS: Joi.string().default('http://localhost:5179'),
 
@@ -68,6 +72,11 @@ export const config = {
   upload: {
     dir: envVars.UPLOAD_DIR,
     maxFileSize: envVars.MAX_FILE_SIZE,
+  },
+
+  notePurge: {
+    days: envVars.NOTE_PURGE_DAYS,
+    intervalHours: envVars.NOTE_PURGE_INTERVAL_HOURS,
   },
 
   cors: {

@@ -1,5 +1,6 @@
 import { FileText, Loader2 } from 'lucide-react';
 import { useNoteSearch } from '../../hooks/useNotes.js';
+import { sanitizeHighlight } from '../../utils/sanitizeHighlight.js';
 
 const buildBreadcrumb = (parentId, flat) => {
   if (!parentId || !flat) return null;
@@ -19,7 +20,7 @@ const HighlightedText = ({ html, fallback }) => {
   if (!html) return <span>{fallback}</span>;
   return (
     <span
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: sanitizeHighlight(html) }}
       className="[&_b]:font-semibold [&_b]:text-blue-600 dark:[&_b]:text-blue-400"
     />
   );

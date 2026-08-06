@@ -13,6 +13,31 @@ export const BLOCK_OPTIONS = [
 ];
 
 /**
+ * Crea una sub-nota (nota hija + bloque reference que la enlaza) en una sola
+ * operación. Lógica compartida entre useBlockInserter y pages/Notes.jsx para no
+ * duplicarla. NO navega ni captura errores: eso queda a cargo del llamador
+ * (que decide si navegar tras el éxito y cómo tratar un fallo parcial).
+ */
+export async function insertSubNote({ createBlock, createNote, noteId, position }) {
+  const noteRes = await createNote.mutateAsync({ parent_note_id: noteId });
+  const subNote = noteRes.data;
+  await createBlock.mutateAsync({
+    noteId,
+    data: {
+      block_type: 'reference',
+      linked_note_id: subNote.id,
+      position,
+      metadata: {
+        target_note_id: subNote.id,
+        target_block_id: null,
+        label: subNote.title || 'Sub-nota',
+      },
+    },
+  });
+  return subNote;
+}
+
+/**
  * Lógica compartida para insertar un bloque nuevo en una nota.
  * `insert(block_type, position)` crea el bloque (con los casos especiales
  * de sub-nota, referencia, trade_reference y callout) en la posición dada.
@@ -25,21 +50,7 @@ export function useBlockInserter(noteId) {
   const insert = useCallback(
     async (block_type, position) => {
       if (block_type === 'sub_note') {
-        const noteRes = await createNote.mutateAsync({ parent_note_id: noteId });
-        const subNote = noteRes.data;
-        await createBlock.mutateAsync({
-          noteId,
-          data: {
-            block_type: 'reference',
-            linked_note_id: subNote.id,
-            position,
-            metadata: {
-              target_note_id: subNote.id,
-              target_block_id: null,
-              label: subNote.title || 'Sub-nota',
-            },
-          },
-        });
+        const subNote = await insertSubNote({ createBlock, createNote, noteId, position });
         navigate(`/notes/${subNote.id}`);
       } else if (block_type === 'reference') {
         await createBlock.mutateAsync({

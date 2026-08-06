@@ -25,6 +25,8 @@ Validadas por Joi en `src/config/env.js`. Si falta alguna requerida, el server *
 | `DB_PASSWORD` | string | **sí** | — | |
 | `UPLOAD_DIR` | string | no | `./uploads` | Directorio local de imágenes. Servido en `/api/images/*`. |
 | `MAX_FILE_SIZE` | int (bytes) | no | `5242880` (5MB) | Tamaño máximo de imagen subida. **Nota**: el `errorHandler` muestra hardcoded "1MB" en el mensaje de error — inconsistencia documentada. |
+| `NOTE_PURGE_DAYS` | int (días) | no | `30` | Gracia antes de que la purga diferida borre definitivamente una nota soft-deleted y sus imágenes de disco. Restaurar dentro de este plazo conserva las imágenes. |
+| `NOTE_PURGE_INTERVAL_HOURS` | int (horas) | no | `24` | Cada cuánto corre el job de purga (`startNotePurgeJob` en `server.js`). `0` lo desactiva. Corre una pasada al arrancar. |
 | `ALLOWED_ORIGINS` | string (CSV) | no | `http://localhost:5173` | Lista coma-separada de orígenes permitidos por CORS. Se parsea con `.split(',')`. |
 | `LOG_LEVEL` | enum | no | `info` | `error` \| `warn` \| `info` \| `debug`. |
 | `LOG_DIR` | string | no | `./logs` | Donde Winston escribe JSON. |

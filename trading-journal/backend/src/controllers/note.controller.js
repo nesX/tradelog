@@ -1,6 +1,8 @@
 import { sendSuccess, sendCreated, sendDeleted } from '../utils/response.js';
 import * as noteService from '../services/note.service.js';
 import { ValidationError } from '../middleware/errorHandler.js';
+import { deleteFileIfExists } from '../utils/fileUtils.js';
+import { imageCaptionSchema } from '../validators/note.validator.js';
 
 // ============================================================
 // NOTAS
@@ -31,6 +33,11 @@ export const deleteNote = async (req, res) => {
   sendDeleted(res, 'Nota eliminada');
 };
 
+export const restoreNote = async (req, res) => {
+  const data = await noteService.restoreNote(req.user.id, parseInt(req.params.id));
+  sendSuccess(res, data, 'Nota restaurada');
+};
+
 export const moveNote = async (req, res) => {
   const data = await noteService.moveNote(req.user.id, parseInt(req.params.id), req.body.parent_note_id);
   sendSuccess(res, data, 'Nota movida');
@@ -48,6 +55,13 @@ export const moveBlockDnd = async (req, res) => {
   const { targetBlockId, dropType } = req.body;
   const data = await noteService.moveBlockDnd({ blockId, targetBlockId, dropType, userId: req.user.id });
   sendSuccess(res, data, 'Bloque movido');
+};
+
+export const moveBlockToNote = async (req, res) => {
+  const blockId = parseInt(req.params.blockId, 10);
+  const { target_note_id } = req.body;
+  const data = await noteService.moveBlockToNote({ blockId, targetNoteId: target_note_id, userId: req.user.id });
+  sendSuccess(res, data, 'Bloque movido a otra nota');
 };
 
 export const reorderNotes = async (req, res) => {
@@ -99,13 +113,27 @@ export const addImage = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, error: { message: 'No se recibió ningún archivo', code: 'NO_FILE' } });
   }
-  const data = await noteService.addImageToBlock(
-    req.user.id,
-    parseInt(req.params.blockId),
-    req.file,
-    req.body.caption
-  );
-  sendCreated(res, data, 'Imagen agregada');
+  try {
+    // El body multipart no pasa por el middleware `validate`; validar el caption
+    // aquí evita que un caption >1000 chars reviente contra el VARCHAR(1000) (PG
+    // 22001 → 500). Dentro del try para que el catch limpie el archivo ya subido.
+    const { error } = imageCaptionSchema.validate({ caption: req.body.caption });
+    if (error) throw new ValidationError('El caption no puede superar 1000 caracteres');
+
+    const data = await noteService.addImageToBlock(
+      req.user.id,
+      parseInt(req.params.blockId),
+      req.file,
+      req.body.caption
+    );
+    sendCreated(res, data, 'Imagen agregada');
+  } catch (err) {
+    // Multer ya escribió el archivo a disco antes de llegar al service; si el service
+    // falla (bloque inexistente/ajeno/no-galería) hay que borrarlo para no dejar un
+    // huérfano permanente en uploads/.
+    if (req.file?.path) await deleteFileIfExists(req.file.path);
+    throw err;
+  }
 };
 
 export const updateImage = async (req, res) => {
@@ -205,19 +233,10 @@ export const toggleFollowUp = async (req, res) => {
 };
 
 export const getReview = async (req, res) => {
-  const allowedHours = [24, 48, 168];
-  const hours = parseInt(req.query.hours, 10) || 24;
-  if (!allowedHours.includes(hours)) {
-    throw new ValidationError('hours debe ser 24, 48 o 168');
-  }
-
-  let pendingHours = null;
-  if (req.query.pendingHours && req.query.pendingHours !== 'all') {
-    pendingHours = parseInt(req.query.pendingHours, 10);
-    if (!allowedHours.includes(pendingHours)) {
-      throw new ValidationError('pendingHours debe ser 24, 48, 168 o "all"');
-    }
-  }
+  // Query ya validada/coercida por noteReviewSchema (validate(..., 'query')).
+  const { hours = 24, pendingHours: rawPending } = req.query;
+  // 'all' → sin límite de antigüedad (null); si no, es un número ya validado.
+  const pendingHours = rawPending === 'all' || rawPending == null ? null : rawPending;
 
   const data = await noteService.getReviewData(req.user.id, hours, pendingHours);
   sendSuccess(res, data);

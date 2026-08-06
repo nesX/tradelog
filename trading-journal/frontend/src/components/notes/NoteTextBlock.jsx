@@ -1,4 +1,3 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -9,6 +8,7 @@ import remarkSafeDirectives from '../../utils/remarkSafeDirectives';
 import remarkNoSetext from '../../utils/remarkNoSetext';
 import preserveBlankLines from '../../utils/markdownSpacing';
 import MoreBlock from './MoreBlock';
+import { useAutosaveTextarea } from '../../hooks/useAutosaveTextarea';
 
 const MARKDOWN_PLUGINS = [
   remarkGfm,
@@ -22,52 +22,8 @@ const MARKDOWN_PLUGINS = [
 const MARKDOWN_COMPONENTS = { more: MoreBlock };
 
 const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(block.content || '');
-  const textareaRef = useRef(null);
-  const debounceRef = useRef(null);
-
-  // Sincronizar si cambia el bloque desde fuera (ej. invalidación de query)
-  useEffect(() => {
-    if (!editing) {
-      setValue(block.content || '');
-    }
-  }, [block.content, editing]);
-
-  // Autoexpand del textarea al entrar en modo edición
-  useEffect(() => {
-    if (editing && textareaRef.current) {
-      const ta = textareaRef.current;
-      ta.style.height = 'auto';
-      ta.style.height = ta.scrollHeight + 'px';
-      ta.focus();
-      // Cursor al final
-      ta.setSelectionRange(ta.value.length, ta.value.length);
-    }
-  }, [editing]);
-
-  const autoResize = (el) => {
-    el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
-  };
-
-  const handleChange = useCallback((e) => {
-    const newValue = e.target.value;
-    setValue(newValue);
-    autoResize(e.target);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      onUpdate(newValue);
-    }, 1000);
-  }, [onUpdate]);
-
-  useEffect(() => () => clearTimeout(debounceRef.current), []);
-
-  const handleBlur = () => {
-    clearTimeout(debounceRef.current);
-    onUpdate(value);
-    setEditing(false);
-  };
+  const { value, editing, startEditing, textareaRef, handleChange, handleBlur } =
+    useAutosaveTextarea({ block, onUpdate });
 
   /* ---------- MODO EDICIÓN ---------- */
   if (editing) {
@@ -100,7 +56,7 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
   /* ---------- MODO PREVIEW ---------- */
   return (
     <div
-      onClick={() => setEditing(true)}
+      onClick={startEditing}
       className="group relative cursor-text rounded-xl px-4 py-3
                  hover:ring-1 hover:ring-gray-200 dark:hover:ring-gray-600/50
                  transition-colors min-h-[44px]"

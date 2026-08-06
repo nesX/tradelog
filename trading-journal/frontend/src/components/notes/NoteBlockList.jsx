@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
-import { Trash2, GripVertical, FolderInput, X } from 'lucide-react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { Trash2, GripVertical, FileOutput } from 'lucide-react';
 import { BlockFollowUpToggle } from './BlockFollowUpToggle.jsx';
 import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -25,8 +26,9 @@ import NoteTradeReferenceBlock from './NoteTradeReferenceBlock.jsx';
 import CopyReferenceButton from './CopyReferenceButton.jsx';
 import NoteBlockInsert from './NoteBlockInsert.jsx';
 import NoteBlockAddButton from './NoteBlockAddButton.jsx';
+import MoveBlockToNoteModal from './MoveBlockToNoteModal.jsx';
 import ConfirmDialog from '../common/ConfirmDialog.jsx';
-import { useDeleteBlock, useCreateBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd, useMoveNote } from '../../hooks/useNotes.js';
+import { useDeleteBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd } from '../../hooks/useNotes.js';
 
 function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus }) {
   return (
@@ -66,7 +68,7 @@ function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus })
   );
 }
 
-function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMetadata, onOpenMoveSubNote, saveStatus }) {
+function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMetadata, onOpenMove, saveStatus }) {
   const { attributes, isDragging, listeners, setNodeRef, setActivatorNodeRef, transform, transition } = useSortable({ id: block.id });
 
   const style = {
@@ -78,6 +80,9 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
   // El bloque de imágenes lleva un footer de metadatos que baja el centro
   // geométrico del bloque; alineamos los controles sobre las miniaturas (h-24).
   const actionTop = block.block_type === 'image_gallery' ? 'top-16' : 'top-1/2';
+  // Variante md del anterior, en literal (no `md:${actionTop}`) para que el scanner
+  // de Tailwind detecte la clase y la genere.
+  const mdActionTop = block.block_type === 'image_gallery' ? 'md:top-16' : 'md:top-1/2';
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -88,11 +93,14 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
         {/* Botón "+" en el margen izquierdo: inserta un bloque debajo */}
         <NoteBlockAddButton noteId={noteId} position={idx + 1} topClass={actionTop} />
 
-        {/* Floating actions to the right (grid 2x2) */}
+        {/* Floating actions (grid 2x2). En desktop flotan en el margen derecho
+            (`-right-14`), fuera de la columna de contenido; en < md ese margen queda
+            fuera de pantalla, así que se anclan dentro del bloque (esquina superior
+            derecha). Visibles con hover en desktop y siempre en táctil. */}
         <div
-          className={`absolute -right-14 ${actionTop} -translate-y-1/2
-                     grid grid-cols-2 gap-0.5
-                     opacity-0 group-hover:opacity-100 transition-opacity z-10`}
+          className={`absolute z-10 grid grid-cols-2 gap-0.5 transition-opacity
+                     opacity-0 group-hover:opacity-100 touch:opacity-100
+                     right-1 -top-3 md:-right-14 ${mdActionTop} md:-translate-y-1/2`}
         >
           {/* Drag handle */}
           <button
@@ -104,7 +112,7 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
                        border border-gray-200 dark:border-gray-700
                        text-gray-400 hover:text-gray-700 dark:hover:text-gray-200
                        hover:border-gray-300 dark:hover:border-gray-500
-                       cursor-grab active:cursor-grabbing
+                       cursor-grab active:cursor-grabbing touch-none
                        shadow-sm transition-colors"
             title="Arrastrar bloque"
           >
@@ -119,21 +127,20 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
             <CopyReferenceButton noteId={noteId} blockId={block.id} />
           )}
 
-          {/* Mover sub-nota dentro de otra (solo bloques reference que son sub-notas reales) */}
-          {block.block_type === 'reference' && block.linked_note_id && (
-            <button
-              onClick={(e) => { e.stopPropagation(); e.preventDefault(); onOpenMoveSubNote(block.id); }}
-              className="w-6 h-6 flex items-center justify-center rounded
-                         bg-white dark:bg-gray-800
-                         border border-gray-200 dark:border-gray-700
-                         text-gray-400 hover:text-purple-600 dark:hover:text-purple-400
-                         hover:border-purple-300 dark:hover:border-purple-700
-                         shadow-sm transition-colors"
-              title="Mover sub-nota dentro de otra"
-            >
-              <FolderInput className="w-3.5 h-3.5" />
-            </button>
-          )}
+          {/* Mover el bloque a otra nota (todos los tipos; si es una sub-nota,
+              el backend reparenta también la nota vinculada) */}
+          <button
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); onOpenMove(block.id); }}
+            className="w-6 h-6 flex items-center justify-center rounded
+                       bg-white dark:bg-gray-800
+                       border border-gray-200 dark:border-gray-700
+                       text-gray-400 hover:text-purple-600 dark:hover:text-purple-400
+                       hover:border-purple-300 dark:hover:border-purple-700
+                       shadow-sm transition-colors"
+            title="Mover a otra nota"
+          >
+            <FileOutput className="w-3.5 h-3.5" />
+          </button>
 
           <button
             onClick={() => onDelete(block)}
@@ -182,91 +189,39 @@ const blockHasContent = (block) => {
   }
 };
 
-const isSubNoteRef = (b) => b.block_type === 'reference' && Boolean(b.linked_note_id);
-
-function MoveSubNoteModal({ blocks, moveSubNoteBlockId, onConfirm, onClose, isPending }) {
-  const movingBlock = blocks.find((b) => b.id === moveSubNoteBlockId);
-  const targets = blocks.filter((b) => isSubNoteRef(b) && b.id !== moveSubNoteBlockId);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm flex flex-col max-h-[70vh]">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2">
-            <FolderInput className="w-4 h-4 text-purple-500" />
-            <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              Mover sub-nota dentro de otra
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-200 dark:border-gray-700">
-          <p className="text-xs text-gray-500 dark:text-gray-400">Moviendo:</p>
-          <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
-            {movingBlock?.linked_note_title || movingBlock?.metadata?.label || 'Sub-nota'}
-          </p>
-        </div>
-
-        <div className="flex-1 overflow-y-auto py-1">
-          {targets.length === 0 ? (
-            <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-8 px-4">
-              No hay otras sub-notas disponibles como destino.
-            </p>
-          ) : (
-            targets.map((b) => (
-              <button
-                key={b.id}
-                onClick={() => onConfirm(b)}
-                disabled={isPending}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left
-                           hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors
-                           disabled:opacity-50"
-              >
-                <FolderInput className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                <span className="text-sm text-gray-800 dark:text-gray-100 truncate">
-                  {b.linked_note_title || b.metadata?.label || 'Sub-nota sin título'}
-                </span>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const NoteBlockList = ({ blocks = [], noteId }) => {
   const deleteBlock = useDeleteBlock();
-  const createBlock = useCreateBlock();
   const updateBlock = useUpdateBlock();
   const updateBlockMetadata = useUpdateBlockMetadata();
   const moveBlockDnd = useMoveBlockDnd(noteId);
-  const moveNote = useMoveNote();
   const [saveStatus, setSaveStatus] = useState({});
   const [activeBlockId, setActiveBlockId] = useState(null);
-  const [moveSubNoteBlockId, setMoveSubNoteBlockId] = useState(null);
+  const [moveBlockId, setMoveBlockId] = useState(null);
   const [pendingDeleteBlock, setPendingDeleteBlock] = useState(null);
+  // Timers de limpieza del label "Guardado ✓"; se cancelan al desmontar.
+  const statusTimersRef = useRef([]);
+  useEffect(() => () => statusTimersRef.current.forEach(clearTimeout), []);
 
+  // Devuelve true/false para que el hook de autosave sepa si conservar el
+  // borrador (en error) o descartarlo (en éxito).
   const handleUpdate = useCallback(async (blockId, content) => {
     setSaveStatus((s) => ({ ...s, [blockId]: 'Guardando...' }));
     try {
       await updateBlock.mutateAsync({ blockId, content, noteId });
       setSaveStatus((s) => ({ ...s, [blockId]: 'Guardado ✓' }));
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         setSaveStatus((s) => {
           const n = { ...s };
           delete n[blockId];
           return n;
         });
+        statusTimersRef.current = statusTimersRef.current.filter((t) => t !== timer);
       }, 2000);
+      statusTimersRef.current.push(timer);
+      return true;
     } catch {
       setSaveStatus((s) => ({ ...s, [blockId]: 'Error al guardar' }));
+      return false;
     }
   }, [updateBlock, noteId]);
 
@@ -293,38 +248,10 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
     );
   };
 
-  const handleConfirmMoveSubNote = async (targetBlock) => {
-    const movingBlock = blocks.find((b) => b.id === moveSubNoteBlockId);
-    const movingTargetId = movingBlock?.linked_note_id;
-    const destinationTargetId = targetBlock?.linked_note_id;
-    if (!movingTargetId || !destinationTargetId) return;
-
-    // 1. Cambiar parent_note_id de la sub-nota
-    await moveNote.mutateAsync({ id: movingTargetId, parent_note_id: destinationTargetId });
-
-    // 2. Eliminar el reference block de la nota actual
-    await deleteBlock.mutateAsync({ blockId: movingBlock.id, noteId });
-
-    // 3. Crear un reference block al final de la nota destino
-    await createBlock.mutateAsync({
-      noteId: destinationTargetId,
-      data: {
-        block_type: 'reference',
-        linked_note_id: movingTargetId,
-        position: 9999,
-        metadata: {
-          target_note_id: movingTargetId,
-          target_block_id: null,
-          label: movingBlock.linked_note_title || movingBlock.metadata?.label || 'Sub-nota',
-        },
-      },
-    });
-
-    setMoveSubNoteBlockId(null);
-  };
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    // Táctil: delay corto para distinguir arrastre de scroll (ver NoteTree).
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -376,7 +303,7 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
                 onDelete={handleDelete}
                 onUpdate={handleUpdate}
                 onUpdateMetadata={handleUpdateMetadata}
-                onOpenMoveSubNote={setMoveSubNoteBlockId}
+                onOpenMove={setMoveBlockId}
                 saveStatus={saveStatus[block.id]}
               />
             ))}
@@ -394,13 +321,11 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
         </DragOverlay>
       </DndContext>
 
-      {moveSubNoteBlockId !== null && (
-        <MoveSubNoteModal
-          blocks={blocks}
-          moveSubNoteBlockId={moveSubNoteBlockId}
-          onConfirm={handleConfirmMoveSubNote}
-          onClose={() => setMoveSubNoteBlockId(null)}
-          isPending={moveNote.isPending || deleteBlock.isPending || createBlock.isPending}
+      {moveBlockId !== null && (
+        <MoveBlockToNoteModal
+          block={blocks.find((b) => b.id === moveBlockId)}
+          sourceNoteId={noteId}
+          onClose={() => setMoveBlockId(null)}
         />
       )}
 

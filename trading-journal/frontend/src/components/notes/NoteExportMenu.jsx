@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { Download, ChevronDown, FileJson, FileText } from 'lucide-react';
 import * as api from '../../api/endpoints.js';
+import { useToast } from '../common/Toast.jsx';
 
 const NoteExportMenu = () => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(null);
   const ref = useRef(null);
+  const toast = useToast();
 
   useEffect(() => {
     const handler = (e) => {
@@ -27,6 +29,8 @@ const NoteExportMenu = () => {
       a.download = `notas-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err?.message || 'No se pudo exportar las notas como JSON');
     } finally {
       setLoading(null);
     }
@@ -45,6 +49,8 @@ const NoteExportMenu = () => {
       a.download = `notas-${new Date().toISOString().slice(0, 10)}.md`;
       a.click();
       URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err?.message || 'No se pudo exportar las notas como Markdown');
     } finally {
       setLoading(null);
     }

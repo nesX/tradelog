@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
+import { emitToast } from './utils/toastBridge.js';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { ToastProvider } from './components/common/Toast.jsx';
@@ -21,6 +22,18 @@ import Review from './pages/Review.jsx';
 
 // Configuración de React Query
 const queryClient = new QueryClient({
+  // Manejo global de errores de mutación: una sola pieza cubre toda la clase de
+  // fallos silenciosos (crear/borrar/mover nota, renombrar, tags, etc.). Las
+  // mutaciones con su propio feedback pueden optar por silenciarlo con
+  // `meta: { silenceError: true }`.
+  mutationCache: new MutationCache({
+    onError: (error, _vars, _ctx, mutation) => {
+      if (mutation?.meta?.silenceError) return;
+      // El interceptor de axios ya redirige a /login en 401: evitar toast redundante.
+      if (error?.status === 401) return;
+      emitToast('error', error?.message || 'Ocurrió un error. Intenta de nuevo.');
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: 1,

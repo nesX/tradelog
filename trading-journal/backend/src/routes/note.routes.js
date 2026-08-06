@@ -10,6 +10,7 @@ import {
   moveNoteSchema,
   moveDndNoteSchema,
   moveBlockDndSchema,
+  moveBlockToNoteSchema,
   createBlockSchema,
   updateBlockSchema,
   updateBlockMetadataSchema,
@@ -23,6 +24,7 @@ import {
   noteSearchSchema,
   toggleFollowUpSchema,
   addTradeToBlockSchema,
+  noteReviewSchema,
 } from '../validators/note.validator.js';
 
 const router = Router();
@@ -53,10 +55,11 @@ router.delete('/tags/:tagId', ctrl.deleteTag);
 
 // Bloques (rutas sin noteId param)
 // Ruta estática /blocks/review ANTES de /blocks/:blockId para evitar conflictos
-router.get('/blocks/review', ctrl.getReview);
+router.get('/blocks/review', validate(noteReviewSchema, 'query'), ctrl.getReview);
 router.patch('/blocks/:blockId', validate(updateBlockSchema), ctrl.updateBlock);
 router.patch('/blocks/:blockId/metadata', validate(updateBlockMetadataSchema), ctrl.updateBlockMetadata);
 router.patch('/blocks/:blockId/move-dnd', validate(moveBlockDndSchema), ctrl.moveBlockDnd);
+router.patch('/blocks/:blockId/move-to-note', validate(moveBlockToNoteSchema), ctrl.moveBlockToNote);
 router.patch('/blocks/:blockId/follow-up', validate(toggleFollowUpSchema), ctrl.toggleFollowUp);
 router.delete('/blocks/:blockId', ctrl.deleteBlock);
 
@@ -83,6 +86,7 @@ router.post('/', validate(createNoteSchema), ctrl.createNote);
 router.get('/:id', ctrl.getNote);
 router.patch('/:id/title', validate(updateNoteTitleSchema), ctrl.updateNoteTitle);
 router.delete('/:id', ctrl.deleteNote);
+router.post('/:id/restore', ctrl.restoreNote);
 router.patch('/:id/move', validate(moveNoteSchema), ctrl.moveNote);
 router.patch('/:id/move-dnd', validate(moveDndNoteSchema), ctrl.moveDndNote);
 

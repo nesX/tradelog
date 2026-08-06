@@ -11,6 +11,7 @@ import {
 import NoteBlockList from '../components/notes/NoteBlockList.jsx';
 import NoteBreadcrumb from '../components/notes/NoteBreadcrumb.jsx';
 import NoteTagBadge from '../components/notes/NoteTagBadge.jsx';
+import NoteSaveIndicator from '../components/notes/NoteSaveIndicator.jsx';
 import CopyReferenceButton from '../components/notes/CopyReferenceButton.jsx';
 
 const NoteEditor = ({ embeddedId }) => {
@@ -74,15 +75,19 @@ const NoteEditor = ({ embeddedId }) => {
     // (p. ej. al editar un bloque) y sin esta guarda re-scrollearía en cada cambio.
     if (scrolledBlockRef.current === blockId) return;
 
+    let pulseTimeout;
     const raf = requestAnimationFrame(() => {
       const el = document.getElementById(`block-${blockId}`);
       if (!el) return; // el bloque aún no está montado; reintenta en el próximo refetch
       scrolledBlockRef.current = blockId;
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.classList.add('highlight-pulse');
-      setTimeout(() => el.classList.remove('highlight-pulse'), 2500);
+      pulseTimeout = setTimeout(() => el.classList.remove('highlight-pulse'), 2500);
     });
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (pulseTimeout) clearTimeout(pulseTimeout);
+    };
   }, [searchParams, location.hash, note]);
 
   /* ---------- loading / error ---------- */
@@ -162,9 +167,10 @@ const NoteEditor = ({ embeddedId }) => {
       {/* ── Cabecera de la nota ── */}
       <div className="flex-shrink-0 px-6 pt-5 pb-0 border-b border-gray-100 dark:border-gray-700/50">
 
-        {/* Breadcrumb */}
-        <div className="mb-3">
+        {/* Breadcrumb + indicador de guardado */}
+        <div className="mb-3 flex items-center justify-between gap-3">
           <NoteBreadcrumb noteId={noteId} flat={flat} />
+          <NoteSaveIndicator />
         </div>
 
         {/* Título */}
@@ -208,7 +214,7 @@ const NoteEditor = ({ embeddedId }) => {
               <button
                 onClick={startEditTitle}
                 className="flex-shrink-0 mt-1 p-1 rounded text-gray-300 dark:text-gray-600
-                           opacity-0 group-hover:opacity-100 hover:text-gray-600 dark:hover:text-gray-300
+                           opacity-0 group-hover:opacity-100 touch:opacity-100 hover:text-gray-600 dark:hover:text-gray-300
                            hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
                 title="Editar título"
               >

@@ -46,6 +46,10 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files);
     for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        toast.error(`"${file.name}" no es una imagen (JPG, PNG, WebP o GIF).`);
+        continue;
+      }
       if (file.size > MAX_SIZE_BEFORE_COMPRESSION) {
         toast.error(`"${file.name}" supera el tamaño máximo de 5MB.`);
         continue;
@@ -125,7 +129,7 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
                   onClick={(e) => handleDelete(e, img.id)}
                   className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center
                              bg-red-500 hover:bg-red-600 text-white rounded-full
-                             opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                             opacity-0 group-hover:opacity-100 touch:opacity-100 transition-opacity shadow-sm"
                   title="Eliminar imagen"
                 >
                   <X className="w-3 h-3" />
@@ -242,7 +246,15 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
         </div>
       ) : (
         <div
-          onClick={() => setEditingMeta(true)}
+          onClick={() => {
+            // Resetear desde el metadata ACTUAL al abrir el editor: los useState solo
+            // se inicializan al montar, así que sin esto se editarían valores viejos
+            // si el bloque cambió por otra vía.
+            setDateValue(meta.analysis_date || '');
+            setSymbols(meta.symbols || []);
+            setSymbolInput('');
+            setEditingMeta(true);
+          }}
           className="mt-1 flex flex-wrap items-center gap-1.5 cursor-pointer group/meta min-h-[20px]"
           title="Click para editar fecha y símbolos"
         >
@@ -263,7 +275,7 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
             </>
           ) : (
             <span className="text-[11px] text-gray-300 dark:text-gray-600 italic
-                             opacity-0 group-hover/meta:opacity-100 transition-opacity">
+                             opacity-0 group-hover/meta:opacity-100 touch:opacity-100 transition-opacity">
               + fecha / símbolo
             </span>
           )}
@@ -273,7 +285,7 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
       <input
         ref={fileInputRef}
         type="file"
-        accept="*"
+        accept="image/*"
         multiple
         className="hidden"
         onChange={handleFileChange}

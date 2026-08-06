@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -42,6 +43,32 @@ const findNodeInTree = (nodes, id) => {
   return null;
 };
 
+// Todos los ids presentes en el árbol (para purgar del localStorage los expandidos
+// de notas ya borradas y que la clave no crezca sin límite).
+const collectAllIds = (nodes, acc = new Set()) => {
+  for (const node of nodes) {
+    acc.add(node.id);
+    if (node.children?.length) collectAllIds(node.children, acc);
+  }
+  return acc;
+};
+
+// Ids de todos los descendientes de un nodo (sin incluirlo). Se usa para impedir
+// soltar una nota dentro de su propio subárbol: cualquier drop (child o sibling)
+// sobre un descendiente haría que el nuevo padre quede dentro del subárbol movido
+// → ciclo. El backend ya lo rechaza; esto evita el glitch visual optimista.
+const collectDescendantIds = (node) => {
+  const ids = new Set();
+  const walk = (n) => {
+    for (const c of n.children || []) {
+      ids.add(c.id);
+      walk(c);
+    }
+  };
+  if (node) walk(node);
+  return ids;
+};
+
 // 15% arriba → sibling-above, 15% abajo → sibling-below, 70% centro → child
 const computeZone = (pointerY, rect) => {
   const ratio = (pointerY - rect.top) / rect.height;
@@ -73,11 +100,19 @@ const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelet
   const [expandedIds, setExpandedIds] = useState(loadExpanded);
   const [activeNote, setActiveNote] = useState(null);
   const [overInfo, setOverInfo] = useState({ noteId: null, zone: null });
+  const dragDescendantsRef = useRef(new Set());
   const moveNote = useMoveNoteDnd();
 
   useEffect(() => {
-    saveExpanded(expandedIds);
-  }, [expandedIds]);
+    // Con el árbol aún vacío (carga inicial) no purgar: se perdería la expansión
+    // persistida antes de que lleguen las notas.
+    if (notes.length === 0) {
+      saveExpanded(expandedIds);
+      return;
+    }
+    const existing = collectAllIds(notes);
+    saveExpanded(new Set([...expandedIds].filter((id) => existing.has(id))));
+  }, [expandedIds, notes]);
 
   const toggle = useCallback((id) => {
     setExpandedIds((prev) => {
@@ -89,11 +124,16 @@ const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelet
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    // En táctil, un delay corto distingue arrastrar (mantener presionado el grip)
+    // de scrollear la página. Sin esto, arrastrar desde el grip scrollea en vez de mover.
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragStart = ({ active }) => {
-    setActiveNote(findNodeInTree(notes, active.id));
+    const node = findNodeInTree(notes, active.id);
+    setActiveNote(node);
+    dragDescendantsRef.current = collectDescendantIds(node);
     setOverInfo({ noteId: null, zone: null });
   };
 
@@ -103,6 +143,11 @@ const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelet
       return;
     }
     const noteId = over.data.current.noteId;
+    // No mostrar indicador de drop sobre un descendiente del nodo arrastrado.
+    if (dragDescendantsRef.current.has(noteId)) {
+      setOverInfo({ noteId: null, zone: null });
+      return;
+    }
     const pointerY = activatorEvent.clientY + delta.y;
     let zone = computeZone(pointerY, over.rect);
 
@@ -121,6 +166,8 @@ const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelet
     if (!over?.data.current?.noteId) return;
     const targetId = over.data.current.noteId;
     if (active.id === targetId) return;
+    // Abortar si el destino está dentro del subárbol arrastrado (crearía un ciclo).
+    if (dragDescendantsRef.current.has(targetId)) return;
 
     const pointerY = activatorEvent.clientY + delta.y;
     let dropType = computeZone(pointerY, over.rect);

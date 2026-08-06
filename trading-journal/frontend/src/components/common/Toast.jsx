@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { registerToastHandler } from '../../utils/toastBridge.js';
 
 /**
  * Context para el sistema de notificaciones toast
@@ -43,17 +44,17 @@ const toastTypes = {
 /**
  * Componente Toast individual
  */
-const ToastItem = ({ id, type = 'info', message, onClose }) => {
+const ToastItem = ({ id, type = 'info', message, action, duration = 5000, onClose }) => {
   const config = toastTypes[type] || toastTypes.info;
   const Icon = config.icon;
 
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose(id);
-    }, 5000);
+    }, duration);
 
     return () => clearTimeout(timer);
-  }, [id, onClose]);
+  }, [id, duration, onClose]);
 
   return (
     <div
@@ -64,6 +65,17 @@ const ToastItem = ({ id, type = 'info', message, onClose }) => {
       <p className={`ml-3 text-sm font-medium ${config.textColor} flex-1`}>
         {message}
       </p>
+      {action && (
+        <button
+          onClick={() => {
+            action.onClick?.();
+            onClose(id);
+          }}
+          className={`ml-3 text-sm font-semibold underline underline-offset-2 ${config.iconColor} hover:opacity-70 flex-shrink-0`}
+        >
+          {action.label}
+        </button>
+      )}
       <button
         onClick={() => onClose(id)}
         className={`ml-4 ${config.iconColor} hover:opacity-70 flex-shrink-0`}
@@ -77,12 +89,19 @@ const ToastItem = ({ id, type = 'info', message, onClose }) => {
 /**
  * Provider para el sistema de toast
  */
+let toastSeq = 0;
+
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
 
-  const addToast = useCallback((type, message) => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, type, message }]);
+  // `options` opcional: { action: { label, onClick }, duration }. Id con contador
+  // monótono para evitar colisiones de key entre toasts creados en el mismo ms.
+  const addToast = useCallback((type, message, options = {}) => {
+    const id = `${Date.now()}-${toastSeq++}`;
+    setToasts((prev) => [
+      ...prev,
+      { id, type, message, action: options.action, duration: options.duration },
+    ]);
     return id;
   }, []);
 
@@ -90,12 +109,18 @@ export const ToastProvider = ({ children }) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
-  // Métodos de conveniencia
+  // Exponer el disparador de toasts a código fuera de React (MutationCache global).
+  useEffect(() => {
+    registerToastHandler(addToast);
+    return () => registerToastHandler(null);
+  }, [addToast]);
+
+  // Métodos de conveniencia. `options` opcional (action, duration).
   const toast = {
-    success: (message) => addToast('success', message),
-    error: (message) => addToast('error', message),
-    warning: (message) => addToast('warning', message),
-    info: (message) => addToast('info', message),
+    success: (message, options) => addToast('success', message, options),
+    error: (message, options) => addToast('error', message, options),
+    warning: (message, options) => addToast('warning', message, options),
+    info: (message, options) => addToast('info', message, options),
   };
 
   return (
@@ -110,6 +135,8 @@ export const ToastProvider = ({ children }) => {
             id={t.id}
             type={t.type}
             message={t.message}
+            action={t.action}
+            duration={t.duration}
             onClose={removeToast}
           />
         ))}

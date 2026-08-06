@@ -33,6 +33,10 @@ export const moveBlockDndSchema = Joi.object({
   dropType: Joi.string().valid('sibling-above', 'sibling-below').required(),
 });
 
+export const moveBlockToNoteSchema = Joi.object({
+  target_note_id: Joi.number().integer().positive().required(),
+});
+
 export const createBlockSchema = Joi.object({
   block_type: Joi.string().valid('text', 'image_gallery', 'reference', 'callout', 'trade_reference').required(),
   content: Joi.string().max(50000).allow(null, '').optional(),
@@ -104,3 +108,17 @@ export const reorderImagesSchema = Joi.object({
 export const toggleFollowUpSchema = Joi.object({
   requires_follow_up: Joi.boolean().required(),
 });
+
+export const noteReviewSchema = Joi.object({
+  hours: Joi.number().valid(24, 48, 168).default(24),
+  // 'all' = sin límite de antigüedad para los pendientes; cualquier otro valor
+  // debe ser una de las ventanas permitidas.
+  pendingHours: Joi.alternatives()
+    .try(Joi.string().valid('all'), Joi.number().valid(24, 48, 168))
+    .optional(),
+});
+
+// Caption de imagen subida vía multipart (el body no pasa por Joi en esa ruta).
+export const imageCaptionSchema = Joi.object({
+  caption: Joi.string().max(1000).allow(null, '').optional(),
+}).unknown(true);

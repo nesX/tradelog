@@ -329,7 +329,8 @@ Timeframes del usuario.
 | `POST` | `/api/notes/:noteId/blocks` | Crear bloque (`block_type` ∈ `text`, `image_gallery`, `reference`, `callout`, `trade_reference`). |
 | `PATCH` | `/api/notes/blocks/:blockId` | Actualizar contenido. |
 | `PATCH` | `/api/notes/blocks/:blockId/metadata` | Actualizar metadata (variante de callout, etc.). |
-| `PATCH` | `/api/notes/blocks/:blockId/move-dnd` | Reordenar bloque dentro de la nota (DnD; cross-nota no soportado en V1). |
+| `PATCH` | `/api/notes/blocks/:blockId/move-dnd` | Reordenar bloque dentro de la nota (DnD; para mover a otra nota usar `move-to-note`). |
+| `PATCH` | `/api/notes/blocks/:blockId/move-to-note` | Mover el bloque a otra nota (se apenda al final). Body: `{ target_note_id }`. Si el bloque es `reference` de una sub-nota (hija de la nota origen), reparenta también la sub-nota. Transaccional. Ver `docs/features/notas/`. |
 | `PATCH` | `/api/notes/blocks/:blockId/follow-up` | Toggle de seguimiento. Body: `{ requires_follow_up: boolean }`. |
 | `PATCH` | `/api/notes/:noteId/blocks/reorder` | Reordenar bloques dentro de una nota. |
 | `DELETE` | `/api/notes/blocks/:blockId` | Borrar bloque. |

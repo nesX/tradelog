@@ -1,12 +1,18 @@
 import path from 'path';
 import { generateKeyBetween } from 'fractional-indexing';
 import { config } from '../config/env.js';
-import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
+import { withUserLock } from '../config/database.js';
+import { NotFoundError, ValidationError, ConflictError } from '../middleware/errorHandler.js';
 import { deleteFileIfExists } from '../utils/fileUtils.js';
 import * as repo from '../repositories/note.repository.js';
 import * as tradeRepo from '../repositories/trade.repository.js';
 
 const uploadsDir = () => path.resolve(config.upload.dir);
+
+// Tope de anidamiento del árbol de notas. Evita jerarquías absurdamente profundas
+// que degradan el render recursivo del export y la UI. (Los CTEs recursivos ya
+// tienen su propio cap de profundidad como guard anti-ciclos, ver repo.)
+const MAX_NOTE_DEPTH = 10;
 
 const deleteFiles = async (filenames) => {
   for (const filename of filenames) {
@@ -40,9 +46,17 @@ export const createNote = async (userId, { title, parent_note_id, type = 'note' 
     const parent = await repo.getById(userId, parent_note_id);
     if (!parent) throw new NotFoundError('Nota padre no encontrada');
     if (parent.type === 'section') throw new ValidationError('Una nota no puede tener una sección como padre');
+    const parentDepth = await repo.getNoteDepth(parent_note_id);
+    if (parentDepth >= MAX_NOTE_DEPTH) {
+      throw new ValidationError(`No se puede anidar más de ${MAX_NOTE_DEPTH} niveles de notas`);
+    }
   }
 
-  return repo.create(userId, { title, parent_note_id: parent_note_id || null, type });
+  // Bajo advisory lock: el cálculo de posición (leer última + generateKeyBetween)
+  // y el INSERT son atómicos, evitando claves fractional duplicadas entre pestañas.
+  return withUserLock(userId, (client) =>
+    repo.create(userId, { title, parent_note_id: parent_note_id || null, type }, client)
+  );
 };
 
 export const updateNoteTitle = async (userId, noteId, title) => {
@@ -55,18 +69,59 @@ export const deleteNote = async (userId, noteId) => {
   const note = await repo.getById(userId, noteId);
   if (!note) throw new NotFoundError('Nota no encontrada');
 
-  if (note.type === 'section') {
-    // Borrar solo el divisor; las notas que estaban bajo él no se tocan
-    await repo.softDelete(userId, noteId);
-    return;
-  }
+  // Política unificada: soft-delete recuperable. Los archivos de imagen NO se tocan
+  // aquí (ni para notas ni para secciones); la purga diferida (`purgeDeletedNotes`)
+  // los elimina recién cuando la nota supera la gracia de config.notePurge.days.
+  // Así, restaurar dentro del plazo conserva las imágenes intactas y no quedan
+  // archivos <24h filtrados para siempre como pasaba antes.
+  await repo.softDelete(userId, noteId);
+};
 
-  // Para notas: soft-delete recursivo + limpieza de archivos de imagen.
-  // Solo se borran de disco las imágenes con más de 24h (las recientes se
-  // conservan por si el borrado fue accidental; ver repo).
-  const deletedIds = await repo.softDelete(userId, noteId);
-  const imagePaths = await repo.getDeletableImagePathsByNoteIds(deletedIds);
+/**
+ * Restaura una nota soft-deleted y su subtree (undo del borrado). Solo revierte las
+ * filas que cayeron en el MISMO borrado (mismo deleted_at que la raíz); un
+ * descendiente borrado en un evento anterior permanece borrado. Si el padre de la
+ * nota restaurada sigue borrado, la nota se recoloca como raíz (parent_note_id =
+ * NULL) para no quedar huérfana invisible — caso raro, solo posible restaurando vía
+ * API fuera de la ventana del toast de undo.
+ */
+export const restoreNote = async (userId, noteId) => {
+  const note = await repo.getDeletedById(userId, noteId);
+  if (!note) throw new NotFoundError('Nota no encontrada');
+  if (!note.deleted_at) throw new ValidationError('La nota no está eliminada');
+
+  return withUserLock(userId, async (client) => {
+    const restoredIds = await repo.restoreSubtree(userId, noteId, note.deleted_at, client);
+    if (restoredIds.length === 0) throw new NotFoundError('Nota no encontrada');
+
+    // Si el padre sigue borrado (o ya no existe), reubicar como nota raíz. `move`
+    // recalcula la posición al final de las raíces, evitando colisiones de clave.
+    if (note.parent_note_id) {
+      const parent = await repo.findNoteByIdAndUser(note.parent_note_id, userId, client);
+      if (!parent) {
+        await repo.move(userId, noteId, null, client);
+      }
+    }
+
+    return { id: noteId, restored: restoredIds.length };
+  });
+};
+
+/**
+ * Purga diferida: borra definitivamente las notas soft-deleted cuya gracia venció
+ * (config.notePurge.days) junto con sus archivos de imagen en disco. El hard-delete
+ * arrastra bloques, imágenes (filas), tags y sub-notas vía ON DELETE CASCADE.
+ * Idempotente y seguro para correr periódicamente. Solo borra archivos de las notas
+ * que efectivamente purga (sin barrido ciego de uploads/).
+ */
+export const purgeDeletedNotes = async () => {
+  const noteIds = await repo.getPurgeableNoteIds(config.notePurge.days);
+  if (noteIds.length === 0) return { purgedNotes: 0, deletedFiles: 0 };
+
+  const imagePaths = await repo.getImagePathsByNoteIds(noteIds);
+  const purgedNotes = await repo.hardDeleteNotes(noteIds);
   await deleteFiles(imagePaths);
+  return { purgedNotes, deletedFiles: imagePaths.length };
 };
 
 export const moveNote = async (userId, noteId, newParentId) => {
@@ -77,35 +132,48 @@ export const moveNote = async (userId, noteId, newParentId) => {
     throw new ValidationError('Las secciones no pueden anidarse');
   }
 
-  if (newParentId !== null && newParentId !== undefined) {
-    const parent = await repo.getById(userId, newParentId);
-    if (!parent) throw new NotFoundError('Nota destino no encontrada');
-    if (parent.type === 'section') throw new ValidationError('Una nota no puede tener una sección como padre');
+  return withUserLock(userId, async (client) => {
+    if (newParentId !== null && newParentId !== undefined) {
+      const parent = await repo.getById(userId, newParentId);
+      if (!parent) throw new NotFoundError('Nota destino no encontrada');
+      if (parent.type === 'section') throw new ValidationError('Una nota no puede tener una sección como padre');
 
-    const isDesc = await repo.isDescendant(noteId, newParentId);
-    if (isDesc) {
-      throw new ValidationError('No puedes mover una nota dentro de sí misma o sus sub-notas');
+      const isDesc = await repo.isDescendant(noteId, newParentId);
+      if (isDesc) {
+        throw new ValidationError('No puedes mover una nota dentro de sí misma o sus sub-notas');
+      }
     }
-  }
 
-  const updated = await repo.move(userId, noteId, newParentId ?? null);
-  if (!updated) throw new NotFoundError('Nota no encontrada');
-  return updated;
+    // `move` ahora recalcula la posición (al final del nuevo padre) en vez de
+    // conservar la vieja, evitando colisiones de clave con los nuevos hermanos.
+    const updated = await repo.move(userId, noteId, newParentId ?? null, client);
+    if (!updated) throw new NotFoundError('Nota no encontrada');
+    return updated;
+  });
 };
 
 export const reorderNotes = async (userId, noteIds) => {
-  const notes = await repo.getNotesByIds(userId, noteIds);
+  return withUserLock(userId, async (client) => {
+    const notes = await repo.getNotesByIds(userId, noteIds, client);
 
-  if (notes.length !== noteIds.length) {
-    throw new ValidationError('Algunas notas no existen o no te pertenecen');
-  }
+    if (notes.length !== noteIds.length) {
+      throw new ValidationError('Algunas notas no existen o no te pertenecen');
+    }
 
-  const parentIds = new Set(notes.map((n) => n.parent_note_id));
-  if (parentIds.size > 1) {
-    throw new ValidationError('Todas las notas deben ser hermanas (mismo padre)');
-  }
+    const parentIds = new Set(notes.map((n) => n.parent_note_id));
+    if (parentIds.size > 1) {
+      throw new ValidationError('Todas las notas deben ser hermanas (mismo padre)');
+    }
 
-  await repo.reorderSiblings(userId, noteIds);
+    // La lista debe incluir a TODOS los hermanos; un reorden parcial reasigna desde
+    // 'a0' y colisiona con las posiciones de los omitidos.
+    const siblingIds = await repo.getSiblingNoteIds(userId, notes[0].parent_note_id, client);
+    if (siblingIds.length !== noteIds.length) {
+      throw new ValidationError('El reordenamiento debe incluir a todas las notas hermanas');
+    }
+
+    await repo.reorderSiblings(userId, noteIds, client);
+  });
 };
 
 // ============================================================
@@ -127,54 +195,76 @@ export const moveDnd = async ({ noteId, targetId, dropType, userId }) => {
     throw new ValidationError('No puedes mover una nota sobre sí misma');
   }
 
-  const [sourceNote, targetNote] = await Promise.all([
-    repo.findNoteByIdAndUser(noteId, userId),
-    repo.findNoteByIdAndUser(targetId, userId),
-  ]);
+  // Toda la operación (validación anti-ciclos + lectura de vecinos + UPDATE) corre
+  // dentro de una transacción con advisory lock por usuario. Así dos moves
+  // concurrentes ("A dentro de B" y "B dentro de A") no pueden crear un ciclo, ni
+  // dos moves sobre los mismos hermanos generar claves fractional duplicadas.
+  return withUserLock(userId, async (client) => {
+    const [sourceNote, targetNote] = await Promise.all([
+      repo.findNoteByIdAndUser(noteId, userId, client),
+      repo.findNoteByIdAndUser(targetId, userId, client),
+    ]);
 
-  if (!sourceNote) throw new NotFoundError('Nota origen no encontrada');
-  if (!targetNote) throw new NotFoundError('Nota destino no encontrada');
+    if (!sourceNote) throw new NotFoundError('Nota origen no encontrada');
+    if (!targetNote) throw new NotFoundError('Nota destino no encontrada');
 
-  // Evitar ciclos: el destino no puede ser descendiente del source
-  const descendantIds = await repo.getDescendantIds(noteId);
-  if (descendantIds.includes(targetId)) {
-    throw new ValidationError('No puedes mover una nota dentro de uno de sus descendientes');
-  }
+    // Evitar ciclos: el destino no puede ser descendiente del source
+    const descendantIds = await repo.getDescendantIds(noteId, client);
+    if (descendantIds.includes(targetId)) {
+      throw new ValidationError('No puedes mover una nota dentro de uno de sus descendientes');
+    }
 
-  // Secciones solo pueden ser siblings a nivel raíz, nunca children
-  if (sourceNote.type === 'section' && dropType === 'child') {
-    throw new ValidationError('Las secciones no pueden anidarse');
-  }
-  // Notas no pueden ser hijas de una sección
-  if (sourceNote.type === 'note' && dropType === 'child' && targetNote.type === 'section') {
-    throw new ValidationError('Una nota no puede tener una sección como padre');
-  }
+    // Secciones solo pueden ser siblings a nivel raíz, nunca children
+    if (sourceNote.type === 'section' && dropType === 'child') {
+      throw new ValidationError('Las secciones no pueden anidarse');
+    }
+    // Notas no pueden ser hijas de una sección
+    if (sourceNote.type === 'note' && dropType === 'child' && targetNote.type === 'section') {
+      throw new ValidationError('Una nota no puede tener una sección como padre');
+    }
 
-  let newParentId;
-  let newPosition;
+    let newParentId;
+    let newPosition;
 
-  if (dropType === 'child') {
-    // Anidar como hijo del target → al final de sus hijos
-    newParentId = targetId;
-    const lastChildPos = await repo.getLastChildPosition(targetId);
-    newPosition = generateKeyBetween(lastChildPos, null);
-  } else {
-    // Sibling: mismo padre que el target
-    newParentId = targetNote.parent_note_id;
-    const side = dropType === 'sibling-above' ? 'above' : 'below';
-    const { before, after } = await repo.getSiblingPositions(
-      newParentId,
-      userId,
-      targetNote.position,
-      side,
-      noteId
-    );
-    newPosition = generateKeyBetween(before, after);
-  }
+    if (dropType === 'child') {
+      // Anidar como hijo del target → al final de sus hijos
+      newParentId = targetId;
+      const lastChildPos = await repo.getLastChildPosition(targetId, client);
+      newPosition = generateKeyBetween(lastChildPos, null);
+    } else {
+      // Sibling: mismo padre que el target
+      newParentId = targetNote.parent_note_id;
+      // Una sección solo puede vivir a nivel raíz: soltarla como sibling de una nota
+      // anidada le daría un padre y violaría el CHECK `sections_only_at_root` (error
+      // genérico 400). Rechazar con mensaje claro.
+      if (sourceNote.type === 'section' && newParentId !== null) {
+        throw new ValidationError('Las secciones solo pueden ubicarse a nivel raíz');
+      }
+      const side = dropType === 'sibling-above' ? 'above' : 'below';
+      const { before, after } = await repo.getSiblingPositions(
+        newParentId,
+        userId,
+        targetNote.position,
+        side,
+        noteId,
+        client
+      );
+      newPosition = generateKeyBetween(before, after);
+    }
 
-  const updated = await repo.updateNoteParentAndPosition(noteId, newParentId, newPosition, userId);
-  if (!updated) throw new NotFoundError('No se pudo mover la nota');
-  return updated;
+    // Tope de profundidad del nuevo padre (guard best-effort; no contempla la altura
+    // del subárbol movido, pero acota el crecimiento por operación).
+    if (newParentId !== null) {
+      const parentDepth = await repo.getNoteDepth(newParentId, client);
+      if (parentDepth >= MAX_NOTE_DEPTH) {
+        throw new ValidationError(`No se puede anidar más de ${MAX_NOTE_DEPTH} niveles de notas`);
+      }
+    }
+
+    const updated = await repo.updateNoteParentAndPosition(noteId, newParentId, newPosition, userId, client);
+    if (!updated) throw new NotFoundError('No se pudo mover la nota');
+    return updated;
+  });
 };
 
 /**
@@ -195,29 +285,85 @@ export const moveBlockDnd = async ({ blockId, targetBlockId, dropType, userId })
     throw new ValidationError('Los bloques no pueden contener otros bloques');
   }
 
-  const [sourceBlock, targetBlock] = await Promise.all([
-    repo.findBlockByIdAndUser(blockId, userId),
-    repo.findBlockByIdAndUser(targetBlockId, userId),
-  ]);
+  return withUserLock(userId, async (client) => {
+    const [sourceBlock, targetBlock] = await Promise.all([
+      repo.findBlockByIdAndUser(blockId, userId, client),
+      repo.findBlockByIdAndUser(targetBlockId, userId, client),
+    ]);
 
-  if (!sourceBlock) throw new NotFoundError('Bloque origen no encontrado');
-  if (!targetBlock) throw new NotFoundError('Bloque destino no encontrado');
+    if (!sourceBlock) throw new NotFoundError('Bloque origen no encontrado');
+    if (!targetBlock) throw new NotFoundError('Bloque destino no encontrado');
 
-  if (sourceBlock.note_id !== targetBlock.note_id) {
-    throw new ValidationError('Mover bloques entre notas distintas no está soportado en V1');
-  }
+    if (sourceBlock.note_id !== targetBlock.note_id) {
+      throw new ValidationError('Mover bloques entre notas distintas no está soportado en V1');
+    }
 
-  const side = dropType === 'sibling-above' ? 'above' : 'below';
-  const { before, after } = await repo.getSiblingBlockPositions(
-    targetBlock.note_id,
-    targetBlock.position,
-    side
-  );
-  const newPosition = generateKeyBetween(before, after);
+    const side = dropType === 'sibling-above' ? 'above' : 'below';
+    const { before, after } = await repo.getSiblingBlockPositions(
+      targetBlock.note_id,
+      targetBlock.position,
+      side,
+      client
+    );
+    const newPosition = generateKeyBetween(before, after);
 
-  const updated = await repo.updateBlockPosition(blockId, newPosition, userId);
-  if (!updated) throw new NotFoundError('No se pudo mover el bloque');
-  return updated;
+    const updated = await repo.updateBlockPosition(blockId, newPosition, userId, client);
+    if (!updated) throw new NotFoundError('No se pudo mover el bloque');
+    return updated;
+  });
+};
+
+/**
+ * Mueve un bloque a OTRA nota (V2 del guard de moveBlockDnd). El bloque se apenda
+ * al final de la nota destino; sus imágenes/trades/flag de seguimiento viajan con
+ * él (cuelgan de block_id). Todo bajo withUserLock: el cálculo de posición y el
+ * UPDATE (más el reparent de sub-nota si aplica) son atómicos.
+ *
+ * Caso sub-nota: si el bloque es `reference` y su nota vinculada cuelga de la nota
+ * origen, se reparenta también la sub-nota al destino para no desincronizar el
+ * árbol del sidebar (antes el cliente lo hacía con 3 requests sin transacción).
+ *
+ * @param {Object} params
+ * @param {number} params.blockId      - Bloque a mover
+ * @param {number} params.targetNoteId - Nota destino
+ * @param {number} params.userId
+ */
+export const moveBlockToNote = async ({ blockId, targetNoteId, userId }) => {
+  return withUserLock(userId, async (client) => {
+    const block = await repo.findBlockByIdAndUser(blockId, userId, client);
+    if (!block) throw new NotFoundError('Bloque no encontrado');
+
+    const targetNote = await repo.findNoteByIdAndUser(targetNoteId, userId, client);
+    if (!targetNote) throw new NotFoundError('Nota destino no encontrada');
+    if (targetNote.type === 'section') {
+      throw new ValidationError('Las secciones no pueden contener bloques');
+    }
+    if (block.note_id === targetNoteId) {
+      throw new ValidationError('El bloque ya está en esa nota');
+    }
+
+    if (block.block_type === 'reference' && block.linked_note_id) {
+      const linked = await repo.findNoteByIdAndUser(block.linked_note_id, userId, client);
+      // Solo es una sub-nota "real" si cuelga de la nota origen del bloque.
+      if (linked && linked.parent_note_id === block.note_id) {
+        if (linked.id === targetNoteId) {
+          throw new ValidationError('No puedes mover una sub-nota dentro de sí misma');
+        }
+        const descendantIds = await repo.getDescendantIds(linked.id, client);
+        if (descendantIds.includes(targetNoteId)) {
+          throw new ValidationError('No puedes mover una sub-nota dentro de sus propias sub-notas');
+        }
+        await repo.move(userId, linked.id, targetNoteId, client);
+      }
+    }
+
+    const lastPos = await repo.getLastBlockPosition(targetNoteId, client);
+    const newPosition = generateKeyBetween(lastPos, null);
+    const updated = await repo.updateBlockNoteAndPosition(blockId, targetNoteId, newPosition, client);
+    if (!updated) throw new NotFoundError('No se pudo mover el bloque');
+
+    return { block: updated, source_note_id: block.note_id };
+  });
 };
 
 export const search = async (userId, { q, tagIds, limit }) => {
@@ -236,12 +382,38 @@ export const createBlock = async (userId, noteId, data) => {
   if (!note) throw new NotFoundError('Nota no encontrada');
   if (note.type === 'section') throw new ValidationError('Las secciones no pueden tener bloques');
 
-  if (data.block_type === 'reference' && data.linked_note_id) {
+  // linked_note_id solo tiene sentido en bloques 'reference' (legacy); rechazarlo en
+  // cualquier otro tipo y validar SIEMPRE ownership para evitar IDOR (leer títulos ajenos).
+  if (data.linked_note_id != null) {
+    if (data.block_type !== 'reference') {
+      throw new ValidationError('linked_note_id solo es válido en bloques de tipo reference');
+    }
     const linkedNote = await repo.getById(userId, data.linked_note_id);
     if (!linkedNote) throw new NotFoundError('Nota vinculada no encontrada');
   }
 
-  return repo.createBlock(noteId, data);
+  await assertReferenceTargetsOwned(userId, data.metadata);
+
+  // Bajo advisory lock: cálculo de posición + INSERT atómicos (sin claves duplicadas).
+  return withUserLock(userId, (client) => repo.createBlock(noteId, data, client));
+};
+
+// Valida existencia + ownership de los targets de una referencia (esquema nuevo, migración 022).
+// Evita referencias basura y fugas server-side. Lanza NotFoundError si el target es ajeno.
+const assertReferenceTargetsOwned = async (userId, metadata) => {
+  if (!metadata) return;
+  const { target_note_id: targetNoteId, target_block_id: targetBlockId } = metadata;
+
+  if (targetNoteId != null) {
+    const targetNote = await repo.getById(userId, targetNoteId);
+    if (!targetNote) throw new NotFoundError('Nota referenciada no encontrada');
+  }
+  if (targetBlockId != null) {
+    const targetBlock = await repo.getBlockById(targetBlockId);
+    if (!targetBlock || targetBlock.user_id !== userId) {
+      throw new NotFoundError('Bloque referenciado no encontrado');
+    }
+  }
 };
 
 export const updateBlockContent = async (userId, blockId, content) => {
@@ -261,6 +433,7 @@ export const updateBlockMetadata = async (userId, blockId, newMetadata) => {
   if (!['callout', 'image_gallery', 'reference'].includes(block.block_type)) {
     throw new ValidationError('Solo se puede actualizar metadata de bloques callout, image_gallery o reference');
   }
+  await assertReferenceTargetsOwned(userId, newMetadata);
   const existing = block.metadata || {};
   const merged = { ...existing, ...newMetadata };
   if (newMetadata.icon === null) delete merged.icon;
@@ -280,15 +453,21 @@ export const reorderBlocks = async (userId, noteId, blockIds) => {
   const note = await repo.getById(userId, noteId);
   if (!note) throw new NotFoundError('Nota no encontrada');
 
-  const existing = await repo.getBlocksByNoteId(noteId);
-  const existingIds = new Set(existing.map((b) => b.id));
-  for (const id of blockIds) {
-    if (!existingIds.has(id)) {
-      throw new ValidationError('Algunos bloques no pertenecen a esta nota');
+  return withUserLock(userId, async (client) => {
+    const existing = await repo.getBlocksByNoteId(noteId, client);
+    const existingIds = new Set(existing.map((b) => b.id));
+    for (const id of blockIds) {
+      if (!existingIds.has(id)) {
+        throw new ValidationError('Algunos bloques no pertenecen a esta nota');
+      }
     }
-  }
+    // La lista debe incluir a TODOS los bloques de la nota (reorden completo).
+    if (existing.length !== blockIds.length) {
+      throw new ValidationError('El reordenamiento debe incluir a todos los bloques de la nota');
+    }
 
-  await repo.reorderBlocks(noteId, blockIds);
+    await repo.reorderBlocks(noteId, blockIds, client);
+  });
 };
 
 // ============================================================
@@ -356,7 +535,9 @@ export const addTradeToBlock = async (userId, blockId, tradeId) => {
   }
   const trade = await tradeRepo.findById(userId, tradeId);
   if (!trade) throw new NotFoundError('Trade no encontrado');
-  return repo.addTradeToBlock(blockId, tradeId);
+  const added = await repo.addTradeToBlock(blockId, tradeId);
+  if (!added) throw new ConflictError('El trade ya está en este bloque');
+  return added;
 };
 
 export const removeTradeFromBlock = async (userId, blockId, tradeId) => {
@@ -423,9 +604,20 @@ export const removeTags = async (userId, noteId, tagIds) => {
 // EXPORTACIÓN
 // ============================================================
 
-const buildNoteTree = (notes, blocksMap, parentId = null) => {
-  return notes
-    .filter((n) => n.parent_note_id === parentId)
+// Agrupa las notas por parent_note_id una sola vez, evitando el filter O(n²) por
+// nivel del recorrido recursivo del export.
+const groupNotesByParent = (notes) => {
+  const map = new Map();
+  for (const n of notes) {
+    const key = n.parent_note_id ?? null;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(n);
+  }
+  return map;
+};
+
+const buildNoteTree = (childrenByParent, blocksMap, parentId = null) => {
+  return (childrenByParent.get(parentId ?? null) || [])
     .map((n) => ({
       id: n.id,
       title: n.title,
@@ -451,15 +643,15 @@ const buildNoteTree = (notes, blocksMap, parentId = null) => {
           target_block_id: b.metadata?.target_block_id ?? null,
         };
       }),
-      children: buildNoteTree(notes, blocksMap, n.id),
+      children: buildNoteTree(childrenByParent, blocksMap, n.id),
     }));
 };
 
-const renderMarkdownTree = (notes, blocksMap, parentId = null, depth = 1) => {
+const renderMarkdownTree = (childrenByParent, blocksMap, parentId = null, depth = 1) => {
   const heading = '#'.repeat(Math.min(depth, 6));
   const lines = [];
 
-  const children = notes.filter((n) => n.parent_note_id === parentId);
+  const children = childrenByParent.get(parentId ?? null) || [];
   for (const note of children) {
     lines.push(`${heading} ${note.title}`);
     if (note.tag_names && note.tag_names.length > 0) {
@@ -502,7 +694,7 @@ const renderMarkdownTree = (notes, blocksMap, parentId = null, depth = 1) => {
       }
     }
 
-    const childContent = renderMarkdownTree(notes, blocksMap, note.id, depth + 1);
+    const childContent = renderMarkdownTree(childrenByParent, blocksMap, note.id, depth + 1);
     if (childContent) lines.push(childContent);
   }
 
@@ -524,7 +716,7 @@ export const exportAsJSON = async (userId) => {
     total_notes: notes.length,
     total_tags: tags.length,
     tags: tags.map((t) => ({ name: t.name, color: t.color })),
-    notes: buildNoteTree(notes, blocksMap, null),
+    notes: buildNoteTree(groupNotesByParent(notes), blocksMap, null),
   };
 };
 
@@ -537,7 +729,7 @@ export const exportAsMarkdown = async (userId) => {
     blocksMap[block.note_id].push(block);
   }
 
-  return renderMarkdownTree(notes, blocksMap, null, 1);
+  return renderMarkdownTree(groupNotesByParent(notes), blocksMap, null, 1);
 };
 
 // ============================================================

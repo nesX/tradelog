@@ -49,6 +49,7 @@ export const useNote = (id) =>
 export const useCreateNote = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'createNote'],
     mutationFn: (data) => api.createNote(data),
     onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.tree() }),
   });
@@ -57,6 +58,7 @@ export const useCreateNote = () => {
 export const useUpdateNoteTitle = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'updateNoteTitle'],
     mutationFn: ({ id, title }) => api.updateNoteTitle(id, title),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: noteKeys.tree() });
@@ -68,23 +70,29 @@ export const useUpdateNoteTitle = () => {
 export const useDeleteNote = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'deleteNote'],
     mutationFn: (id) => api.deleteNote(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.tree() }),
+  });
+};
+
+export const useRestoreNote = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: [...noteKeys.all, 'restoreNote'],
+    mutationFn: (id) => api.restoreNote(id),
+    // Refrescar todo el dominio de notas: el árbol (nota + subtree reaparecen) y
+    // cualquier detalle abierto (p. ej. un bloque `reference` que apuntaba a una
+    // sub-nota restaurada vuelve a resolver su título al invalidarse el detail).
+    onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.all }),
   });
 };
 
 export const useMoveNote = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'moveNote'],
     mutationFn: ({ id, parent_note_id }) => api.moveNote(id, parent_note_id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.tree() }),
-  });
-};
-
-export const useReorderNotes = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (note_ids) => api.reorderNotes(note_ids),
     onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.tree() }),
   });
 };
@@ -92,6 +100,7 @@ export const useReorderNotes = () => {
 export const useCreateBlock = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'createBlock'],
     mutationFn: ({ noteId, data }) => api.createBlock(noteId, data),
     onSuccess: (_, { noteId }) => qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) }),
   });
@@ -100,6 +109,11 @@ export const useCreateBlock = () => {
 export const useUpdateBlock = () => {
   const qc = useQueryClient();
   return useMutation({
+    // El autosave tiene su propio feedback inline ("Error al guardar") y conserva
+    // el borrador para reintento (ver useAutosaveTextarea), así que se silencia el
+    // toast global para no spamear en cada debounce fallido.
+    mutationKey: [...noteKeys.all, 'updateBlock'],
+    meta: { silenceError: true },
     mutationFn: ({ blockId, content, noteId }) => api.updateBlock(blockId, content),
     onSuccess: (_, { noteId }) => {
       if (noteId) qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
@@ -110,6 +124,7 @@ export const useUpdateBlock = () => {
 export const useUpdateBlockMetadata = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'updateBlockMetadata'],
     mutationFn: ({ blockId, metadata }) => api.updateBlockMetadata(blockId, metadata),
     onSuccess: (_, { noteId }) => {
       if (noteId) qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
@@ -120,15 +135,8 @@ export const useUpdateBlockMetadata = () => {
 export const useDeleteBlock = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'deleteBlock'],
     mutationFn: ({ blockId }) => api.deleteBlock(blockId),
-    onSuccess: (_, { noteId }) => qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) }),
-  });
-};
-
-export const useReorderBlocks = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ noteId, block_ids }) => api.reorderBlocks(noteId, block_ids),
     onSuccess: (_, { noteId }) => qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) }),
   });
 };
@@ -136,6 +144,7 @@ export const useReorderBlocks = () => {
 export const useAddImage = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'addImage'],
     mutationFn: ({ blockId, formData }) => api.addBlockImage(blockId, formData),
     onSuccess: (_, { noteId }) => qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) }),
   });
@@ -144,18 +153,9 @@ export const useAddImage = () => {
 export const useDeleteImage = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'deleteImage'],
     mutationFn: ({ imageId }) => api.deleteBlockImage(imageId),
     onSuccess: (_, { noteId }) => qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) }),
-  });
-};
-
-export const useUpdateImageCaption = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ imageId, caption }) => api.updateImageCaption(imageId, caption),
-    onSuccess: (_, { noteId }) => {
-      if (noteId) qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
-    },
   });
 };
 
@@ -170,6 +170,7 @@ export const useNoteTags = () =>
 export const useCreateTag = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'createTag'],
     mutationFn: (data) => api.createNoteTag(data),
     onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.tags() }),
   });
@@ -178,6 +179,7 @@ export const useCreateTag = () => {
 export const useUpdateTag = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'updateTag'],
     mutationFn: ({ tagId, data }) => api.updateNoteTag(tagId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: noteKeys.tags() });
@@ -189,6 +191,7 @@ export const useUpdateTag = () => {
 export const useDeleteTag = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'deleteTag'],
     mutationFn: (tagId) => api.deleteNoteTag(tagId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: noteKeys.tags() });
@@ -200,6 +203,7 @@ export const useDeleteTag = () => {
 export const useAssignTags = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'assignTags'],
     mutationFn: ({ noteId, tag_ids }) => api.assignNoteTags(noteId, tag_ids),
     onSuccess: (_, { noteId }) => {
       qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
@@ -218,20 +222,10 @@ export const useNoteSearch = ({ q, tagIds, limit, enabled = true }) =>
     placeholderData: keepPreviousData,
   });
 
-export const useRemoveTags = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ noteId, tag_ids }) => api.removeNoteTags(noteId, tag_ids),
-    onSuccess: (_, { noteId }) => {
-      qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
-      qc.invalidateQueries({ queryKey: noteKeys.tree() });
-    },
-  });
-};
-
 export const useMoveNoteDnd = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'moveNoteDnd'],
     mutationFn: ({ noteId, targetId, dropType }) =>
       api.moveNoteDnd(noteId, { targetId, dropType }),
     onMutate: async ({ noteId, targetId, dropType }) => {
@@ -253,6 +247,7 @@ export const useMoveNoteDnd = () => {
 export const useAddTradeToBlock = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'addTradeToBlock'],
     mutationFn: ({ blockId, tradeId }) => api.addTradeToBlock(blockId, tradeId),
     onSuccess: (_, { noteId }) => {
       if (noteId) qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
@@ -263,6 +258,7 @@ export const useAddTradeToBlock = () => {
 export const useRemoveTradeFromBlock = () => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'removeTradeFromBlock'],
     mutationFn: ({ blockId, tradeId }) => api.removeTradeFromBlock(blockId, tradeId),
     onSuccess: (_, { noteId }) => {
       if (noteId) qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
@@ -270,9 +266,42 @@ export const useRemoveTradeFromBlock = () => {
   });
 };
 
+// Mover un bloque a OTRA nota. Optimista: el bloque desaparece de la nota origen
+// al instante; en error se restaura (y el toast global de mutaciones ya avisa).
+export const useMoveBlockToNote = (sourceNoteId) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: [...noteKeys.all, 'moveBlockToNote'],
+    mutationFn: ({ blockId, targetNoteId }) =>
+      api.moveBlockToNote(blockId, { target_note_id: targetNoteId }),
+    onMutate: async ({ blockId }) => {
+      await qc.cancelQueries({ queryKey: noteKeys.detail(sourceNoteId) });
+      const previous = qc.getQueryData(noteKeys.detail(sourceNoteId));
+      qc.setQueryData(noteKeys.detail(sourceNoteId), (old) => {
+        if (!old?.data?.blocks) return old;
+        return {
+          ...old,
+          data: { ...old.data, blocks: old.data.blocks.filter((b) => b.id !== blockId) },
+        };
+      });
+      return { previous };
+    },
+    onError: (_, __, context) => {
+      if (context?.previous) qc.setQueryData(noteKeys.detail(sourceNoteId), context.previous);
+    },
+    onSettled: (_, __, { targetNoteId }) => {
+      qc.invalidateQueries({ queryKey: noteKeys.detail(sourceNoteId) });
+      qc.invalidateQueries({ queryKey: noteKeys.detail(targetNoteId) });
+      // El tree muestra block_count por nota, y el caso sub-nota reparenta nodos.
+      qc.invalidateQueries({ queryKey: noteKeys.tree() });
+    },
+  });
+};
+
 export const useMoveBlockDnd = (noteId) => {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'moveBlockDnd'],
     mutationFn: ({ blockId, targetBlockId, dropType }) =>
       api.moveBlockDnd(blockId, { targetBlockId, dropType }),
     onMutate: async ({ blockId, targetBlockId, dropType }) => {
