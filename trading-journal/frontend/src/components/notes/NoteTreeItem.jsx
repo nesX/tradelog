@@ -55,7 +55,7 @@ const NoteTreeItem = ({
         <span
           {...attributes}
           {...listeners}
-          className="flex-shrink-0 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 transition-opacity"
+          className="flex-shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-60 touch-none cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 transition-opacity"
           aria-label="Arrastrar nota"
         >
           <GripVertical className="w-3 h-3" />
@@ -93,7 +93,7 @@ const NoteTreeItem = ({
         {/* Crear sub-nota */}
         <button
           onClick={(e) => { e.stopPropagation(); onCreateChild(note.id); }}
-          className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+          className="flex-shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-100 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
           title="Crear sub-nota"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -102,7 +102,7 @@ const NoteTreeItem = ({
         {/* Eliminar */}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(note.id, note.title); }}
-          className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-all"
+          className="flex-shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-all"
           title="Eliminar nota"
         >
           <Trash2 className="w-3.5 h-3.5" />

@@ -24,5 +24,11 @@ export default {
   },
   plugins: [
     require('@tailwindcss/typography'),
+    // Variante `touch:` para dispositivos sin hover (tablets/PWA). Permite mostrar
+    // los controles que en desktop solo aparecen con hover (`group-hover:`), que en
+    // pantallas táctiles quedaban inalcanzables.
+    require('tailwindcss/plugin')(({ addVariant }) => {
+      addVariant('touch', '@media (hover: none)');
+    }),
   ],
 };

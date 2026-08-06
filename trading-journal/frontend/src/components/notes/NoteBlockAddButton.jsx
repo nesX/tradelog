@@ -30,7 +30,7 @@ const NoteBlockAddButton = ({ noteId, position, topClass = 'top-1/2' }) => {
     <div
       ref={ref}
       className={`absolute -left-8 ${topClass} -translate-y-1/2 z-20 transition-opacity
-                  ${open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  ${open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 touch:opacity-100'}`}
     >
       <button
         onClick={(e) => {

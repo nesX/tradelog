@@ -6,6 +6,7 @@ import { reviewKeys } from './useReview.js';
 export function useToggleFollowUp() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: [...noteKeys.all, 'toggleFollowUp'],
     mutationFn: ({ blockId, requiresFollowUp }) => toggleBlockFollowUp(blockId, requiresFollowUp),
     onSuccess: (response) => {
       const block = response.data;

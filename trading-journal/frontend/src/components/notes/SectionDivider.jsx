@@ -83,7 +83,7 @@ const SectionDivider = ({
           {...attributes}
           {...listeners}
           onClick={(e) => e.stopPropagation()}
-          className="flex-shrink-0 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 transition-opacity"
+          className="flex-shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-60 touch-none cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 transition-opacity"
           aria-label="Arrastrar sección"
         >
           <GripVertical className="w-3 h-3" />
@@ -118,7 +118,7 @@ const SectionDivider = ({
           <div className="relative flex-shrink-0" ref={menuRef}>
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }}
-              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-all text-gray-400 dark:text-gray-500"
+              className="opacity-0 group-hover:opacity-100 touch:opacity-100 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-all text-gray-400 dark:text-gray-500"
               title="Opciones de sección"
             >
               <MoreHorizontal className="w-3.5 h-3.5" />
