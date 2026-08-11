@@ -90,19 +90,19 @@ const NoteTreeItem = ({
           </span>
         )}
 
-        {/* Crear sub-nota */}
+        {/* Crear sub-nota (solo desktop; en táctil se oculta para no saturar) */}
         <button
           onClick={(e) => { e.stopPropagation(); onCreateChild(note.id); }}
-          className="flex-shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-100 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+          className="flex-shrink-0 opacity-0 group-hover:opacity-100 touch:hidden p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
           title="Crear sub-nota"
         >
           <Plus className="w-3.5 h-3.5" />
         </button>
 
-        {/* Eliminar */}
+        {/* Eliminar. En táctil, mismo estilo discreto que el handle de arrastre. */}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(note.id, note.title); }}
-          className="flex-shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-all"
+          className="flex-shrink-0 opacity-0 group-hover:opacity-100 touch:opacity-60 touch:text-gray-300 dark:touch:text-gray-600 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-all"
           title="Eliminar nota"
         >
           <Trash2 className="w-3.5 h-3.5" />
