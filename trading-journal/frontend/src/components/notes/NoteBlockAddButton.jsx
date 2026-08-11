@@ -7,6 +7,9 @@ import { useBlockInserter, BLOCK_OPTIONS } from '../../hooks/useBlockInserter.js
  * opciones de bloque e inserta el nuevo bloque DEBAJO (en `position`).
  * Se hace visible al pasar el cursor por encima del bloque contenedor (que
  * debe tener la clase `group`).
+ *
+ * Solo desktop: en dispositivos táctiles se oculta (`touch:hidden`) porque
+ * la inserción vive en el menú "⋮" del bloque (BlockTouchMenu).
  */
 const NoteBlockAddButton = ({ noteId, position, topClass = 'top-1/2' }) => {
   const [open, setOpen] = useState(false);
@@ -29,8 +32,8 @@ const NoteBlockAddButton = ({ noteId, position, topClass = 'top-1/2' }) => {
   return (
     <div
       ref={ref}
-      className={`absolute -left-8 ${topClass} -translate-y-1/2 z-20 transition-opacity
-                  ${open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 touch:opacity-100'}`}
+      className={`absolute -left-8 ${topClass} -translate-y-1/2 z-20 transition-opacity touch:hidden
+                  ${open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
     >
       <button
         onClick={(e) => {

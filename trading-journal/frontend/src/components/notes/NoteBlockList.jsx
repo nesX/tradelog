@@ -26,6 +26,7 @@ import NoteTradeReferenceBlock from './NoteTradeReferenceBlock.jsx';
 import CopyReferenceButton from './CopyReferenceButton.jsx';
 import NoteBlockInsert from './NoteBlockInsert.jsx';
 import NoteBlockAddButton from './NoteBlockAddButton.jsx';
+import BlockTouchMenu from './BlockTouchMenu.jsx';
 import MoveBlockToNoteModal from './MoveBlockToNoteModal.jsx';
 import ConfirmDialog from '../common/ConfirmDialog.jsx';
 import { useDeleteBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd } from '../../hooks/useNotes.js';
@@ -90,16 +91,30 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
         id={`block-${block.id}`}
         className={`group relative${block.requires_follow_up ? ' border-l-2 border-amber-400 pl-3' : ''}`}
       >
-        {/* Botón "+" en el margen izquierdo: inserta un bloque debajo */}
+        {/* Botón "+" en el margen izquierdo: inserta un bloque debajo.
+            Solo desktop; en táctil la inserción vive en el menú "⋮". */}
         <NoteBlockAddButton noteId={noteId} position={idx + 1} topClass={actionTop} />
 
-        {/* Floating actions (grid 2x2). En desktop flotan en el margen derecho
-            (`-right-14`), fuera de la columna de contenido; en < md ese margen queda
-            fuera de pantalla, así que se anclan dentro del bloque (esquina superior
-            derecha). Visibles con hover en desktop y siempre en táctil. */}
+        {/* Táctil (tablets/móvil): un único botón "⋮" con todas las acciones
+            en un menú; mantener pulsado arrastra. Reemplaza al "+" y a la
+            grilla de acciones, que saturaban la pantalla al estar siempre
+            visibles sin hover. */}
+        <BlockTouchMenu
+          block={block}
+          noteId={noteId}
+          position={idx + 1}
+          onOpenMove={onOpenMove}
+          onDelete={onDelete}
+          dragListeners={listeners}
+        />
+
+        {/* Floating actions (grid 2x2), solo desktop (hover). Flotan en el
+            margen derecho (`-right-14`), fuera de la columna de contenido; en
+            < md ese margen queda fuera de pantalla, así que se anclan dentro
+            del bloque (esquina superior derecha). */}
         <div
           className={`absolute z-10 grid grid-cols-2 gap-0.5 transition-opacity
-                     opacity-0 group-hover:opacity-100 touch:opacity-100
+                     opacity-0 group-hover:opacity-100 touch:hidden
                      right-1 -top-3 md:-right-14 ${mdActionTop} md:-translate-y-1/2`}
         >
           {/* Drag handle */}
