@@ -85,15 +85,19 @@ const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragLis
                      transition-colors`;
 
   return (
-    <div ref={ref} className="hidden touch:block absolute right-1 -top-3 z-10">
+    // z-30 con el menú abierto para que quede por encima de los botones "⋮"
+    // de los bloques vecinos (todos comparten nivel z-10 cuando están cerrados).
+    <div
+      ref={ref}
+      className={`hidden touch:block absolute right-1 top-1 ${open ? 'z-30' : 'z-10'}`}
+    >
       <button
         {...dragListeners}
         onClick={handleToggleOpen}
         className="w-7 h-7 flex items-center justify-center rounded
-                   bg-white dark:bg-gray-800
-                   border border-gray-200 dark:border-gray-700
-                   text-gray-400 shadow-sm touch-none
-                   active:text-gray-700 dark:active:text-gray-200"
+                   bg-white/60 dark:bg-gray-800/60
+                   text-gray-400 touch-none opacity-60
+                   active:opacity-100 active:text-gray-700 dark:active:text-gray-200"
         title="Acciones del bloque (mantén pulsado para arrastrar)"
         aria-label="Acciones del bloque"
       >
