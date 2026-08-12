@@ -34,7 +34,7 @@ const SubNoteView = ({ block }) => {
         <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
       </div>
       <span className="text-sm font-medium text-gray-700 dark:text-gray-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
-        {block.linked_note_title || 'Sub-nota'}
+        {block.linked_note_title || 'Nota'}
       </span>
     </Link>
   );
