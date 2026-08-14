@@ -129,6 +129,7 @@ Listar trades del usuario. Soporta filtros y paginación.
 | `status` | `OPEN`/`CLOSED` | — | |
 | `start_date` | ISO date | — | Filtra `entry_date >= start_date` |
 | `end_date` | ISO date | — | Filtra `entry_date <= end_date` |
+| `tag_ids` | CSV de ints (`"1,2,3"`) | — | Filtra trades que tengan **al menos uno** de esos tags (`EXISTS` sobre `trade_tag_assignments`) |
 
 **Response 200**:
 ```json
@@ -169,13 +170,14 @@ Crear trade. `multipart/form-data` para soportar imágenes (campo `images`, máx
 | `system_id` | int | opcional, FK a `systems` |
 | `signal_ids[]` | int[] | opcional |
 | `timeframe_ids[]` | int[] | opcional |
+| `tag_ids[]` | int[] | opcional, FKs a `trade_tags` (deben pertenecer al usuario) |
 | `images` | file[] (jpg/png/webp/gif) | opcional, max 10, ≤`MAX_FILE_SIZE` |
 
 **Response 201**: el trade creado con imágenes incluidas.
 
 ### `PUT /api/trades/:id`
 
-Actualiza un trade. Mismo body que POST. Acepta nuevas imágenes vía `images[]` que se **agregan** (no reemplazan).
+Actualiza un trade. Mismo body que POST. Acepta nuevas imágenes vía `images[]` que se **agregan** (no reemplazan). `tag_ids` es **reemplazo total** (igual que los tags de notas): si se envía, sustituye todas las asignaciones existentes; `tag_ids: []` limpia todos los tags del trade.
 
 ### `DELETE /api/trades/:id`
 
@@ -220,6 +222,19 @@ Previsualiza un import CSV sin guardar. Body JSON:
   }
 }
 ```
+
+### Tags (globales por usuario)
+
+`GET`/`POST`/`PATCH`/`DELETE` en `/api/trades/tags[/:tagId]` (montadas antes de `/api/trades/:id` para que Express no confunda `tags` con un `:id`). Espejo de los tags de notas (`/api/notes/tags`).
+
+| Ruta | Body | Notas |
+|------|------|-------|
+| `GET /api/trades/tags` | — | Lista los tags del usuario, ordenados por nombre |
+| `POST /api/trades/tags` | `{ name, color? }` | `color` hex `#RRGGBB`, default `#6B7280`. 400 si ya existe un tag con ese nombre (case-insensitive) |
+| `PATCH /api/trades/tags/:tagId` | `{ name?, color? }` | |
+| `DELETE /api/trades/tags/:tagId` | — | Borra el tag y sus asignaciones (`ON DELETE CASCADE`) |
+
+La asignación de tags a un trade **no** tiene endpoints propios: se hace vía el campo `tag_ids` en `POST /api/trades` y `PUT /api/trades/:id` (ver arriba). El detalle (`GET /api/trades/:id`) y el listado (`GET /api/trades`) incluyen `tags: [{ id, name, color }]` en cada trade.
 
 ### `POST /api/trades/import`
 

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Edit2, Trash2, MoreVertical, Link2 } from 'lucide-react';
 import ImageViewer from '../common/ImageViewer.jsx';
 import Modal from '../common/Modal.jsx';
+import TradeTagBadge from './TradeTagBadge.jsx';
 import { useSystems } from '../../hooks/useSystems.js';
 import { useToast } from '../common/Toast.jsx';
 import { buildTradeUrl } from '../../utils/referenceLinks.js';
@@ -17,7 +18,7 @@ import {
 /**
  * Componente de fila de trade para la tabla
  */
-const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
+const TradeRow = ({ trade, onEdit, onDelete }) => {
   const [showActions, setShowActions] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showNotesModal, setShowNotesModal] = useState(false);
@@ -136,6 +137,13 @@ const TradeRow = ({ trade, onEdit, onDelete, isLast = false }) => {
             <span className="inline-block px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full w-fit max-w-[120px] truncate">
               {primarySystem.name}
             </span>
+          )}
+          {trade.tags && trade.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {trade.tags.map((tag) => (
+                <TradeTagBadge key={tag.id} tag={tag} />
+              ))}
+            </div>
           )}
         </div>
       </td>

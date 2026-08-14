@@ -84,7 +84,7 @@ Originados en [`analysis/scaling.md` Fase 0](analysis/scaling.md#fase-0--hardeni
 - Gráficos en Stats page (Chart.js o Recharts) — hoy son solo cards numéricas.
 - Calendar view de trades (heatmap por día).
 - Export de stats a CSV/PDF.
-- Tags / categorías propias por trade (no solo system/signals).
+- ~~Tags / categorías propias por trade (no solo system/signals).~~ ✅ Implementado — migración `025_migration_trade_tags.sql`, CRUD `/api/trades/tags`, filtro `tag_ids` en `GET /api/trades`, selector en `CreateTradeForm` y `TradeFilters`. Ver [`docs/api/reference.md`](api/reference.md#tags-globales-por-usuario) y [`docs/architecture/database.md`](architecture/database.md).
 
 ### Infraestructura
 

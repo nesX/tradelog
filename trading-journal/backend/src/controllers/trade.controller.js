@@ -12,10 +12,20 @@ import { logger } from '../utils/logger.js';
  */
 export const listTrades = async (req, res, next) => {
   try {
-    const result = await tradeService.getAllTrades(req.user.id, req.query);
+    // tag_ids llega como CSV validado por listTradesQuerySchema ("1,2,3"); se
+    // convierte a array de ints, igual que note.controller.js:search.
+    const { tag_ids, ...rest } = req.query;
+    const filters = {
+      ...rest,
+      tagIds: tag_ids ? tag_ids.split(',').map(Number).filter(Boolean) : [],
+    };
+    const result = await tradeService.getAllTrades(req.user.id, filters);
     sendSuccess(res, result);
   } catch (error) {
-    logger.error('TradeController:listTrades', { error: error.message, userId: req.user?.id });
+    logger.error('TradeController:listTrades', {
+      error: error.message,
+      userId: req.user?.id,
+    });
     next(error);
   }
 };
@@ -28,7 +38,11 @@ export const getTrade = async (req, res, next) => {
     const trade = await tradeService.getTradeById(req.user.id, req.params.id);
     sendSuccess(res, trade);
   } catch (error) {
-    logger.error('TradeController:getTrade', { error: error.message, userId: req.user?.id, tradeId: req.params.id });
+    logger.error('TradeController:getTrade', {
+      error: error.message,
+      userId: req.user?.id,
+      tradeId: req.params.id,
+    });
     next(error);
   }
 };
@@ -37,11 +51,20 @@ export const getTrade = async (req, res, next) => {
  * Parsea campos JSON que llegan como strings desde FormData
  */
 const parseJsonFields = (body) => {
-  const jsonFields = ['primary_signals', 'secondary_signals', 'timeframe_ids'];
+  const jsonFields = [
+    'primary_signals',
+    'secondary_signals',
+    'timeframe_ids',
+    'tag_ids',
+  ];
   const result = { ...body };
   for (const field of jsonFields) {
     if (typeof result[field] === 'string') {
-      try { result[field] = JSON.parse(result[field]); } catch { delete result[field]; }
+      try {
+        result[field] = JSON.parse(result[field]);
+      } catch {
+        delete result[field];
+      }
     }
   }
   return result;
@@ -52,10 +75,17 @@ const parseJsonFields = (body) => {
  */
 export const createTrade = async (req, res, next) => {
   try {
-    const trade = await tradeService.createTrade(req.user.id, parseJsonFields(req.body), req.files || []);
+    const trade = await tradeService.createTrade(
+      req.user.id,
+      parseJsonFields(req.body),
+      req.files || [],
+    );
     sendCreated(res, trade, 'Trade creado exitosamente');
   } catch (error) {
-    logger.error('TradeController:createTrade', { error: error.message, userId: req.user?.id });
+    logger.error('TradeController:createTrade', {
+      error: error.message,
+      userId: req.user?.id,
+    });
     next(error);
   }
 };
@@ -65,10 +95,19 @@ export const createTrade = async (req, res, next) => {
  */
 export const updateTrade = async (req, res, next) => {
   try {
-    const trade = await tradeService.updateTrade(req.user.id, req.params.id, parseJsonFields(req.body), req.files || []);
+    const trade = await tradeService.updateTrade(
+      req.user.id,
+      req.params.id,
+      parseJsonFields(req.body),
+      req.files || [],
+    );
     sendSuccess(res, trade, 'Trade actualizado exitosamente');
   } catch (error) {
-    logger.error('TradeController:updateTrade', { error: error.message, userId: req.user?.id, tradeId: req.params.id });
+    logger.error('TradeController:updateTrade', {
+      error: error.message,
+      userId: req.user?.id,
+      tradeId: req.params.id,
+    });
     next(error);
   }
 };
@@ -78,10 +117,18 @@ export const updateTrade = async (req, res, next) => {
  */
 export const deleteTrade = async (req, res, next) => {
   try {
-    await tradeService.deleteTrade(req.user.id, req.params.id, req.query.permanent === 'true');
+    await tradeService.deleteTrade(
+      req.user.id,
+      req.params.id,
+      req.query.permanent === 'true',
+    );
     sendDeleted(res, 'Trade eliminado exitosamente');
   } catch (error) {
-    logger.error('TradeController:deleteTrade', { error: error.message, userId: req.user?.id, tradeId: req.params.id });
+    logger.error('TradeController:deleteTrade', {
+      error: error.message,
+      userId: req.user?.id,
+      tradeId: req.params.id,
+    });
     next(error);
   }
 };
@@ -91,10 +138,18 @@ export const deleteTrade = async (req, res, next) => {
  */
 export const addImages = async (req, res, next) => {
   try {
-    const images = await tradeService.addImages(req.user.id, req.params.id, req.files || []);
+    const images = await tradeService.addImages(
+      req.user.id,
+      req.params.id,
+      req.files || [],
+    );
     sendCreated(res, { images }, 'Imágenes agregadas exitosamente');
   } catch (error) {
-    logger.error('TradeController:addImages', { error: error.message, userId: req.user?.id, tradeId: req.params.id });
+    logger.error('TradeController:addImages', {
+      error: error.message,
+      userId: req.user?.id,
+      tradeId: req.params.id,
+    });
     next(error);
   }
 };
@@ -104,10 +159,19 @@ export const addImages = async (req, res, next) => {
  */
 export const deleteImage = async (req, res, next) => {
   try {
-    const trade = await tradeService.deleteImage(req.user.id, parseInt(req.params.id), parseInt(req.params.imageId));
+    const trade = await tradeService.deleteImage(
+      req.user.id,
+      parseInt(req.params.id),
+      parseInt(req.params.imageId),
+    );
     sendSuccess(res, trade, 'Imagen eliminada exitosamente');
   } catch (error) {
-    logger.error('TradeController:deleteImage', { error: error.message, userId: req.user?.id, tradeId: req.params.id, imageId: req.params.imageId });
+    logger.error('TradeController:deleteImage', {
+      error: error.message,
+      userId: req.user?.id,
+      tradeId: req.params.id,
+      imageId: req.params.imageId,
+    });
     next(error);
   }
 };
@@ -117,10 +181,17 @@ export const deleteImage = async (req, res, next) => {
  */
 export const deleteAllImages = async (req, res, next) => {
   try {
-    const trade = await tradeService.deleteAllImages(req.user.id, req.params.id);
+    const trade = await tradeService.deleteAllImages(
+      req.user.id,
+      req.params.id,
+    );
     sendSuccess(res, trade, 'Imágenes eliminadas exitosamente');
   } catch (error) {
-    logger.error('TradeController:deleteAllImages', { error: error.message, userId: req.user?.id, tradeId: req.params.id });
+    logger.error('TradeController:deleteAllImages', {
+      error: error.message,
+      userId: req.user?.id,
+      tradeId: req.params.id,
+    });
     next(error);
   }
 };
@@ -133,7 +204,10 @@ export const getSymbols = async (req, res, next) => {
     const symbols = await tradeService.getUniqueSymbols(req.user.id);
     sendSuccess(res, { symbols });
   } catch (error) {
-    logger.error('TradeController:getSymbols', { error: error.message, userId: req.user?.id });
+    logger.error('TradeController:getSymbols', {
+      error: error.message,
+      userId: req.user?.id,
+    });
     next(error);
   }
 };
@@ -146,7 +220,10 @@ export const previewCSVImport = async (req, res, next) => {
     const preview = csvParserService.previewCSV(req.body.csvData);
     sendSuccess(res, preview);
   } catch (error) {
-    logger.error('TradeController:previewCSVImport', { error: error.message, userId: req.user?.id });
+    logger.error('TradeController:previewCSVImport', {
+      error: error.message,
+      userId: req.user?.id,
+    });
     next(error);
   }
 };
@@ -156,14 +233,97 @@ export const previewCSVImport = async (req, res, next) => {
  */
 export const importCSV = async (req, res, next) => {
   try {
-    const result = await csvParserService.importCSV(req.user.id, req.body.csvData);
+    const result = await csvParserService.importCSV(
+      req.user.id,
+      req.body.csvData,
+    );
     if (result.success) {
       sendCreated(res, result, result.message);
     } else {
       sendSuccess(res, result, result.message);
     }
   } catch (error) {
-    logger.error('TradeController:importCSV', { error: error.message, userId: req.user?.id });
+    logger.error('TradeController:importCSV', {
+      error: error.message,
+      userId: req.user?.id,
+    });
+    next(error);
+  }
+};
+
+// ============================================================
+// TAGS
+// ============================================================
+
+/**
+ * GET /api/trades/tags - Listar tags del usuario
+ */
+export const getTradeTags = async (req, res, next) => {
+  try {
+    const data = await tradeService.getTradeTags(req.user.id);
+    sendSuccess(res, data);
+  } catch (error) {
+    logger.error('TradeController:getTradeTags', {
+      error: error.message,
+      userId: req.user?.id,
+    });
+    next(error);
+  }
+};
+
+/**
+ * POST /api/trades/tags - Crear un tag
+ */
+export const createTradeTag = async (req, res, next) => {
+  try {
+    const data = await tradeService.createTradeTag(req.user.id, req.body);
+    sendCreated(res, data, 'Tag creado');
+  } catch (error) {
+    logger.error('TradeController:createTradeTag', {
+      error: error.message,
+      userId: req.user?.id,
+    });
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/trades/tags/:tagId - Actualizar un tag
+ */
+export const updateTradeTag = async (req, res, next) => {
+  try {
+    const data = await tradeService.updateTradeTag(
+      req.user.id,
+      parseInt(req.params.tagId, 10),
+      req.body,
+    );
+    sendSuccess(res, data, 'Tag actualizado');
+  } catch (error) {
+    logger.error('TradeController:updateTradeTag', {
+      error: error.message,
+      userId: req.user?.id,
+      tagId: req.params.tagId,
+    });
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/trades/tags/:tagId - Eliminar un tag
+ */
+export const deleteTradeTag = async (req, res, next) => {
+  try {
+    await tradeService.deleteTradeTag(
+      req.user.id,
+      parseInt(req.params.tagId, 10),
+    );
+    sendDeleted(res, 'Tag eliminado');
+  } catch (error) {
+    logger.error('TradeController:deleteTradeTag', {
+      error: error.message,
+      userId: req.user?.id,
+      tagId: req.params.tagId,
+    });
     next(error);
   }
 };

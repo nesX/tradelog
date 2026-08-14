@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Search, Filter, X } from 'lucide-react';
-import Input from '../common/Input.jsx';
+import { useState, useEffect, useRef } from 'react';
+import { Search, Filter, X, ChevronDown } from 'lucide-react';
 import DateInput from '../common/DateInput.jsx';
 import Select from '../common/Select.jsx';
 import Button from '../common/Button.jsx';
-import { useSymbols } from '../../hooks/useTrades.js';
+import { useSymbols, useTradeTags } from '../../hooks/useTrades.js';
 import {
   TRADE_STATUS_OPTIONS,
   TRADE_TYPE_OPTIONS,
@@ -19,16 +18,43 @@ const TradeFilters = ({ filters, onFiltersChange }) => {
   const [localFilters, setLocalFilters] = useState(filters);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const { data: symbols = [] } = useSymbols();
+  const { data: allTags = [] } = useTradeTags();
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const tagDropdownRef = useRef(null);
 
   // Sincronizar con filtros externos
   useEffect(() => {
     setLocalFilters(filters);
   }, [filters]);
 
+  // Cerrar dropdown de tags al hacer click fuera
+  useEffect(() => {
+    const handler = (e) => {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target)) {
+        setTagDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   // Manejar cambios
   const handleChange = (field, value) => {
     const newFilters = { ...localFilters, [field]: value };
     setLocalFilters(newFilters);
+  };
+
+  // tag_ids se guarda como CSV ("1,2,3") en localFilters, igual que lo espera
+  // el backend (listTradesQuerySchema); se deriva el array seleccionado desde ahí.
+  const selectedTagIds = localFilters.tag_ids
+    ? localFilters.tag_ids.split(',').map(Number).filter(Boolean)
+    : [];
+
+  const toggleTag = (tagId) => {
+    const next = selectedTagIds.includes(tagId)
+      ? selectedTagIds.filter((id) => id !== tagId)
+      : [...selectedTagIds, tagId];
+    handleChange('tag_ids', next.length > 0 ? next.join(',') : undefined);
   };
 
   // Aplicar filtros
@@ -50,7 +76,8 @@ const TradeFilters = ({ filters, onFiltersChange }) => {
 
   // Verificar si hay filtros activos
   const hasActiveFilters = localFilters.status || localFilters.symbol ||
-    localFilters.trade_type || localFilters.dateFrom || localFilters.dateTo;
+    localFilters.trade_type || localFilters.dateFrom || localFilters.dateTo ||
+    localFilters.tag_ids;
 
   // Preparar opciones de símbolos
   const symbolOptions = [
@@ -94,6 +121,54 @@ const TradeFilters = ({ filters, onFiltersChange }) => {
             placeholder={null}
           />
         </div>
+
+        {/* Tags (multi-select) */}
+        {allTags.length > 0 && (
+          <div className="w-48 relative" ref={tagDropdownRef}>
+            <label className="label text-sm">Tags</label>
+            <button
+              type="button"
+              onClick={() => setTagDropdownOpen((v) => !v)}
+              className="input text-sm flex items-center justify-between w-full text-left"
+            >
+              <span className="truncate">
+                {selectedTagIds.length === 0
+                  ? 'Todos los tags'
+                  : `${selectedTagIds.length} seleccionado${selectedTagIds.length > 1 ? 's' : ''}`}
+              </span>
+              <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </button>
+
+            {tagDropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 z-50 w-56
+                bg-white dark:bg-gray-800
+                border border-gray-200 dark:border-gray-600
+                rounded-md shadow-lg py-1 max-h-48 overflow-y-auto">
+                {allTags.map((tag) => {
+                  const selected = selectedTagIds.includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleTag(tag.id)}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5
+                        text-sm text-gray-700 dark:text-gray-200
+                        hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left
+                        ${selected ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: tag.color || '#6B7280' }}
+                      />
+                      <span className="flex-1 truncate">{tag.name}</span>
+                      {selected && <span className="text-blue-600 dark:text-blue-400">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Ordenar por */}
         <div className="w-40">

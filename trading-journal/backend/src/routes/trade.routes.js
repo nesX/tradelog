@@ -9,6 +9,8 @@ import {
   listTradesQuerySchema,
   idParamSchema,
   csvImportSchema,
+  createTradeTagSchema,
+  updateTradeTagSchema,
 } from '../validators/trade.validator.js';
 
 const router = Router();
@@ -19,33 +21,44 @@ router.use(authenticate);
 // GET /api/trades/symbols - Obtener símbolos únicos (antes de :id para evitar conflicto)
 router.get('/symbols', tradeController.getSymbols);
 
+// Tags — rutas estáticas ANTES de /:id para evitar que Express interprete
+// "tags" como un :id (mismo patrón que note.routes.js)
+router.get('/tags', tradeController.getTradeTags);
+router.post(
+  '/tags',
+  validate(createTradeTagSchema),
+  tradeController.createTradeTag,
+);
+router.patch(
+  '/tags/:tagId',
+  validate(updateTradeTagSchema),
+  tradeController.updateTradeTag,
+);
+router.delete('/tags/:tagId', tradeController.deleteTradeTag);
+
 // POST /api/trades/import/preview - Preview de CSV
 router.post(
   '/import/preview',
   validate(csvImportSchema, 'body'),
-  tradeController.previewCSVImport
+  tradeController.previewCSVImport,
 );
 
 // POST /api/trades/import - Importar desde CSV
 router.post(
   '/import',
   validate(csvImportSchema, 'body'),
-  tradeController.importCSV
+  tradeController.importCSV,
 );
 
 // GET /api/trades - Listar trades
 router.get(
   '/',
   validate(listTradesQuerySchema, 'query'),
-  tradeController.listTrades
+  tradeController.listTrades,
 );
 
 // GET /api/trades/:id - Obtener trade por ID
-router.get(
-  '/:id',
-  validate(idParamSchema, 'params'),
-  tradeController.getTrade
-);
+router.get('/:id', validate(idParamSchema, 'params'), tradeController.getTrade);
 
 // POST /api/trades - Crear trade (con múltiples imágenes)
 router.post(
@@ -53,7 +66,7 @@ router.post(
   uploadTradeImages,
   handleMulterError,
   validate(createTradeSchema, 'body'),
-  tradeController.createTrade
+  tradeController.createTrade,
 );
 
 // PUT /api/trades/:id - Actualizar trade (con múltiples imágenes nuevas)
@@ -63,14 +76,14 @@ router.put(
   uploadTradeImages,
   handleMulterError,
   validate(updateTradeSchema, 'body'),
-  tradeController.updateTrade
+  tradeController.updateTrade,
 );
 
 // DELETE /api/trades/:id - Eliminar trade
 router.delete(
   '/:id',
   validate(idParamSchema, 'params'),
-  tradeController.deleteTrade
+  tradeController.deleteTrade,
 );
 
 // POST /api/trades/:id/images - Agregar imágenes a un trade existente
@@ -79,20 +92,17 @@ router.post(
   validate(idParamSchema, 'params'),
   uploadTradeImages,
   handleMulterError,
-  tradeController.addImages
+  tradeController.addImages,
 );
 
 // DELETE /api/trades/:id/images/:imageId - Eliminar una imagen específica
-router.delete(
-  '/:id/images/:imageId',
-  tradeController.deleteImage
-);
+router.delete('/:id/images/:imageId', tradeController.deleteImage);
 
 // DELETE /api/trades/:id/images - Eliminar todas las imágenes de un trade
 router.delete(
   '/:id/images',
   validate(idParamSchema, 'params'),
-  tradeController.deleteAllImages
+  tradeController.deleteAllImages,
 );
 
 export default router;

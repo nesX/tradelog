@@ -14,6 +14,7 @@ export const tradeKeys = {
   details: () => [...tradeKeys.all, 'detail'],
   detail: (id) => [...tradeKeys.details(), id],
   symbols: () => [...tradeKeys.all, 'symbols'],
+  tags: () => [...tradeKeys.all, 'tags'],
 };
 
 /**
@@ -166,6 +167,60 @@ export const useImportCSV = () => {
       queryClient.invalidateQueries({ queryKey: tradeKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tradeKeys.symbols() });
       queryClient.invalidateQueries({ queryKey: statsKeys.all });
+    },
+  });
+};
+
+// ============================================================
+// TAGS
+// ============================================================
+
+/**
+ * Hook para obtener los tags de trades del usuario
+ */
+export const useTradeTags = () =>
+  useQuery({
+    queryKey: tradeKeys.tags(),
+    queryFn: () => api.getTradeTags(),
+    select: (response) => response.data,
+    staleTime: 60000,
+  });
+
+/**
+ * Hook para crear un tag de trades
+ */
+export const useCreateTradeTag = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.createTradeTag(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: tradeKeys.tags() }),
+  });
+};
+
+/**
+ * Hook para actualizar un tag de trades
+ */
+export const useUpdateTradeTag = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tagId, data }) => api.updateTradeTag(tagId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tradeKeys.tags() });
+      queryClient.invalidateQueries({ queryKey: tradeKeys.lists() });
+    },
+  });
+};
+
+/**
+ * Hook para eliminar un tag de trades
+ */
+export const useDeleteTradeTag = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tagId) => api.deleteTradeTag(tagId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tradeKeys.tags() });
+      queryClient.invalidateQueries({ queryKey: tradeKeys.lists() });
     },
   });
 };

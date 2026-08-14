@@ -1,13 +1,16 @@
 import { useForm, Controller } from 'react-hook-form';
 import { useState } from 'react';
-import { X, Image as ImageIcon, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Image as ImageIcon, Plus, ChevronDown, ChevronUp, Tags } from 'lucide-react';
 import Input from '../common/Input.jsx';
 import DateTimeInput from '../common/DateTimeInput.jsx';
 import Select from '../common/Select.jsx';
 import Button from '../common/Button.jsx';
+import TradeTagBadge from './TradeTagBadge.jsx';
+import TradeTagManager from './TradeTagManager.jsx';
 import { useImageUpload } from '../../hooks/useImageUpload.js';
 import { useSystems, useSystem } from '../../hooks/useSystems.js';
 import { useTimeframes } from '../../hooks/useTimeframes.js';
+import { useTradeTags } from '../../hooks/useTrades.js';
 import { TRADE_TYPE_OPTIONS } from '../../constants/tradeConstants.js';
 import { formatDateForInput } from '../../utils/formatters.js';
 
@@ -38,7 +41,7 @@ const SystemBlock = ({ role, systems, timeframes, analysis, onChange }) => {
     }));
   };
 
-  const handleSignalToggle = (signalId, usesScale) => {
+  const handleSignalToggle = (signalId, _usesScale) => {
     const exists = signals.find(s => s.signal_id === signalId);
     if (exists) {
       onChange(prev => ({
@@ -206,7 +209,6 @@ const CreateTradeForm = ({
     handleDrop,
     handleDragOver,
     removeFile,
-    clearFiles,
   } = useImageUpload();
 
   // Análisis técnico (sistemas/señales/timeframes) — separado del form principal
@@ -223,6 +225,19 @@ const CreateTradeForm = ({
   // Cargar sistemas y timeframes del usuario
   const { data: systemsList = [] } = useSystems();
   const { data: timeframesList = [] } = useTimeframes();
+
+  // Tags — rehidratar desde initialData.tags al editar
+  const { data: tagsList = [] } = useTradeTags();
+  const [selectedTagIds, setSelectedTagIds] = useState(
+    initialData?.tags?.map((t) => t.id) || []
+  );
+  const [showTagManager, setShowTagManager] = useState(false);
+
+  const toggleTag = (tagId) => {
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
+  };
 
   // Observar el valor de entry_date para usarlo en el checkbox de cerrar trade
   const entryDate = watch('entry_date');
@@ -254,6 +269,9 @@ const CreateTradeForm = ({
       exit_date: data.exit_date || null,
       notes: data.notes || null,
       post_analysis: data.post_analysis || null,
+      // Siempre se incluye (aun vacío) para que en edición se puedan limpiar
+      // todos los tags del trade (reemplazo total en el backend).
+      tag_ids: selectedTagIds,
     };
 
     // Incluir análisis técnico solo si el usuario configuró algo
@@ -271,6 +289,7 @@ const CreateTradeForm = ({
   };
 
   return (
+    <>
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       {/* Fila 1: Símbolo y Tipo */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -415,6 +434,42 @@ const CreateTradeForm = ({
         />
         {errors.post_analysis && (
           <p className="mt-1 text-sm text-red-600">{errors.post_analysis.message}</p>
+        )}
+      </div>
+
+      {/* Tags */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="label mb-0">Etiquetas</label>
+          <button
+            type="button"
+            onClick={() => setShowTagManager(true)}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            title="Gestionar tags"
+          >
+            <Tags className="w-3.5 h-3.5" />
+            Gestionar
+          </button>
+        </div>
+        {tagsList.length === 0 ? (
+          <p className="text-xs text-gray-400">No hay tags creados aún. Usa "Gestionar" para crear uno.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {tagsList.map((tag) => {
+              const selected = selectedTagIds.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => toggleTag(tag.id)}
+                  className="transition-opacity"
+                  style={{ opacity: selected ? 1 : 0.4 }}
+                >
+                  <TradeTagBadge tag={tag} />
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -595,6 +650,17 @@ const CreateTradeForm = ({
         </Button>
       </div>
     </form>
+
+    {/* Fuera del <form>: TradeTagManager renderiza su propio <form> interno y
+        anidar <form> dentro de <form> es inválido en HTML. */}
+    <TradeTagManager
+      isOpen={showTagManager}
+      onClose={() => setShowTagManager(false)}
+      onTagCreated={(tag) =>
+        setSelectedTagIds((prev) => (prev.includes(tag.id) ? prev : [...prev, tag.id]))
+      }
+    />
+    </>
   );
 };
 

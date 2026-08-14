@@ -2,7 +2,7 @@
 
 PostgreSQL 16 (en compose dev). En producción se conecta al postgres compartido del proyecto `market-tracker`.
 
-Migraciones: `trading-journal/database/0NN_*.sql`, secuenciales del `001` al `023`. **No hay framework de migraciones** — se aplican manualmente con `psql`.
+Migraciones: `trading-journal/database/0NN_*.sql`, secuenciales del `001` al `025`. **No hay framework de migraciones** — se aplican manualmente con `psql`.
 
 ## Tablas
 
@@ -22,6 +22,8 @@ Migraciones relacionadas: `007_migration_auth.sql`, `021_migration_user_roles.sq
 | `trade_images` | Múltiples imágenes por trade. FK `trade_id ON DELETE CASCADE`. | `005_schema.sql` |
 | `trade_signals` | Señales asociadas a un trade. M:N entre `trades` y `signals`. | `009_migration_systems.sql` |
 | `trade_timeframes` | Timeframes asociados a un trade. | `009_*` |
+| `trade_tags` | Tags globales por usuario, para trades (espejo de `note_tags`). | `025_migration_trade_tags.sql` |
+| `trade_tag_assignments` | M:N entre `trades` y `trade_tags`. | `025_migration_trade_tags.sql` |
 
 #### Tabla `trades` — definición clave
 
@@ -118,6 +120,10 @@ users.id ──┐  ON DELETE CASCADE (en la mayoría de los hijos):
            │   └── trade_images.trade_id        (CASCADE)
            │   └── trade_signals.trade_id       (CASCADE)
            │   └── trade_timeframes.trade_id    (CASCADE)
+           │   └── trade_tag_assignments.trade_id   (CASCADE)
+           │
+           ├── trade_tags.user_id
+           │   └── trade_tag_assignments.tag_id     (CASCADE)
            │
            ├── systems.user_id
            │   └── signals.system_id            (CASCADE)

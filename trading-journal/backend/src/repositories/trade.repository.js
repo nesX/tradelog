@@ -1,5 +1,9 @@
 import { query, getClient } from '../config/database.js';
-import { TRADE_FIELDS, IMAGE_FIELDS, PAGINATION_DEFAULTS } from '../models/trade.model.js';
+import {
+  TRADE_FIELDS,
+  IMAGE_FIELDS,
+  PAGINATION_DEFAULTS,
+} from '../models/trade.model.js';
 import {
   getSystemDataForTrades,
   getTradeSignals,
@@ -25,7 +29,7 @@ const SELECT_IMAGE_FIELDS = IMAGE_FIELDS.join(', ');
 export const getTradeImages = async (tradeId) => {
   const result = await query(
     `SELECT ${SELECT_IMAGE_FIELDS} FROM trade_images WHERE trade_id = $1 ORDER BY created_at`,
-    [tradeId]
+    [tradeId],
   );
   return result.rows;
 };
@@ -40,7 +44,7 @@ export const getImagesForTrades = async (tradeIds) => {
 
   const result = await query(
     `SELECT ${SELECT_IMAGE_FIELDS} FROM trade_images WHERE trade_id = ANY($1) ORDER BY created_at`,
-    [tradeIds]
+    [tradeIds],
   );
 
   // Agrupar por trade_id
@@ -71,6 +75,7 @@ export const findAll = async (userId, options = {}) => {
     trade_type,
     dateFrom,
     dateTo,
+    tagIds,
   } = options;
 
   const offset = (page - 1) * limit;
@@ -103,6 +108,14 @@ export const findAll = async (userId, options = {}) => {
     conditions.push(`entry_date <= $${params.length}`);
   }
 
+  if (tagIds && tagIds.length > 0) {
+    params.push(tagIds);
+    conditions.push(`EXISTS (
+      SELECT 1 FROM trade_tag_assignments tta_f
+      WHERE tta_f.trade_id = trades.id AND tta_f.tag_id = ANY($${params.length})
+    )`);
+  }
+
   const whereClause = conditions.join(' AND ');
 
   // Query para obtener el total
@@ -122,20 +135,22 @@ export const findAll = async (userId, options = {}) => {
   const dataResult = await query(dataQuery, [...params, limit, offset]);
   const trades = dataResult.rows;
 
-  // Obtener imágenes y datos de sistemas para todos los trades
-  const tradeIds = trades.map(t => t.id);
-  const [imagesByTrade, systemData] = await Promise.all([
+  // Obtener imágenes, datos de sistemas y tags para todos los trades
+  const tradeIds = trades.map((t) => t.id);
+  const [imagesByTrade, systemData, tagsByTrade] = await Promise.all([
     getImagesForTrades(tradeIds),
     getSystemDataForTrades(tradeIds),
+    getTagsForTrades(tradeIds),
   ]);
 
-  // Agregar imágenes y señales/timeframes a cada trade
+  // Agregar imágenes, señales/timeframes y tags a cada trade
   for (const trade of trades) {
     trade.images = imagesByTrade[trade.id] || [];
     const sigs = systemData.signals[trade.id] || { primary: [], secondary: [] };
     trade.primary_signals = sigs.primary;
     trade.secondary_signals = sigs.secondary;
     trade.timeframes = systemData.timeframes[trade.id] || [];
+    trade.tags = tagsByTrade[trade.id] || [];
   }
 
   return {
@@ -156,23 +171,26 @@ export const findAll = async (userId, options = {}) => {
 export const findById = async (userId, id) => {
   const result = await query(
     `SELECT ${SELECT_FIELDS} FROM trades WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-    [id, userId]
+    [id, userId],
   );
 
   if (!result.rows[0]) return null;
 
   const trade = result.rows[0];
-  const [images, primarySignals, secondarySignals, timeframes] = await Promise.all([
-    getTradeImages(id),
-    getTradeSignals(id, 'primary'),
-    getTradeSignals(id, 'secondary'),
-    getTradeTimeframes(id),
-  ]);
+  const [images, primarySignals, secondarySignals, timeframes, tags] =
+    await Promise.all([
+      getTradeImages(id),
+      getTradeSignals(id, 'primary'),
+      getTradeSignals(id, 'secondary'),
+      getTradeTimeframes(id),
+      getTradeTagsForTrade(id),
+    ]);
 
   trade.images = images;
   trade.primary_signals = primarySignals;
   trade.secondary_signals = secondarySignals;
-  trade.timeframes = timeframes.map(t => t.label);
+  trade.timeframes = timeframes.map((t) => t.label);
+  trade.tags = tags;
 
   return trade;
 };
@@ -200,9 +218,14 @@ export const create = async (userId, tradeData) => {
     primary_signals,
     secondary_signals,
     timeframe_ids,
+    tag_ids,
   } = tradeData;
 
-  const hasSystemData = (primary_signals?.length || secondary_signals?.length || timeframe_ids?.length);
+  const hasSystemData =
+    primary_signals?.length ||
+    secondary_signals?.length ||
+    timeframe_ids?.length ||
+    tag_ids?.length;
 
   if (hasSystemData) {
     const client = await getClient();
@@ -217,10 +240,20 @@ export const create = async (userId, tradeData) => {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING ${SELECT_FIELDS}`,
         [
-          userId, symbol, trade_type, entry_price, exit_price || null, quantity,
-          entry_date, exit_date || null, commission || 0, notes || null, post_analysis || null,
-          primary_system_id || null, secondary_system_id || null,
-        ]
+          userId,
+          symbol,
+          trade_type,
+          entry_price,
+          exit_price || null,
+          quantity,
+          entry_date,
+          exit_date || null,
+          commission || 0,
+          notes || null,
+          post_analysis || null,
+          primary_system_id || null,
+          secondary_system_id || null,
+        ],
       );
       const trade = result.rows[0];
 
@@ -228,10 +261,18 @@ export const create = async (userId, tradeData) => {
         await insertTradeSignals(client, trade.id, 'primary', primary_signals);
       }
       if (secondary_signals?.length) {
-        await insertTradeSignals(client, trade.id, 'secondary', secondary_signals);
+        await insertTradeSignals(
+          client,
+          trade.id,
+          'secondary',
+          secondary_signals,
+        );
       }
       if (timeframe_ids?.length) {
         await insertTradeTimeframes(client, trade.id, timeframe_ids);
+      }
+      if (tag_ids?.length) {
+        await insertTradeTags(client, trade.id, tag_ids);
       }
 
       await client.query('COMMIT');
@@ -240,6 +281,7 @@ export const create = async (userId, tradeData) => {
       trade.primary_signals = primary_signals || [];
       trade.secondary_signals = secondary_signals || [];
       trade.timeframes = [];
+      trade.tags = tag_ids?.length ? await getTradeTagsForTrade(trade.id) : [];
       return trade;
     } catch (err) {
       await client.query('ROLLBACK');
@@ -257,10 +299,20 @@ export const create = async (userId, tradeData) => {
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
     RETURNING ${SELECT_FIELDS}`,
     [
-      userId, symbol, trade_type, entry_price, exit_price || null, quantity,
-      entry_date, exit_date || null, commission || 0, notes || null, post_analysis || null,
-      primary_system_id || null, secondary_system_id || null,
-    ]
+      userId,
+      symbol,
+      trade_type,
+      entry_price,
+      exit_price || null,
+      quantity,
+      entry_date,
+      exit_date || null,
+      commission || 0,
+      notes || null,
+      post_analysis || null,
+      primary_system_id || null,
+      secondary_system_id || null,
+    ],
   );
 
   const trade = result.rows[0];
@@ -268,6 +320,7 @@ export const create = async (userId, tradeData) => {
   trade.primary_signals = [];
   trade.secondary_signals = [];
   trade.timeframes = [];
+  trade.tags = [];
 
   return trade;
 };
@@ -318,7 +371,7 @@ export const createMany = async (userId, tradesData) => {
           commission || 0,
           notes || null,
           post_analysis || null,
-        ]
+        ],
       );
 
       const trade = result.rows[0];
@@ -326,6 +379,7 @@ export const createMany = async (userId, tradesData) => {
       trade.primary_signals = [];
       trade.secondary_signals = [];
       trade.timeframes = [];
+      trade.tags = [];
       createdTrades.push(trade);
     }
 
@@ -348,15 +402,25 @@ export const createMany = async (userId, tradesData) => {
  */
 export const update = async (userId, id, updateData) => {
   const allowedFields = [
-    'symbol', 'trade_type', 'entry_price', 'exit_price', 'quantity',
-    'entry_date', 'exit_date', 'commission', 'notes', 'post_analysis',
-    'primary_system_id', 'secondary_system_id',
+    'symbol',
+    'trade_type',
+    'entry_price',
+    'exit_price',
+    'quantity',
+    'entry_date',
+    'exit_date',
+    'commission',
+    'notes',
+    'post_analysis',
+    'primary_system_id',
+    'secondary_system_id',
   ];
 
   const {
     primary_signals,
     secondary_signals,
     timeframe_ids,
+    tag_ids,
     ...coreData
   } = updateData;
 
@@ -370,7 +434,11 @@ export const update = async (userId, id, updateData) => {
     }
   }
 
-  const hasSystemData = primary_signals !== undefined || secondary_signals !== undefined || timeframe_ids !== undefined;
+  const hasSystemData =
+    primary_signals !== undefined ||
+    secondary_signals !== undefined ||
+    timeframe_ids !== undefined ||
+    tag_ids !== undefined;
 
   if (updates.length === 0 && !hasSystemData) {
     return findById(userId, id);
@@ -387,7 +455,7 @@ export const update = async (userId, id, updateData) => {
          SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
          WHERE id = $2 AND user_id = $1 AND deleted_at IS NULL
          RETURNING ${SELECT_FIELDS}`,
-        params
+        params,
       );
       if (!result.rows[0]) {
         await client.query('ROLLBACK');
@@ -397,7 +465,7 @@ export const update = async (userId, id, updateData) => {
     } else {
       const result = await client.query(
         `SELECT ${SELECT_FIELDS} FROM trades WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-        [id, userId]
+        [id, userId],
       );
       if (!result.rows[0]) {
         await client.query('ROLLBACK');
@@ -424,21 +492,32 @@ export const update = async (userId, id, updateData) => {
         await insertTradeTimeframes(client, id, timeframe_ids);
       }
     }
+    // Reemplazo total (replace-all), igual que note.repository.js assignTags: con
+    // tag_ids: [] se borran todos los tags asignados al trade.
+    if (tag_ids !== undefined) {
+      await deleteAllTradeTags(client, id);
+      if (tag_ids.length > 0) {
+        await insertTradeTags(client, id, tag_ids);
+      }
+    }
 
     await client.query('COMMIT');
 
     // Enriquecer con datos actualizados
-    const [images, primarySignals, secondarySignals, timeframes] = await Promise.all([
-      getTradeImages(id),
-      getTradeSignals(id, 'primary'),
-      getTradeSignals(id, 'secondary'),
-      getTradeTimeframes(id),
-    ]);
+    const [images, primarySignals, secondarySignals, timeframes, tags] =
+      await Promise.all([
+        getTradeImages(id),
+        getTradeSignals(id, 'primary'),
+        getTradeSignals(id, 'secondary'),
+        getTradeTimeframes(id),
+        getTradeTagsForTrade(id),
+      ]);
 
     trade.images = images;
     trade.primary_signals = primarySignals;
     trade.secondary_signals = secondarySignals;
-    trade.timeframes = timeframes.map(t => t.label);
+    trade.timeframes = timeframes.map((t) => t.label);
+    trade.tags = tags;
 
     return trade;
   } catch (err) {
@@ -458,7 +537,7 @@ export const update = async (userId, id, updateData) => {
 export const softDelete = async (userId, id) => {
   const result = await query(
     `UPDATE trades SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-    [id, userId]
+    [id, userId],
   );
   return result.rowCount > 0;
 };
@@ -473,7 +552,7 @@ export const hardDelete = async (userId, id) => {
   // Las imágenes se eliminan automáticamente por CASCADE
   const result = await query(
     `DELETE FROM trades WHERE id = $1 AND user_id = $2`,
-    [id, userId]
+    [id, userId],
   );
   return result.rowCount > 0;
 };
@@ -486,9 +565,9 @@ export const hardDelete = async (userId, id) => {
 export const getUniqueSymbols = async (userId) => {
   const result = await query(
     `SELECT DISTINCT symbol FROM trades WHERE user_id = $1 AND deleted_at IS NULL ORDER BY symbol`,
-    [userId]
+    [userId],
   );
-  return result.rows.map(row => row.symbol);
+  return result.rows.map((row) => row.symbol);
 };
 
 // ==================
@@ -508,7 +587,7 @@ export const addImage = async (tradeId, imageData) => {
     `INSERT INTO trade_images (trade_id, filename, original_name, file_size, mime_type)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING ${SELECT_IMAGE_FIELDS}`,
-    [tradeId, filename, originalName, fileSize, mimeType]
+    [tradeId, filename, originalName, fileSize, mimeType],
   );
 
   return result.rows[0];
@@ -535,7 +614,7 @@ export const addImages = async (tradeId, imagesData) => {
         `INSERT INTO trade_images (trade_id, filename, original_name, file_size, mime_type)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING ${SELECT_IMAGE_FIELDS}`,
-        [tradeId, filename, originalName, fileSize, mimeType]
+        [tradeId, filename, originalName, fileSize, mimeType],
       );
 
       createdImages.push(result.rows[0]);
@@ -559,7 +638,7 @@ export const addImages = async (tradeId, imagesData) => {
 export const getImageById = async (imageId) => {
   const result = await query(
     `SELECT ${SELECT_IMAGE_FIELDS} FROM trade_images WHERE id = $1`,
-    [imageId]
+    [imageId],
   );
   return result.rows[0] || null;
 };
@@ -572,7 +651,7 @@ export const getImageById = async (imageId) => {
 export const deleteImage = async (imageId) => {
   const result = await query(
     `DELETE FROM trade_images WHERE id = $1 RETURNING ${SELECT_IMAGE_FIELDS}`,
-    [imageId]
+    [imageId],
   );
   return result.rows[0] || null;
 };
@@ -585,7 +664,161 @@ export const deleteImage = async (imageId) => {
 export const deleteAllImages = async (tradeId) => {
   const result = await query(
     `DELETE FROM trade_images WHERE trade_id = $1 RETURNING ${SELECT_IMAGE_FIELDS}`,
-    [tradeId]
+    [tradeId],
   );
   return result.rows;
+};
+
+// ============================================================
+// TAGS (espejo de note.repository.js: TAGS)
+// ============================================================
+
+/**
+ * Lista los tags globales del usuario
+ */
+export const getTradeTags = async (userId) => {
+  const result = await query(
+    `SELECT id, name, color, created_at FROM trade_tags WHERE user_id = $1 ORDER BY name ASC`,
+    [userId],
+  );
+  return result.rows;
+};
+
+/**
+ * Crea un tag
+ */
+export const createTradeTag = async (userId, { name, color }) => {
+  const result = await query(
+    `INSERT INTO trade_tags (user_id, name, color) VALUES ($1, $2, $3) RETURNING *`,
+    [userId, name, color || '#6B7280'],
+  );
+  return result.rows[0];
+};
+
+export const getTradeTagByName = async (userId, name) => {
+  const result = await query(
+    `SELECT * FROM trade_tags WHERE user_id = $1 AND LOWER(name) = LOWER($2)`,
+    [userId, name],
+  );
+  return result.rows[0] || null;
+};
+
+export const getTradeTagById = async (userId, tagId) => {
+  const result = await query(
+    `SELECT * FROM trade_tags WHERE id = $1 AND user_id = $2`,
+    [tagId, userId],
+  );
+  return result.rows[0] || null;
+};
+
+export const updateTradeTag = async (userId, tagId, { name, color }) => {
+  const fields = [];
+  const values = [];
+  let idx = 1;
+  if (name !== undefined) {
+    fields.push(`name = $${idx++}`);
+    values.push(name);
+  }
+  if (color !== undefined) {
+    fields.push(`color = $${idx++}`);
+    values.push(color);
+  }
+  if (fields.length === 0) return await getTradeTagById(userId, tagId);
+
+  values.push(tagId, userId);
+  const result = await query(
+    `UPDATE trade_tags SET ${fields.join(', ')} WHERE id = $${idx++} AND user_id = $${idx} RETURNING *`,
+    values,
+  );
+  return result.rows[0] || null;
+};
+
+export const deleteTradeTag = async (userId, tagId) => {
+  const result = await query(
+    `DELETE FROM trade_tags WHERE id = $1 AND user_id = $2 RETURNING id`,
+    [tagId, userId],
+  );
+  return result.rows[0] || null;
+};
+
+/**
+ * Verifica que los tagIds dados pertenezcan al usuario (para validar ownership
+ * antes de asignarlos a un trade)
+ */
+export const getTradeTagsByIds = async (userId, tagIds) => {
+  const result = await query(
+    `SELECT id FROM trade_tags WHERE id = ANY($1) AND user_id = $2`,
+    [tagIds, userId],
+  );
+  return result.rows;
+};
+
+// ============================================================
+// TRADE_TAG_ASSIGNMENTS — mismo patrón que insertTradeSignals/
+// insertTradeTimeframes en system.repository.js: reciben el `client` de una
+// transacción existente (ver create/update de arriba).
+// ============================================================
+
+/**
+ * Guarda asignaciones de tags de un trade (dentro de una transacción existente)
+ */
+export const insertTradeTags = async (client, tradeId, tagIds) => {
+  for (const tagId of tagIds) {
+    await client.query(
+      `INSERT INTO trade_tag_assignments (trade_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [tradeId, tagId],
+    );
+  }
+};
+
+/**
+ * Elimina todos los tags de un trade (para reemplazo total en update)
+ */
+export const deleteAllTradeTags = async (client, tradeId) => {
+  await client.query(`DELETE FROM trade_tag_assignments WHERE trade_id = $1`, [
+    tradeId,
+  ]);
+};
+
+/**
+ * Obtiene los tags asignados a un trade
+ */
+export const getTradeTagsForTrade = async (tradeId) => {
+  const result = await query(
+    `SELECT tt.id, tt.name, tt.color
+     FROM trade_tag_assignments tta
+     JOIN trade_tags tt ON tt.id = tta.tag_id
+     WHERE tta.trade_id = $1
+     ORDER BY tt.name ASC`,
+    [tradeId],
+  );
+  return result.rows;
+};
+
+/**
+ * Obtiene tags para múltiples trades a la vez (batch)
+ * Retorna { tradeId: [{id, name, color}, ...] }
+ */
+export const getTagsForTrades = async (tradeIds) => {
+  if (!tradeIds.length) return {};
+
+  const result = await query(
+    `SELECT tta.trade_id, tt.id, tt.name, tt.color
+     FROM trade_tag_assignments tta
+     JOIN trade_tags tt ON tt.id = tta.tag_id
+     WHERE tta.trade_id = ANY($1)
+     ORDER BY tt.name ASC`,
+    [tradeIds],
+  );
+
+  const tagsByTrade = {};
+  for (const row of result.rows) {
+    if (!tagsByTrade[row.trade_id]) tagsByTrade[row.trade_id] = [];
+    tagsByTrade[row.trade_id].push({
+      id: row.id,
+      name: row.name,
+      color: row.color,
+    });
+  }
+  return tagsByTrade;
 };

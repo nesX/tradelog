@@ -50,14 +50,37 @@ export const createTrade = async (userId, tradeData, files = []) => {
 
   // Validar que las señales pertenecen al sistema
   if (tradeData.primary_system_id && tradeData.primary_signals?.length) {
-    const signalIds = tradeData.primary_signals.map(s => s.signal_id);
-    const valid = await validateSignalsBelongToSystem(tradeData.primary_system_id, signalIds);
-    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema primario');
+    const signalIds = tradeData.primary_signals.map((s) => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(
+      tradeData.primary_system_id,
+      signalIds,
+    );
+    if (!valid)
+      throw new ValidationError(
+        'Algunas señales no pertenecen al sistema primario',
+      );
   }
   if (tradeData.secondary_system_id && tradeData.secondary_signals?.length) {
-    const signalIds = tradeData.secondary_signals.map(s => s.signal_id);
-    const valid = await validateSignalsBelongToSystem(tradeData.secondary_system_id, signalIds);
-    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema secundario');
+    const signalIds = tradeData.secondary_signals.map((s) => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(
+      tradeData.secondary_system_id,
+      signalIds,
+    );
+    if (!valid)
+      throw new ValidationError(
+        'Algunas señales no pertenecen al sistema secundario',
+      );
+  }
+
+  // Validar que los tags pertenecen al usuario
+  if (tradeData.tag_ids?.length) {
+    const foundTags = await tradeRepository.getTradeTagsByIds(
+      userId,
+      tradeData.tag_ids,
+    );
+    if (foundTags.length !== tradeData.tag_ids.length) {
+      throw new ValidationError('Algunos tags no existen o no te pertenecen');
+    }
   }
 
   // Crear el trade
@@ -65,7 +88,7 @@ export const createTrade = async (userId, tradeData, files = []) => {
 
   // Si hay imágenes, agregarlas
   if (files && files.length > 0) {
-    const imagesData = files.map(file => ({
+    const imagesData = files.map((file) => ({
       filename: file.filename,
       originalName: file.originalname,
       fileSize: file.size,
@@ -92,14 +115,37 @@ export const updateTrade = async (userId, id, updateData, newFiles = []) => {
 
   // Validar señales pertenecen al sistema
   if (updateData.primary_system_id && updateData.primary_signals?.length) {
-    const signalIds = updateData.primary_signals.map(s => s.signal_id);
-    const valid = await validateSignalsBelongToSystem(updateData.primary_system_id, signalIds);
-    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema primario');
+    const signalIds = updateData.primary_signals.map((s) => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(
+      updateData.primary_system_id,
+      signalIds,
+    );
+    if (!valid)
+      throw new ValidationError(
+        'Algunas señales no pertenecen al sistema primario',
+      );
   }
   if (updateData.secondary_system_id && updateData.secondary_signals?.length) {
-    const signalIds = updateData.secondary_signals.map(s => s.signal_id);
-    const valid = await validateSignalsBelongToSystem(updateData.secondary_system_id, signalIds);
-    if (!valid) throw new ValidationError('Algunas señales no pertenecen al sistema secundario');
+    const signalIds = updateData.secondary_signals.map((s) => s.signal_id);
+    const valid = await validateSignalsBelongToSystem(
+      updateData.secondary_system_id,
+      signalIds,
+    );
+    if (!valid)
+      throw new ValidationError(
+        'Algunas señales no pertenecen al sistema secundario',
+      );
+  }
+
+  // Validar que los tags pertenecen al usuario
+  if (updateData.tag_ids?.length) {
+    const foundTags = await tradeRepository.getTradeTagsByIds(
+      userId,
+      updateData.tag_ids,
+    );
+    if (foundTags.length !== updateData.tag_ids.length) {
+      throw new ValidationError('Algunos tags no existen o no te pertenecen');
+    }
   }
 
   // Actualizar trade
@@ -111,7 +157,7 @@ export const updateTrade = async (userId, id, updateData, newFiles = []) => {
 
   // Si hay nuevas imágenes, agregarlas
   if (newFiles && newFiles.length > 0) {
-    const imagesData = newFiles.map(file => ({
+    const imagesData = newFiles.map((file) => ({
       filename: file.filename,
       originalName: file.originalname,
       fileSize: file.size,
@@ -168,7 +214,7 @@ export const addImages = async (userId, tradeId, files) => {
     throw new NotFoundError('No se proporcionaron imágenes');
   }
 
-  const imagesData = files.map(file => ({
+  const imagesData = files.map((file) => ({
     filename: file.filename,
     originalName: file.originalname,
     fileSize: file.size,
@@ -241,4 +287,62 @@ export const deleteAllImages = async (userId, tradeId) => {
  */
 export const getUniqueSymbols = async (userId) => {
   return tradeRepository.getUniqueSymbols(userId);
+};
+
+// ============================================================
+// TAGS (espejo de note.service.js: TAGS)
+// ============================================================
+
+/**
+ * Lista los tags del usuario
+ * @param {number} userId - ID del usuario
+ * @returns {Promise<Array>}
+ */
+export const getTradeTags = async (userId) => {
+  return tradeRepository.getTradeTags(userId);
+};
+
+/**
+ * Crea un tag de trades
+ * @param {number} userId - ID del usuario
+ * @param {Object} data - { name, color }
+ * @returns {Promise<Object>}
+ */
+export const createTradeTag = async (userId, { name, color }) => {
+  const existing = await tradeRepository.getTradeTagByName(userId, name);
+  if (existing) throw new ValidationError('Ya existe un tag con ese nombre');
+  return tradeRepository.createTradeTag(userId, { name, color });
+};
+
+/**
+ * Actualiza un tag de trades
+ * @param {number} userId - ID del usuario
+ * @param {number} tagId - ID del tag
+ * @param {Object} data - { name, color }
+ * @returns {Promise<Object>}
+ */
+export const updateTradeTag = async (userId, tagId, data) => {
+  const tag = await tradeRepository.getTradeTagById(userId, tagId);
+  if (!tag) throw new NotFoundError('Tag no encontrado');
+
+  if (data.name) {
+    const existing = await tradeRepository.getTradeTagByName(userId, data.name);
+    if (existing && existing.id !== tagId) {
+      throw new ValidationError('Ya existe un tag con ese nombre');
+    }
+  }
+
+  return tradeRepository.updateTradeTag(userId, tagId, data);
+};
+
+/**
+ * Elimina un tag de trades
+ * @param {number} userId - ID del usuario
+ * @param {number} tagId - ID del tag
+ * @returns {Promise<void>}
+ */
+export const deleteTradeTag = async (userId, tagId) => {
+  const tag = await tradeRepository.getTradeTagById(userId, tagId);
+  if (!tag) throw new NotFoundError('Tag no encontrado');
+  await tradeRepository.deleteTradeTag(userId, tagId);
 };

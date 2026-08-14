@@ -1,7 +1,12 @@
 import { ValidationError } from './errorHandler.js';
 
 // Campos que deben parsearse desde JSON string cuando vienen de multipart/form-data
-const JSON_ARRAY_FIELDS = ['primary_signals', 'secondary_signals', 'timeframe_ids'];
+const JSON_ARRAY_FIELDS = [
+  'primary_signals',
+  'secondary_signals',
+  'timeframe_ids',
+  'tag_ids',
+];
 
 /**
  * Parsea campos array que llegan como strings JSON desde multipart/form-data

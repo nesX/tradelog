@@ -57,7 +57,7 @@ export const getTradeById = async (id) => {
 /**
  * Crear un nuevo trade (con múltiples imágenes)
  */
-const JSON_ARRAY_FIELDS = ['primary_signals', 'secondary_signals', 'timeframe_ids'];
+const JSON_ARRAY_FIELDS = ['primary_signals', 'secondary_signals', 'timeframe_ids', 'tag_ids'];
 
 const appendToFormData = (formData, tradeData) => {
   Object.entries(tradeData).forEach(([key, value]) => {
@@ -143,6 +143,15 @@ export const deleteAllTradeImages = async (tradeId) => {
 export const getSymbols = async () => {
   return apiClient.get('/api/trades/symbols');
 };
+
+// ==================
+// TRADE TAGS
+// ==================
+
+export const getTradeTags = () => apiClient.get('/api/trades/tags');
+export const createTradeTag = (data) => apiClient.post('/api/trades/tags', data);
+export const updateTradeTag = (tagId, data) => apiClient.patch(`/api/trades/tags/${tagId}`, data);
+export const deleteTradeTag = (tagId) => apiClient.delete(`/api/trades/tags/${tagId}`);
 
 // ==================
 // CSV IMPORT
