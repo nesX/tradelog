@@ -118,6 +118,18 @@ export const noteReviewSchema = Joi.object({
     .optional(),
 });
 
+export const toggleRevisitSchema = Joi.object({
+  marked_for_revisit: Joi.boolean().required(),
+});
+
+export const noteRevisitSchema = Joi.object({
+  // 'all' = sin límite de antigüedad para los bloques marcados; cualquier otro
+  // valor debe ser una de las ventanas permitidas (espejo de noteReviewSchema).
+  pendingHours: Joi.alternatives()
+    .try(Joi.string().valid('all'), Joi.number().valid(24, 48, 168))
+    .optional(),
+});
+
 // Caption de imagen subida vía multipart (el body no pasa por Joi en esa ruta).
 export const imageCaptionSchema = Joi.object({
   caption: Joi.string().max(1000).allow(null, '').optional(),

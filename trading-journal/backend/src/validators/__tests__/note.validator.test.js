@@ -3,6 +3,8 @@ import {
   noteSearchSchema,
   assignTagsSchema,
   createBlockSchema,
+  toggleRevisitSchema,
+  noteRevisitSchema,
 } from '../note.validator.js';
 
 describe('note.validator', () => {
@@ -70,6 +72,47 @@ describe('note.validator', () => {
       });
       expect(error).toBeUndefined();
       expect(value.metadata).toEqual({});
+    });
+  });
+
+  describe('toggleRevisitSchema', () => {
+    it('requiere marked_for_revisit', () => {
+      expect(toggleRevisitSchema.validate({}).error).toBeDefined();
+    });
+
+    it('acepta marked_for_revisit booleano', () => {
+      const { error, value } = toggleRevisitSchema.validate({ marked_for_revisit: true });
+      expect(error).toBeUndefined();
+      expect(value.marked_for_revisit).toBe(true);
+    });
+
+    it('rechaza marked_for_revisit no booleano', () => {
+      expect(
+        toggleRevisitSchema.validate({ marked_for_revisit: 'sí' }).error,
+      ).toBeDefined();
+    });
+  });
+
+  describe('noteRevisitSchema', () => {
+    it('acepta sin pendingHours (opcional)', () => {
+      const { error } = noteRevisitSchema.validate({});
+      expect(error).toBeUndefined();
+    });
+
+    it("acepta pendingHours = 'all'", () => {
+      const { error, value } = noteRevisitSchema.validate({ pendingHours: 'all' });
+      expect(error).toBeUndefined();
+      expect(value.pendingHours).toBe('all');
+    });
+
+    it('acepta pendingHours numérico permitido', () => {
+      const { error, value } = noteRevisitSchema.validate({ pendingHours: 168 });
+      expect(error).toBeUndefined();
+      expect(value.pendingHours).toBe(168);
+    });
+
+    it('rechaza pendingHours numérico no permitido', () => {
+      expect(noteRevisitSchema.validate({ pendingHours: 12 }).error).toBeDefined();
     });
   });
 });

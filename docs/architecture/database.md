@@ -86,13 +86,23 @@ Modelo jerárquico tipo Notion con bloques tipados y reordenamiento por `fractio
 | Tabla | Propósito |
 |-------|-----------|
 | `notes` | Nodo del árbol de notas. Campos: `id`, `user_id`, `title`, `parent_note_id` (self-FK), `position` (string fractional), `type` (`'note'` \| `'section'`), `deleted_at` (soft-delete). |
-| `note_blocks` | Bloques dentro de una nota: `block_type` (`text`, `image_gallery`, `reference`, `callout`, `trade_reference`), `content` (TEXT), `metadata` (JSONB), `position` (string fractional), `requires_follow_up` (bool). |
+| `note_blocks` | Bloques dentro de una nota: `block_type` (`text`, `image_gallery`, `reference`, `callout`, `trade_reference`), `content` (TEXT), `metadata` (JSONB), `position` (string fractional), `requires_follow_up` (bool, "Revisión"), `marked_for_revisit` (bool, "Repaso"). |
 | `note_block_images` | Imágenes asociadas a un bloque `image_gallery`. `position` INTEGER (reorden por índice, no fractional). |
 | `note_block_trades` | Trades referenciados desde un bloque `trade_reference`. M:N entre `note_blocks` y `trades`. |
 | `note_tags` | Tags globales por usuario. |
 | `note_tag_assignments` | M:N entre `notes` y `note_tags`. |
 
-Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_migration_notes_search.sql`, `017_migration_dnd.sql`, `018_migration_fix_positions.sql`, `019_migration_block_follow_up.sql`, `020_migration_note_sections.sql`, `022_migration_references.sql`, `023_migration_trade_reference_block.sql`, `024_migration_block_updated_at_skip_reorder.sql`.
+Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_migration_notes_search.sql`, `017_migration_dnd.sql`, `018_migration_fix_positions.sql`, `019_migration_block_follow_up.sql`, `020_migration_note_sections.sql`, `022_migration_references.sql`, `023_migration_trade_reference_block.sql`, `024_migration_block_updated_at_skip_reorder.sql`, `025_migration_block_revisit.sql`.
+
+#### Repaso de bloques (migración 025)
+
+`025_migration_block_revisit.sql` añade la marca de "Repaso" (espejo de "Revisión"/follow-up):
+
+- Columna `marked_for_revisit BOOLEAN NOT NULL DEFAULT false` en `note_blocks`.
+- Índice parcial `idx_note_blocks_revisit ON note_blocks (note_id, updated_at ASC) WHERE marked_for_revisit = true` — solo indexa bloques activamente marcados.
+- Recrea el trigger `update_note_blocks_updated_at` copiando la cláusula `WHEN` de la migración 024 (excluye los cambios de solo `position`) y añadiendo `OR OLD.marked_for_revisit IS DISTINCT FROM NEW.marked_for_revisit`, para que marcar/desmarcar un bloque cuente como actividad (igual que el follow-up). Migración idempotente (`IF NOT EXISTS` + `DROP TRIGGER IF EXISTS`).
+
+La vista "Repaso" (`GET /api/notes/blocks/revisit`) lista estos bloques ordenados por `updated_at ASC`, con filtro opcional de antigüedad (`pendingHours`).
 
 #### Búsqueda full-text
 
@@ -169,6 +179,8 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ```
 
 Aplicado a varias tablas (notes, etc.).
+
+El trigger de `note_blocks` es un caso especial: se recrea con una cláusula `WHEN` que **excluye los cambios de solo `position`** (reorden/DnD no cuenta como "actividad" para la vista de Revisión) e **incluye** `content`, `metadata`, `block_type`, `linked_note_id`, `requires_follow_up` y `marked_for_revisit`. Ver migraciones `024_migration_block_updated_at_skip_reorder.sql` y `025_migration_block_revisit.sql`.
 
 ## Vistas
 

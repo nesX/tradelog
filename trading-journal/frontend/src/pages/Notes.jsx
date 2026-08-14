@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, Folder, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, BookMarked, Folder, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useRestoreNote, useMoveNote, useUpdateNoteTitle, noteKeys } from '../hooks/useNotes.js';
 import { insertSubNote } from '../hooks/useBlockInserter.js';
@@ -14,6 +14,7 @@ import NoteSearch from '../components/notes/NoteSearch.jsx';
 import NoteSearchResults from '../components/notes/NoteSearchResults.jsx';
 import NoteEditor from './NoteEditor.jsx';
 import Review from './Review.jsx';
+import Repaso from './Repaso.jsx';
 
 // Ids de todos los descendientes de una nota (a partir del array plano). Se usa
 // para excluirlos como destino en el modal "Mover nota" (mover a un descendiente
@@ -74,6 +75,7 @@ const Notes = () => {
   );
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isReviewActive, setIsReviewActive] = useState(false);
+  const [isRepasoActive, setIsRepasoActive] = useState(false);
   const [searchParams, setSearchParams] = useState({ q: '', tagIds: [] });
   const [moveNoteId, setMoveNoteId] = useState(null);
   const [moveSearch, setMoveSearch] = useState('');
@@ -93,7 +95,10 @@ const Notes = () => {
   const sectionSubmitRef = useRef(false);
 
   useEffect(() => {
-    if (selectedId) setIsReviewActive(false);
+    if (selectedId) {
+      setIsReviewActive(false);
+      setIsRepasoActive(false);
+    }
   }, [selectedId]);
 
   useEffect(() => {
@@ -175,6 +180,7 @@ const Notes = () => {
 
   const handleSelectNote = (noteId) => {
     setIsReviewActive(false);
+    setIsRepasoActive(false);
     navigate(`/notes/${noteId}`);
     setSidebarOpen(false);
   };
@@ -382,7 +388,7 @@ const Notes = () => {
         {/* Recientes + Revisión */}
         <div className="px-3 pb-1.5 pt-1.5 flex flex-col gap-1 border-t border-gray-200 dark:border-gray-700">
           <button
-            onClick={() => { setIsReviewActive(false); navigate('/notes'); setSidebarOpen(false); }}
+            onClick={() => { setIsReviewActive(false); setIsRepasoActive(false); navigate('/notes'); setSidebarOpen(false); }}
             className="w-full flex items-center gap-2 px-2.5 py-2 text-sm
                        text-gray-600 dark:text-gray-300
                        hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -391,13 +397,22 @@ const Notes = () => {
             Recientes
           </button>
           <button
-            onClick={() => { setIsReviewActive(true); setSidebarOpen(false); }}
+            onClick={() => { setIsReviewActive(true); setIsRepasoActive(false); setSidebarOpen(false); navigate('/notes'); }}
             className="w-full flex items-center gap-2 px-2.5 py-2 text-sm
                        bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400
                        hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
           >
             <Flag className="w-4 h-4 text-amber-500" fill="currentColor" />
             Revisión
+          </button>
+          <button
+            onClick={() => { setIsRepasoActive(true); setIsReviewActive(false); setSidebarOpen(false); navigate('/notes'); }}
+            className="w-full flex items-center gap-2 px-2.5 py-2 text-sm
+                       bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400
+                       hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+          >
+            <BookMarked className="w-4 h-4 text-blue-500" fill="currentColor" />
+            Repaso
           </button>
         </div>
 
@@ -449,6 +464,10 @@ const Notes = () => {
         {isReviewActive ? (
           <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
             <Review />
+          </div>
+        ) : isRepasoActive ? (
+          <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
+            <Repaso />
           </div>
         ) : selectedId ? (
           <div className="flex-1 bg-gray-50 dark:bg-gray-900">

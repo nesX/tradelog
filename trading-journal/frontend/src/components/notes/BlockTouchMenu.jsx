@@ -5,12 +5,14 @@ import {
   ChevronRight,
   Plus,
   Flag,
+  BookMarked,
   Link2,
   FileOutput,
   Trash2,
 } from 'lucide-react';
 import { useBlockInserter, BLOCK_OPTIONS } from '../../hooks/useBlockInserter.js';
 import { useToggleFollowUp } from '../../hooks/useBlockFollowUp.js';
+import { useToggleRevisit } from '../../hooks/useBlockRevisit.js';
 import { useToast } from '../common/Toast.jsx';
 import { buildBlockUrl } from '../../utils/referenceLinks.js';
 
@@ -34,6 +36,7 @@ const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragLis
   const toast = useToast();
   const { insert, loading: inserting } = useBlockInserter(noteId);
   const toggleFollowUp = useToggleFollowUp();
+  const toggleRevisit = useToggleRevisit();
 
   useEffect(() => {
     if (!open) return;
@@ -66,6 +69,14 @@ const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragLis
       blockId: block.id,
       requiresFollowUp: !block.requires_follow_up,
       noteId,
+    });
+  };
+
+  const handleRevisit = () => {
+    closeMenu();
+    toggleRevisit.mutate({
+      blockId: block.id,
+      markedForRevisit: !block.marked_for_revisit,
     });
   };
 
@@ -131,6 +142,13 @@ const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragLis
                   fill={block.requires_follow_up ? 'currentColor' : 'none'}
                 />
                 {block.requires_follow_up ? 'Resolver seguimiento' : 'Marcar seguimiento'}
+              </button>
+              <button onClick={handleRevisit} className={itemClass}>
+                <BookMarked
+                  className="w-4 h-4 text-blue-500"
+                  fill={block.marked_for_revisit ? 'currentColor' : 'none'}
+                />
+                {block.marked_for_revisit ? 'Quitar repaso' : 'Marcar repaso'}
               </button>
               {block.block_type !== 'reference' && (
                 <button onClick={handleCopyReference} className={itemClass}>

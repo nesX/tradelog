@@ -749,3 +749,18 @@ export const getReviewData = async (userId, recentHours = 24, pendingHours = nul
   ]);
   return { pending, recent, recentHours, pendingHours };
 };
+
+// ============================================================
+// REPASO DE BLOQUES
+// ============================================================
+
+export const toggleRevisit = async (blockId, userId, markedForRevisit) => {
+  const block = await repo.setRevisit(blockId, userId, markedForRevisit);
+  if (!block) throw new NotFoundError('Bloque no encontrado');
+  return block;
+};
+
+export const getRevisitData = async (userId, pendingHours = null) => {
+  const blocks = await repo.findMarkedForRevisit(userId, pendingHours);
+  return { blocks, pendingHours };
+};

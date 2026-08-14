@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Trash2, GripVertical, FileOutput } from 'lucide-react';
 import { BlockFollowUpToggle } from './BlockFollowUpToggle.jsx';
+import { BlockRevisitToggle } from './BlockRevisitToggle.jsx';
 import {
   DndContext,
   DragOverlay,
@@ -89,7 +90,16 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
     <div ref={setNodeRef} style={style}>
       <div
         id={`block-${block.id}`}
-        className={`group relative${block.requires_follow_up ? ' border-l-2 border-amber-400 pl-3' : ''}`}
+        className={`group relative${
+          // El follow-up (ámbar) tiene precedencia en el borde; si no, el repaso
+          // (sky) pinta su propio borde. El estado combinado se distingue igual por
+          // el icono activo de cada toggle.
+          block.requires_follow_up
+            ? ' border-l-2 border-amber-400 pl-3'
+            : block.marked_for_revisit
+              ? ' border-l-2 border-blue-500 pl-3'
+              : ''
+        }`}
       >
         {/* Botón "+" en el margen izquierdo: inserta un bloque debajo.
             Solo desktop; en táctil la inserción vive en el menú "⋮". */}
@@ -136,6 +146,9 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
 
           {/* Toggle seguimiento */}
           <BlockFollowUpToggle block={block} noteId={noteId} />
+
+          {/* Toggle repaso */}
+          <BlockRevisitToggle block={block} />
 
           {/* Copiar referencia al bloque (no aplica a bloques que ya son referencias) */}
           {block.block_type !== 'reference' && (

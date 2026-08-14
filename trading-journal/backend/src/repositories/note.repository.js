@@ -1001,6 +1001,46 @@ export const findPendingFollowUp = async (userId, hoursBack = null) => {
   return result.rows;
 };
 
+// ============================================================
+// REPASO DE BLOQUES
+// ============================================================
+
+export const setRevisit = async (blockId, userId, markedForRevisit) => {
+  const result = await pool.query(
+    `UPDATE note_blocks nb
+     SET marked_for_revisit = $3
+     FROM notes n
+     WHERE nb.id = $1 AND nb.note_id = n.id AND n.user_id = $2 AND n.deleted_at IS NULL
+     RETURNING nb.*`,
+    [blockId, userId, markedForRevisit]
+  );
+  return result.rows[0] || null;
+};
+
+export const findMarkedForRevisit = async (userId, hoursBack = null) => {
+  const params = [userId];
+  let timeFilter = '';
+  if (hoursBack !== null) {
+    params.push(hoursBack);
+    timeFilter = `AND b.updated_at >= NOW() - ($${params.length} || ' hours')::INTERVAL`;
+  }
+  const result = await pool.query(
+    `SELECT b.id, b.note_id, b.block_type, b.content, b.metadata,
+            b.marked_for_revisit, b.created_at, b.updated_at,
+            n.title AS note_title, n.parent_note_id AS note_parent_id
+     FROM note_blocks b
+     INNER JOIN notes n ON n.id = b.note_id
+     WHERE n.user_id = $1
+       AND b.marked_for_revisit = true
+       AND n.deleted_at IS NULL
+       ${timeFilter}
+     ORDER BY b.updated_at ASC
+     LIMIT 200`,
+    params
+  );
+  return result.rows;
+};
+
 export const findRecentActivity = async (userId, hoursBack) => {
   const result = await pool.query(
     `SELECT b.id, b.note_id, b.block_type, b.content, b.metadata,

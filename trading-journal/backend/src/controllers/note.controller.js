@@ -241,3 +241,23 @@ export const getReview = async (req, res) => {
   const data = await noteService.getReviewData(req.user.id, hours, pendingHours);
   sendSuccess(res, data);
 };
+
+// ============================================================
+// REPASO DE BLOQUES
+// ============================================================
+
+export const toggleRevisit = async (req, res) => {
+  const blockId = parseInt(req.params.blockId, 10);
+  const block = await noteService.toggleRevisit(blockId, req.user.id, Boolean(req.body.marked_for_revisit));
+  sendSuccess(res, block, 'Estado de repaso actualizado');
+};
+
+export const getRevisit = async (req, res) => {
+  // Query ya validada/coercida por noteRevisitSchema (validate(..., 'query')).
+  const { pendingHours: rawPending } = req.query;
+  // 'all' → sin límite de antigüedad (null); si no, es un número ya validado.
+  const pendingHours = rawPending === 'all' || rawPending == null ? null : rawPending;
+
+  const data = await noteService.getRevisitData(req.user.id, pendingHours);
+  sendSuccess(res, data);
+};

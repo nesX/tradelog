@@ -262,6 +262,15 @@ export const getBlocksReview = (hours = 24, pendingHours = null) =>
     },
   });
 
+export const toggleBlockRevisit = (blockId, markedForRevisit) =>
+  apiClient.patch(`/api/notes/blocks/${blockId}/revisit`, { marked_for_revisit: markedForRevisit });
+export const getBlocksRevisit = (pendingHours = null) =>
+  apiClient.get('/api/notes/blocks/revisit', {
+    params: {
+      ...(pendingHours !== null && { pendingHours }),
+    },
+  });
+
 // Trades dentro de un bloque trade_reference
 export const addTradeToBlock = (blockId, trade_id) =>
   apiClient.post(`/api/notes/blocks/${blockId}/trades`, { trade_id });

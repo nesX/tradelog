@@ -321,6 +321,7 @@ Timeframes del usuario.
 | `GET` | `/api/notes/export/markdown` | Export como markdown. |
 | `PATCH` | `/api/notes/reorder` | Reordenar nodos (sin cambiar parent). |
 | `GET` | `/api/notes/blocks/review` | Seguimiento pendiente (`requires_follow_up`) + actividad reciente. Query: `hours` (24/48/168), `pendingHours`. |
+| `GET` | `/api/notes/blocks/revisit` | Bloques marcados para repaso (`marked_for_revisit`), ordenados por antigüedad (`updated_at ASC`). Query opcional: `pendingHours` (24/48/168 \| `all`). Devuelve `{ blocks, pendingHours }`. |
 
 ### CRUD de notas
 
@@ -347,6 +348,7 @@ Timeframes del usuario.
 | `PATCH` | `/api/notes/blocks/:blockId/move-dnd` | Reordenar bloque dentro de la nota (DnD; para mover a otra nota usar `move-to-note`). |
 | `PATCH` | `/api/notes/blocks/:blockId/move-to-note` | Mover el bloque a otra nota (se apenda al final). Body: `{ target_note_id }`. Si el bloque es `reference` de una sub-nota (hija de la nota origen), reparenta también la sub-nota. Transaccional. Ver `docs/features/notas/`. |
 | `PATCH` | `/api/notes/blocks/:blockId/follow-up` | Toggle de seguimiento. Body: `{ requires_follow_up: boolean }`. |
+| `PATCH` | `/api/notes/blocks/:blockId/revisit` | Toggle de repaso. Body: `{ marked_for_revisit: boolean }`. |
 | `PATCH` | `/api/notes/:noteId/blocks/reorder` | Reordenar bloques dentro de una nota. |
 | `DELETE` | `/api/notes/blocks/:blockId` | Borrar bloque. |
 
