@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import TradeRow from './TradeRow.jsx';
-import Loading, { TableLoading } from '../common/Loading.jsx';
+import { TableLoading } from '../common/Loading.jsx';
 import EmptyState from '../common/EmptyState.jsx';
 import Modal from '../common/Modal.jsx';
 import Button from '../common/Button.jsx';

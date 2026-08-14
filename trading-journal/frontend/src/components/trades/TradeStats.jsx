@@ -1,7 +1,6 @@
 import { TrendingUp, TrendingDown, Target, Award, Activity } from 'lucide-react';
 import { useStats } from '../../hooks/useStats.js';
-import { formatCurrency, formatPercentage, formatNumber } from '../../utils/formatters.js';
-import Loading from '../common/Loading.jsx';
+import { formatCurrency } from '../../utils/formatters.js';
 
 /**
  * Componente de tarjetas de estadísticas

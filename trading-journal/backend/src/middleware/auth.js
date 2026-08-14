@@ -71,7 +71,7 @@ export const optionalAuth = async (req, res, next) => {
     };
 
     next();
-  } catch (error) {
+  } catch {
     req.user = null;
     next();
   }

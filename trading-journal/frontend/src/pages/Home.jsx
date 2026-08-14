@@ -32,7 +32,7 @@ const Home = () => {
   const [deletingImageId, setDeletingImageId] = useState(null);
 
   // Query de trades
-  const { data, isLoading, error } = useTrades(filters);
+  const { data, isLoading } = useTrades(filters);
 
   // Mutations
   const updateMutation = useUpdateTrade();

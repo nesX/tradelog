@@ -55,7 +55,7 @@ export class DatabaseError extends AppError {
 /**
  * Middleware de manejo centralizado de errores
  */
-export const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, _next) => {
   // Log del error
   const logPayload = {
     message: err.message,

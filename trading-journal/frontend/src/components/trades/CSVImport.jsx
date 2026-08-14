@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, X } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import Button from '../common/Button.jsx';
 import Modal from '../common/Modal.jsx';
 import { usePreviewCSV, useImportCSV } from '../../hooks/useTrades.js';

@@ -17,7 +17,6 @@ import Backtest from './pages/Backtest.jsx';
 import BacktestSession from './pages/BacktestSession.jsx';
 import BacktestNew from './pages/BacktestNew.jsx';
 import Notes from './pages/Notes.jsx';
-import NoteEditor from './pages/NoteEditor.jsx';
 import Review from './pages/Review.jsx';
 
 // Configuración de React Query

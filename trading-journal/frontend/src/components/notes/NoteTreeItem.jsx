@@ -1,8 +1,8 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { ChevronRight, Plus, Trash2, GripVertical, FolderInput } from 'lucide-react';
+import { ChevronRight, Plus, Trash2, GripVertical } from 'lucide-react';
 
 const NoteTreeItem = ({
-  note, depth, isExpanded, isSelected, onToggle, onSelect, onCreateChild, onDelete, onMove, children,
+  note, depth, isExpanded, isSelected, onToggle, onSelect, onCreateChild, onDelete, children,
   overInfo,
 }) => {
   const isOverThis = overInfo?.noteId === note.id;

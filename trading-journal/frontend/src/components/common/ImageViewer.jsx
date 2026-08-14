@@ -45,14 +45,6 @@ const ImageViewer = ({
   // Manejar caso de imagen única (compatibilidad con código anterior)
   const imageList = Array.isArray(images) ? images : images ? [images] : [];
 
-  if (imageList.length === 0) {
-    return (
-      <div className={`${thumbnailSize} bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center ${className}`}>
-        <span className="text-gray-400 text-xs">Sin imagen</span>
-      </div>
-    );
-  }
-
   // Construir URL de imagen
   const getImageUrl = (image) => {
     if (!image) return null;
@@ -121,6 +113,16 @@ const ImageViewer = ({
       document.body.style.overflow = '';
     };
   }, [isFullscreen, closeFullscreen]);
+
+  // El early-return va tras los hooks para no romper el orden de hooks
+  // (react-hooks/rules-of-hooks).
+  if (imageList.length === 0) {
+    return (
+      <div className={`${thumbnailSize} bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center ${className}`}>
+        <span className="text-gray-400 text-xs">Sin imagen</span>
+      </div>
+    );
+  }
 
   const firstImage = imageList[0];
   const firstImageUrl = getImageUrl(firstImage);

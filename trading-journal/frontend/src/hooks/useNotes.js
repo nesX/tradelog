@@ -114,7 +114,7 @@ export const useUpdateBlock = () => {
     // toast global para no spamear en cada debounce fallido.
     mutationKey: [...noteKeys.all, 'updateBlock'],
     meta: { silenceError: true },
-    mutationFn: ({ blockId, content, noteId }) => api.updateBlock(blockId, content),
+    mutationFn: ({ blockId, content }) => api.updateBlock(blockId, content),
     onSuccess: (_, { noteId }) => {
       if (noteId) qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
     },

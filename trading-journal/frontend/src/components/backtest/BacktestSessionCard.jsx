@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Calendar, Clock, TrendingUp, GitBranch } from 'lucide-react';
+import { Calendar, TrendingUp, GitBranch } from 'lucide-react';
 
 const MoodDot = ({ score }) => {
   if (!score) return null;

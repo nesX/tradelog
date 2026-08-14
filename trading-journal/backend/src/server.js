@@ -153,7 +153,7 @@ process.on('SIGINT', () => {
 });
 
 // Manejar errores no capturados
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   logger.error('Unhandled Rejection:', reason);
 });
 

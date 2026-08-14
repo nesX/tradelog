@@ -1,4 +1,4 @@
-import { query, getClient } from '../config/database.js';
+import { query } from '../config/database.js';
 
 // ==================
 // SESIONES

@@ -5,9 +5,8 @@ import {
   useStatsByType,
   useTopTrades,
 } from '../hooks/useStats.js';
-import { formatCurrency, formatNumber, formatDate } from '../utils/formatters.js';
+import { formatCurrency, formatDate } from '../utils/formatters.js';
 import Loading from '../components/common/Loading.jsx';
-import EmptyState from '../components/common/EmptyState.jsx';
 
 /**
  * Página de estadísticas

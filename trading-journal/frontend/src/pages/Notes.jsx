@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, Folder, ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, Folder, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useRestoreNote, useMoveNote, useUpdateNoteTitle, noteKeys } from '../hooks/useNotes.js';
 import { insertSubNote } from '../hooks/useBlockInserter.js';
