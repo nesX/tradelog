@@ -9,6 +9,13 @@ export const getTree = async (userId) => {
   const result = await pool.query(
     `SELECT n.id, n.parent_note_id, n.title, n.position, n.type, n.created_at, n.updated_at,
       (SELECT COUNT(*) FROM note_blocks nb WHERE nb.note_id = n.id) as block_count,
+      -- Posición del bloque 'reference' que representa esta sub-nota dentro de su
+      -- nota padre. Permite al cliente ordenar las sub-notas igual que se ven
+      -- dentro de la nota. NULL si no hay bloque (p. ej. sub-nota creada desde el
+      -- árbol lateral) o si la nota es raíz.
+      (SELECT nb.position FROM note_blocks nb
+       WHERE nb.note_id = n.parent_note_id AND nb.linked_note_id = n.id
+       ORDER BY nb.position COLLATE "C" ASC LIMIT 1) as parent_block_position,
       COALESCE(
         (SELECT json_agg(json_build_object('id', nt.id, 'name', nt.name, 'color', nt.color))
          FROM note_tag_assignments nta

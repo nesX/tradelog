@@ -18,7 +18,8 @@ import { buildBlockUrl } from '../../utils/referenceLinks.js';
 
 /**
  * Alternativa táctil (tablet/móvil) a los controles flotantes de bloque:
- * un único botón "⋮" en la esquina superior derecha del bloque.
+ * un único botón "⋮" sin fondo en el margen izquierdo del bloque (misma
+ * posición que el "+" de desktop), centrado verticalmente vía `topClass`.
  *
  * - Tap: despliega un menú con todas las acciones (insertar debajo,
  *   seguimiento, copiar referencia, mover a otra nota, eliminar).
@@ -28,7 +29,7 @@ import { buildBlockUrl } from '../../utils/referenceLinks.js';
  * Solo visible en dispositivos sin hover (variante `touch:`); en desktop
  * siguen los controles flotantes de siempre.
  */
-const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragListeners }) => {
+const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragListeners, topClass = 'top-1/2' }) => {
   const [open, setOpen] = useState(false);
   // 'actions' (menú principal) | 'insert' (tipos de bloque a insertar)
   const [view, setView] = useState('actions');
@@ -100,13 +101,12 @@ const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragLis
     // de los bloques vecinos (todos comparten nivel z-10 cuando están cerrados).
     <div
       ref={ref}
-      className={`hidden touch:block absolute right-1 top-1 ${open ? 'z-30' : 'z-10'}`}
+      className={`hidden touch:block absolute -left-8 ${topClass} -translate-y-1/2 ${open ? 'z-30' : 'z-10'}`}
     >
       <button
         {...dragListeners}
         onClick={handleToggleOpen}
         className="w-7 h-7 flex items-center justify-center rounded
-                   bg-white/60 dark:bg-gray-800/60
                    text-gray-400 touch-none opacity-60
                    active:opacity-100 active:text-gray-700 dark:active:text-gray-200"
         title="Acciones del bloque (mantén pulsado para arrastrar)"
@@ -121,7 +121,7 @@ const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragLis
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 z-30
+          className="absolute left-0 top-full mt-1 z-30
                      bg-white dark:bg-gray-800
                      border border-gray-200 dark:border-gray-700
                      rounded-xl shadow-lg overflow-hidden min-w-[190px]"

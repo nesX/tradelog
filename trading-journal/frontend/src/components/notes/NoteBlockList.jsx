@@ -108,7 +108,8 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
         {/* Táctil (tablets/móvil): un único botón "⋮" con todas las acciones
             en un menú; mantener pulsado arrastra. Reemplaza al "+" y a la
             grilla de acciones, que saturaban la pantalla al estar siempre
-            visibles sin hover. */}
+            visibles sin hover. Vive en el margen izquierdo, donde en desktop
+            está el "+". */}
         <BlockTouchMenu
           block={block}
           noteId={noteId}
@@ -116,6 +117,7 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
           onOpenMove={onOpenMove}
           onDelete={onDelete}
           dragListeners={listeners}
+          topClass={actionTop}
         />
 
         {/* Floating actions (grid 2x2), solo desktop (hover). Flotan en el
@@ -321,7 +323,6 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
       >
         <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
           <div>
-            <NoteBlockInsert noteId={noteId} position={0} />
             {blocks.map((block, idx) => (
               <SortableBlockItem
                 key={block.id}
