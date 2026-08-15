@@ -300,7 +300,9 @@ const NoteEditor = ({ embeddedId }) => {
       </div>
 
       {/* ── Bloques de contenido ── */}
-      <div className="max-w-3xl mx-auto w-full px-6 pt-4 pb-40">
+      {/* En tablet (táctil ≥ md) más padding izquierdo: hace sitio al botón "⋮"
+          de cada bloque, que vive en ese margen. */}
+      <div className="max-w-3xl mx-auto w-full px-6 md:touch:pl-10 pt-4 pb-40">
         <NoteBlockList blocks={note.blocks || []} noteId={noteId} />
       </div>
     </div>

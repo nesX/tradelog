@@ -96,7 +96,7 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
   const hasMetadata = meta.analysis_date || (meta.symbols && meta.symbols.length > 0);
 
   return (
-    <div className="py-2 px-1">
+    <div className="py-2 px-4">
 
       {images.length > 0 && (
         <div className="flex gap-3 overflow-x-auto pb-2 mb-2">

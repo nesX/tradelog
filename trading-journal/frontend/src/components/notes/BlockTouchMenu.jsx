@@ -101,7 +101,7 @@ const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragLis
     // de los bloques vecinos (todos comparten nivel z-10 cuando están cerrados).
     <div
       ref={ref}
-      className={`hidden touch:block absolute -left-8 ${topClass} -translate-y-1/2 ${open ? 'z-30' : 'z-10'}`}
+      className={`hidden touch:block absolute -left-6 ${topClass} -translate-y-1/2 ${open ? 'z-30' : 'z-10'}`}
     >
       <button
         {...dragListeners}

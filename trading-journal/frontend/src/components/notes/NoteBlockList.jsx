@@ -33,8 +33,13 @@ import ConfirmDialog from '../common/ConfirmDialog.jsx';
 import { useDeleteBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd } from '../../hooks/useNotes.js';
 
 function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus }) {
+  // Inset horizontal uniforme (16px por lado) para todos los tipos: el borde
+  // visible de cada bloque queda alineado con el contenido del bloque de texto
+  // (que ya lleva px-4 propio, por eso es el único sin padding del wrapper).
   return (
-    <div className={`rounded-xl overflow-hidden${block.block_type === 'callout' ? ' my-3' : ''}`}>
+    <div
+      className={`rounded-xl overflow-hidden${block.block_type === 'callout' ? ' my-3 px-4' : ''}`}
+    >
       {block.block_type === 'text' && (
         <NoteTextBlock
           block={block}
@@ -54,7 +59,7 @@ function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus })
         <NoteImageGalleryBlock block={block} noteId={noteId} />
       )}
       {block.block_type === 'reference' && (
-        <div className="px-3 py-1.5">
+        <div className="px-4 py-1.5">
           <NoteReferenceBlock
             block={block}
             onUpdateMetadata={(metadata) => onUpdateMetadata(block.id, metadata)}
@@ -62,7 +67,7 @@ function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus })
         </div>
       )}
       {block.block_type === 'trade_reference' && (
-        <div className="px-3 py-1.5">
+        <div className="px-4 py-1.5">
           <NoteTradeReferenceBlock block={block} noteId={noteId} />
         </div>
       )}
