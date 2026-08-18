@@ -13,6 +13,8 @@ const ImageViewer = ({
   className = '',
   notes = '',
   postAnalysis = '',
+  // Contenido libre que se renderiza bajo las imágenes y antes de notas/análisis
+  belowImages = null,
   externalOpen = null,
   onExternalOpenChange = null,
   startIndex = 0,
@@ -222,6 +224,9 @@ const ImageViewer = ({
             </>
           )}
         </div>
+
+        {/* Contenido extra (p. ej. tags del trade) */}
+        {belowImages && <div className="mt-4">{belowImages}</div>}
 
         {/* Notas del trade */}
         {notes && (

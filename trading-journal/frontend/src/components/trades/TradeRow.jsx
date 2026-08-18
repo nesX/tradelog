@@ -91,8 +91,8 @@ const TradeRow = ({ trade, onEdit, onDelete }) => {
     // Si hay imágenes, abrir el visor de imágenes
     if (firstImage) {
       setShowImageModal(true);
-    } else if (trade.notes || trade.post_analysis) {
-      // Si no hay imágenes pero hay notas o análisis, mostrar modal de notas
+    } else if (trade.notes || trade.post_analysis || (trade.tags && trade.tags.length > 0)) {
+      // Si no hay imágenes pero hay tags, notas o análisis, mostrar modal de notas
       setShowNotesModal(true);
     }
   };
@@ -115,6 +115,15 @@ const TradeRow = ({ trade, onEdit, onDelete }) => {
               postAnalysis={trade.post_analysis}
               externalOpen={showImageModal}
               onExternalOpenChange={setShowImageModal}
+              belowImages={
+                trade.tags && trade.tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {trade.tags.map((tag) => (
+                      <TradeTagBadge key={tag.id} tag={tag} />
+                    ))}
+                  </div>
+                ) : null
+              }
             />
             {imageCount > 1 && (
               <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
@@ -137,16 +146,6 @@ const TradeRow = ({ trade, onEdit, onDelete }) => {
             <span className="inline-block px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full w-fit max-w-[120px] truncate">
               {primarySystem.name}
             </span>
-          )}
-          {trade.tags && trade.tags.length > 0 && (
-            <div
-              className="flex flex-nowrap gap-1 overflow-hidden max-w-[140px]"
-              title={trade.tags.map((tag) => tag.name).join(', ')}
-            >
-              {trade.tags.map((tag) => (
-                <TradeTagBadge key={tag.id} tag={tag} className="shrink-0 whitespace-nowrap" />
-              ))}
-            </div>
           )}
         </div>
       </td>
@@ -247,13 +246,20 @@ const TradeRow = ({ trade, onEdit, onDelete }) => {
     </tr>
 
     {/* Modal de notas (cuando no hay imágenes) */}
-    {!firstImage && (trade.notes || trade.post_analysis) && (
+    {!firstImage && (trade.notes || trade.post_analysis || (trade.tags && trade.tags.length > 0)) && (
       <Modal
         isOpen={showNotesModal}
         onClose={() => setShowNotesModal(false)}
         title={`Notas - ${trade.symbol}`}
         size="md"
       >
+        {trade.tags && trade.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {trade.tags.map((tag) => (
+              <TradeTagBadge key={tag.id} tag={tag} />
+            ))}
+          </div>
+        )}
         {trade.notes && (
           <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
             <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Notas:</p>
