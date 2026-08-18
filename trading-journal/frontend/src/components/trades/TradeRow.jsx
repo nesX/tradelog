@@ -139,9 +139,12 @@ const TradeRow = ({ trade, onEdit, onDelete }) => {
             </span>
           )}
           {trade.tags && trade.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
+            <div
+              className="flex flex-nowrap gap-1 overflow-hidden max-w-[140px]"
+              title={trade.tags.map((tag) => tag.name).join(', ')}
+            >
               {trade.tags.map((tag) => (
-                <TradeTagBadge key={tag.id} tag={tag} />
+                <TradeTagBadge key={tag.id} tag={tag} className="shrink-0 whitespace-nowrap" />
               ))}
             </div>
           )}

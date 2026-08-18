@@ -1,11 +1,11 @@
 import { X } from 'lucide-react';
 
-const TradeTagBadge = ({ tag, onRemove }) => {
+const TradeTagBadge = ({ tag, onRemove, className = '' }) => {
   const bg = tag.color || '#6B7280';
 
   return (
     <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white ${className}`}
       style={{ backgroundColor: bg }}
     >
       {tag.name}
