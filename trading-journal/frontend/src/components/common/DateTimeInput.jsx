@@ -1,4 +1,4 @@
-import { forwardRef, useState, useEffect } from 'react';
+import { forwardRef, useState, useEffect, useRef } from 'react';
 
 /**
  * Convierte formato dd/mm/yyyy HH:mm a ISO (YYYY-MM-DDTHH:mm)
@@ -65,9 +65,14 @@ const DateTimeInput = forwardRef(({
   ...props
 }, ref) => {
   const [displayValue, setDisplayValue] = useState('');
+  // Último valor ISO emitido por este input: evita que el sync externo
+  // pise lo que el usuario está escribiendo
+  const lastEmittedRef = useRef(undefined);
 
   // Sincronizar valor externo (ISO) con display
   useEffect(() => {
+    if (value === lastEmittedRef.current) return;
+    lastEmittedRef.current = undefined;
     if (value) {
       setDisplayValue(isoToDisplay(value));
     } else {
@@ -79,8 +84,12 @@ const DateTimeInput = forwardRef(({
     const masked = applyMask(e.target.value);
     setDisplayValue(masked);
 
-    // Convertir a ISO y notificar
+    // Mientras la fecha esté incompleta no se notifica: el form conserva
+    // el último valor válido y el input no se limpia
     const isoValue = displayToIso(masked);
+    if (masked && !isoValue) return;
+
+    lastEmittedRef.current = isoValue;
     if (onChange) {
       // Simular evento para react-hook-form
       onChange({
@@ -93,6 +102,10 @@ const DateTimeInput = forwardRef(({
   };
 
   const handleBlur = (e) => {
+    // Si quedó una fecha incompleta, restaurar el último valor válido
+    if (displayValue && !displayToIso(displayValue)) {
+      setDisplayValue(isoToDisplay(value));
+    }
     if (onBlur) {
       onBlur(e);
     }
