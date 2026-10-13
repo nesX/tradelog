@@ -126,6 +126,22 @@ export const formatDateForInput = (date) => {
 };
 
 /**
+ * Convierte el valor de un input (YYYY-MM-DDTHH:mm, hora local del navegador)
+ * a ISO UTC para enviarlo al backend. Inverso de formatDateForInput.
+ * @param {string} inputValue - Valor del input
+ * @returns {string|null}
+ */
+export const inputDateToIso = (inputValue) => {
+  if (!inputValue) return null;
+
+  // Sin offset, el navegador interpreta el string como hora local
+  const dateObj = new Date(inputValue);
+  if (isNaN(dateObj.getTime())) return null;
+
+  return dateObj.toISOString();
+};
+
+/**
  * Formatea el símbolo del trade
  * @param {string} symbol - Símbolo a formatear
  * @returns {string}

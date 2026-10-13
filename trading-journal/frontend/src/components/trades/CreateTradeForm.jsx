@@ -12,7 +12,7 @@ import { useSystems, useSystem } from '../../hooks/useSystems.js';
 import { useTimeframes } from '../../hooks/useTimeframes.js';
 import { useTradeTags } from '../../hooks/useTrades.js';
 import { TRADE_TYPE_OPTIONS } from '../../constants/tradeConstants.js';
-import { formatDateForInput } from '../../utils/formatters.js';
+import { formatDateForInput, inputDateToIso } from '../../utils/formatters.js';
 
 const SCALE_OPTIONS = [
   { value: 1, label: 'Débil' },
@@ -266,7 +266,9 @@ const CreateTradeForm = ({
     const cleanData = {
       ...data,
       exit_price: data.exit_price || null,
-      exit_date: data.exit_date || null,
+      // Las fechas del form están en hora local del navegador: se envían en UTC
+      entry_date: inputDateToIso(data.entry_date),
+      exit_date: inputDateToIso(data.exit_date),
       notes: data.notes || null,
       post_analysis: data.post_analysis || null,
       // Siempre se incluye (aun vacío) para que en edición se puedan limpiar
