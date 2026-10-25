@@ -38,7 +38,7 @@ export const moveBlockToNoteSchema = Joi.object({
 });
 
 export const createBlockSchema = Joi.object({
-  block_type: Joi.string().valid('text', 'image_gallery', 'reference', 'callout', 'trade_reference').required(),
+  block_type: Joi.string().valid('text', 'image_gallery', 'image', 'reference', 'callout', 'trade_reference').required(),
   content: Joi.string().max(50000).allow(null, '').optional(),
   linked_note_id: Joi.number().integer().positive().allow(null).optional(),
   position: Joi.number().integer().min(0).optional(),

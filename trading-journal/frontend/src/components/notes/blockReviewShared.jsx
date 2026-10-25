@@ -49,11 +49,13 @@ export function TimeRangeTabs({ value, onChange, includeAll = false }) {
   );
 }
 
+const IMAGE_BLOCK_LABELS = { image_gallery: 'Galería de imágenes', image: 'Imagen' };
+
 export function BlockPreview({ content, blockType }) {
-  if (!content || blockType === 'image_gallery') {
+  if (!content || IMAGE_BLOCK_LABELS[blockType]) {
     return (
       <span className="text-xs italic text-gray-400 dark:text-gray-500">
-        {blockType === 'image_gallery' ? 'Galería de imágenes' : 'Sin contenido'}
+        {IMAGE_BLOCK_LABELS[blockType] || 'Sin contenido'}
       </span>
     );
   }

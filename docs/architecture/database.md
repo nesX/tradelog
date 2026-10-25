@@ -86,8 +86,8 @@ Modelo jerárquico tipo Notion con bloques tipados y reordenamiento por `fractio
 | Tabla | Propósito |
 |-------|-----------|
 | `notes` | Nodo del árbol de notas. Campos: `id`, `user_id`, `title`, `parent_note_id` (self-FK), `position` (string fractional), `type` (`'note'` \| `'section'`), `deleted_at` (soft-delete). |
-| `note_blocks` | Bloques dentro de una nota: `block_type` (`text`, `image_gallery`, `reference`, `callout`, `trade_reference`), `content` (TEXT), `metadata` (JSONB), `position` (string fractional), `requires_follow_up` (bool, "Revisión"), `marked_for_revisit` (bool, "Repaso"). |
-| `note_block_images` | Imágenes asociadas a un bloque `image_gallery`. `position` INTEGER (reorden por índice, no fractional). |
+| `note_blocks` | Bloques dentro de una nota: `block_type` (`text`, `image_gallery`, `image`, `reference`, `callout`, `trade_reference`), `content` (TEXT), `metadata` (JSONB), `position` (string fractional), `requires_follow_up` (bool, "Revisión"), `marked_for_revisit` (bool, "Repaso"). |
+| `note_block_images` | Imágenes asociadas a un bloque `image_gallery` o `image` (este último guarda como máximo una: subir otra reemplaza la anterior). `position` INTEGER (reorden por índice, no fractional). |
 | `note_block_trades` | Trades referenciados desde un bloque `trade_reference`. M:N entre `note_blocks` y `trades`. |
 | `note_tags` | Tags globales por usuario. |
 | `note_tag_assignments` | M:N entre `notes` y `note_tags`. |

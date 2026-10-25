@@ -1,11 +1,12 @@
 import { useCallback } from 'react';
-import { AlignLeft, Image, Link, Link2, StickyNote, TrendingUp } from 'lucide-react';
+import { AlignLeft, Image, Images, Link, Link2, StickyNote, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCreateBlock, useCreateNote } from './useNotes.js';
 
 export const BLOCK_OPTIONS = [
   { type: 'text',            label: 'Texto',          icon: AlignLeft,  color: 'text-gray-500'    },
-  { type: 'image_gallery',   label: 'Imágenes',       icon: Image,      color: 'text-green-500'   },
+  { type: 'image',           label: 'Imagen',         icon: Image,      color: 'text-green-500'   },
+  { type: 'image_gallery',   label: 'Imágenes',       icon: Images,     color: 'text-green-500'   },
   { type: 'trade_reference', label: 'Trades',         icon: TrendingUp, color: 'text-emerald-500' },
   { type: 'sub_note',        label: 'Nota',           icon: Link,       color: 'text-blue-500'    },
   { type: 'reference',       label: 'Enlace interno', icon: Link2,      color: 'text-indigo-500'  },

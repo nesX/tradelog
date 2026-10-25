@@ -14,6 +14,8 @@ const blockLabel = (block) => {
     }
     case 'image_gallery':
       return `Galería (${(block.images || []).length} imágenes)`;
+    case 'image':
+      return 'Imagen';
     case 'trade_reference':
       return `Trades (${(block.trades || []).length})`;
     case 'reference':

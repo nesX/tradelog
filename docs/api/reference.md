@@ -342,7 +342,7 @@ Timeframes del usuario.
 
 | Método | Ruta | Notas |
 |--------|------|-------|
-| `POST` | `/api/notes/:noteId/blocks` | Crear bloque (`block_type` ∈ `text`, `image_gallery`, `reference`, `callout`, `trade_reference`). |
+| `POST` | `/api/notes/:noteId/blocks` | Crear bloque (`block_type` ∈ `text`, `image_gallery`, `image`, `reference`, `callout`, `trade_reference`). |
 | `PATCH` | `/api/notes/blocks/:blockId` | Actualizar contenido. |
 | `PATCH` | `/api/notes/blocks/:blockId/metadata` | Actualizar metadata (variante de callout, etc.). |
 | `PATCH` | `/api/notes/blocks/:blockId/move-dnd` | Reordenar bloque dentro de la nota (DnD; para mover a otra nota usar `move-to-note`). |
@@ -356,7 +356,7 @@ Timeframes del usuario.
 
 | Método | Ruta | Notas |
 |--------|------|-------|
-| `POST` | `/api/notes/blocks/:blockId/images` | Multipart `image` único. |
+| `POST` | `/api/notes/blocks/:blockId/images` | Multipart `image` único. En bloques `image` reemplaza la imagen anterior. |
 | `PATCH` | `/api/notes/blocks/:blockId/images/reorder` | Reordenar imágenes del bloque. |
 | `PATCH` | `/api/notes/images/:imageId` | Editar caption. |
 | `DELETE` | `/api/notes/images/:imageId` | Borrar imagen. |

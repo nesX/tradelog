@@ -22,6 +22,7 @@ import { CSS } from '@dnd-kit/utilities';
 import NoteTextBlock from './NoteTextBlock.jsx';
 import NoteCalloutBlock from './NoteCalloutBlock.jsx';
 import NoteImageGalleryBlock from './NoteImageGalleryBlock.jsx';
+import NoteImageBlock from './NoteImageBlock.jsx';
 import NoteReferenceBlock from './NoteReferenceBlock.jsx';
 import NoteTradeReferenceBlock from './NoteTradeReferenceBlock.jsx';
 import CopyReferenceButton from './CopyReferenceButton.jsx';
@@ -57,6 +58,9 @@ function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus })
       )}
       {block.block_type === 'image_gallery' && (
         <NoteImageGalleryBlock block={block} noteId={noteId} />
+      )}
+      {block.block_type === 'image' && (
+        <NoteImageBlock block={block} noteId={noteId} />
       )}
       {block.block_type === 'reference' && (
         <div className="px-4 py-1.5">
@@ -213,6 +217,7 @@ const blockHasContent = (block) => {
     case 'callout':
       return Boolean((block.content || '').trim());
     case 'image_gallery':
+    case 'image':
       return (block.images || []).length > 0;
     case 'trade_reference':
       return (block.trades || []).length > 0;

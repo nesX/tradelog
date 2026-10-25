@@ -478,14 +478,26 @@ export const addImageToBlock = async (userId, blockId, file, caption) => {
   const block = await repo.getBlockById(blockId);
   if (!block) throw new NotFoundError('Bloque no encontrado');
   if (block.user_id !== userId) throw new NotFoundError('Bloque no encontrado');
-  if (block.block_type !== 'image_gallery') {
-    throw new ValidationError('Solo se pueden agregar imágenes a bloques de galería');
+  if (block.block_type !== 'image_gallery' && block.block_type !== 'image') {
+    throw new ValidationError('Solo se pueden agregar imágenes a bloques de imagen o galería');
   }
 
-  return repo.addImage(blockId, {
+  // El bloque 'image' guarda una sola imagen: se recogen las previas antes de
+  // insertar la nueva y se borran después, para no perder la anterior si falla
+  // el INSERT.
+  const previous = block.block_type === 'image' ? await repo.getImagesByBlockId(blockId) : [];
+
+  const added = await repo.addImage(blockId, {
     image_path: file.filename,
     caption: caption || null,
   });
+
+  for (const { id } of previous) {
+    const imagePath = await repo.deleteImage(id);
+    if (imagePath) await deleteFileIfExists(path.join(uploadsDir(), imagePath));
+  }
+
+  return added;
 };
 
 export const updateImageCaption = async (userId, imageId, caption) => {
@@ -633,6 +645,9 @@ const buildNoteTree = (childrenByParent, blocksMap, parentId = null) => {
         if (b.block_type === 'image_gallery') {
           return { type: 'image_gallery', images: b.images || [] };
         }
+        if (b.block_type === 'image') {
+          return { type: 'image', image: (b.images || [])[0] || null };
+        }
         if (b.block_type === 'trade_reference') {
           return { type: 'trade_reference', trades: b.trades || [] };
         }
@@ -673,7 +688,7 @@ const renderMarkdownTree = (childrenByParent, blocksMap, parentId = null, depth 
           lines.push(`> ${line}`);
         }
         lines.push('');
-      } else if (block.block_type === 'image_gallery') {
+      } else if (block.block_type === 'image_gallery' || block.block_type === 'image') {
         for (const img of block.images || []) {
           lines.push(`![${img.caption || ''}](${img.filename})`);
         }
