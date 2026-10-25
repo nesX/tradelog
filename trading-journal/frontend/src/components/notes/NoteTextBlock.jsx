@@ -7,6 +7,7 @@ import remarkMore from '../../utils/remarkMore';
 import remarkSafeDirectives from '../../utils/remarkSafeDirectives';
 import remarkNoSetext from '../../utils/remarkNoSetext';
 import preserveBlankLines from '../../utils/markdownSpacing';
+import normalizeDirectiveNesting from '../../utils/directiveNesting';
 import MoreBlock from './MoreBlock';
 import { useAutosaveTextarea } from '../../hooks/useAutosaveTextarea';
 import { useClickOrDoubleClick } from '../../hooks/useClickOrDoubleClick';
@@ -80,7 +81,7 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
                      prose-a:text-blue-600 dark:prose-a:text-blue-400"
         >
           <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS} components={MARKDOWN_COMPONENTS}>
-            {preserveBlankLines(value)}
+            {preserveBlankLines(normalizeDirectiveNesting(value))}
           </ReactMarkdown>
         </div>
       ) : (

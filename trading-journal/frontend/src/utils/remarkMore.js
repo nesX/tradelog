@@ -15,8 +15,9 @@ import { visit } from 'unist-util-visit';
  * (`<more data-more-title="…">`). Si no hay label, no se añade nada y el
  * componente usa su fallback ("Ver más").
  *
- * No soporta anidamiento: un `:::more` dentro de otro lo parsea `remark-directive`
- * como contenido normal del externo, sin romperlo.
+ * Soporta anidamiento: `visit` recorre también los `:::more` internos. Para que
+ * puedan escribirse todos con `:::`, el texto pasa antes por
+ * `normalizeDirectiveNesting` (ver `directiveNesting.js`).
  */
 export default function remarkMore() {
   return (tree) => {

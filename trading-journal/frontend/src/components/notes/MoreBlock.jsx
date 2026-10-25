@@ -22,10 +22,14 @@ const MoreBlock = ({ node, children }) => {
 
   const stopBubbling = (e) => e.stopPropagation();
 
+  // La flecha rota solo con el `open` de SU `<details>` (selector de hijo
+  // directo): con `group-open` rotaría también la de un `:::more` anidado
+  // cerrado dentro de uno abierto.
   return (
     <details
-      className="group/more rounded-xl
-                 [&_summary::-webkit-details-marker]:hidden"
+      className="rounded-xl
+                 [&_summary::-webkit-details-marker]:hidden
+                 [&[open]>summary>svg]:rotate-90"
     >
       <summary
         onClick={stopBubbling}
@@ -36,12 +40,13 @@ const MoreBlock = ({ node, children }) => {
                    hover:text-gray-900 dark:hover:text-white transition-colors"
       >
         <ChevronRight
-          className="w-3.5 h-3.5 flex-shrink-0 text-gray-400 transition-transform duration-150
-                     group-open/more:rotate-90"
+          className="w-3.5 h-3.5 flex-shrink-0 text-gray-400 transition-transform duration-150"
         />
         <span className="truncate">{title}</span>
       </summary>
-      <div className="pb-3 pt-1">{children}</div>
+      {/* pl-5 = flecha (w-3.5) + gap-1.5: el contenido queda alineado con el
+          título, así cada nivel anidado se distingue por su sangría. */}
+      <div className="pb-3 pt-1 pl-5">{children}</div>
     </details>
   );
 };

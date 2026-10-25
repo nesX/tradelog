@@ -4,6 +4,7 @@ import remarkDirective from 'remark-directive';
 import remarkDirectiveRehype from 'remark-directive-rehype';
 import remarkMore from '../../utils/remarkMore';
 import remarkSafeDirectives from '../../utils/remarkSafeDirectives';
+import normalizeDirectiveNesting from '../../utils/directiveNesting';
 import MoreBlock from './MoreBlock';
 import { useAutosaveTextarea } from '../../hooks/useAutosaveTextarea';
 import { useClickOrDoubleClick } from '../../hooks/useClickOrDoubleClick';
@@ -110,7 +111,7 @@ const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => 
                          prose-code:text-sm prose-code:font-mono"
             >
               <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS} components={MARKDOWN_COMPONENTS}>
-                {value}
+                {normalizeDirectiveNesting(value)}
               </ReactMarkdown>
             </div>
           ) : (
