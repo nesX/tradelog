@@ -11,6 +11,8 @@ const Modal = ({
   children,
   size = 'md',
   showCloseButton = true,
+  // Botones extra en el header, a la izquierda del botón de cerrar
+  headerActions = null,
 }) => {
   // Cerrar con Escape
   useEffect(() => {
@@ -63,21 +65,24 @@ const Modal = ({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          {(title || showCloseButton) && (
+          {(title || showCloseButton || headerActions) && (
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               {title && (
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   {title}
                 </h3>
               )}
-              {showCloseButton && (
-                <button
-                  onClick={onClose}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
+              <div className="flex items-center gap-3 ml-auto">
+                {headerActions}
+                {showCloseButton && (
+                  <button
+                    onClick={onClose}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import * as api from '../api/endpoints.js';
 import { statsKeys } from './useStats.js';
 
@@ -25,6 +25,9 @@ export const useTrades = (filters = {}) => {
     queryKey: tradeKeys.list(filters),
     queryFn: () => api.getTrades(filters),
     staleTime: 30000, // 30 segundos
+    // Mantener la página anterior mientras carga la nueva: evita que el modal
+    // de detalle se cierre al navegar de un trade a otro entre páginas.
+    placeholderData: keepPreviousData,
     select: (response) => response.data,
   });
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import TradeRow from './TradeRow.jsx';
 import { TableLoading } from '../common/Loading.jsx';
@@ -22,6 +22,69 @@ const TradeTable = ({
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, trade: null });
   const deleteMutation = useDeleteTrade();
   const toast = useToast();
+
+  // Trade cuyo modal de detalle está abierto. Se navega sobre `trades`, que ya
+  // viene filtrado y ordenado por el servidor, así que respeta lo que muestra la tabla.
+  const [detailTradeId, setDetailTradeId] = useState(null);
+  // Al cruzar de página: qué trade abrir cuando llegue la página nueva
+  const [pendingDetail, setPendingDetail] = useState(null); // { page, edge: 'first' | 'last' }
+
+  const currentPage = pagination?.page ?? 1;
+  const totalPages = pagination?.totalPages ?? 1;
+  const detailIndex = trades ? trades.findIndex((t) => t.id === detailTradeId) : -1;
+  const hasPrevTrade = detailIndex > 0 || currentPage > 1;
+  const hasNextTrade =
+    (detailIndex !== -1 && detailIndex < trades.length - 1) || currentPage < totalPages;
+
+  const closeDetail = () => {
+    setDetailTradeId(null);
+    setPendingDetail(null);
+  };
+
+  // direction: -1 anterior, +1 siguiente
+  const navigateDetail = (direction) => {
+    if (detailIndex === -1 || pendingDetail) return;
+
+    const target = trades[detailIndex + direction];
+    if (target) {
+      setDetailTradeId(target.id);
+      return;
+    }
+
+    const newPage = currentPage + direction;
+    if (newPage < 1 || newPage > totalPages) return;
+    setPendingDetail({ page: newPage, edge: direction > 0 ? 'first' : 'last' });
+    onPageChange(newPage);
+  };
+
+  // Cuando llega la página solicitada, abrir su primer/último trade
+  useEffect(() => {
+    if (!pendingDetail || pagination?.page !== pendingDetail.page || !trades?.length) return;
+    const target = pendingDetail.edge === 'first' ? trades[0] : trades[trades.length - 1];
+    setDetailTradeId(target.id);
+    setPendingDetail(null);
+  }, [pendingDetail, pagination?.page, trades]);
+
+  const detailActions = (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => navigateDetail(-1)}
+        disabled={!hasPrevTrade || Boolean(pendingDetail)}
+        className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+        title="Trade anterior"
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+      <button
+        onClick={() => navigateDetail(1)}
+        disabled={!hasNextTrade || Boolean(pendingDetail)}
+        className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+        title="Trade siguiente"
+      >
+        <ChevronRight className="w-5 h-5" />
+      </button>
+    </div>
+  );
 
   // Manejar eliminación
   const handleDelete = async () => {
@@ -79,6 +142,10 @@ const TradeTable = ({
                   trade={trade}
                   onEdit={onEditTrade}
                   onDelete={(trade) => setDeleteModal({ isOpen: true, trade })}
+                  isDetailOpen={trade.id === detailTradeId}
+                  onOpenDetail={(trade) => setDetailTradeId(trade.id)}
+                  onCloseDetail={closeDetail}
+                  detailActions={trade.id === detailTradeId ? detailActions : null}
                 />
               ))}
               {/* Fila para crear nuevo trade */}

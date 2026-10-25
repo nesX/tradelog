@@ -18,10 +18,17 @@ import {
 /**
  * Componente de fila de trade para la tabla
  */
-const TradeRow = ({ trade, onEdit, onDelete }) => {
+const TradeRow = ({
+  trade,
+  onEdit,
+  onDelete,
+  // El modal de detalle lo controla la tabla para poder navegar entre trades
+  isDetailOpen = false,
+  onOpenDetail,
+  onCloseDetail,
+  detailActions = null,
+}) => {
   const [showActions, setShowActions] = useState(false);
-  const [showImageModal, setShowImageModal] = useState(false);
-  const [showNotesModal, setShowNotesModal] = useState(false);
   const menuRef = useRef(null);
   const buttonRef = useRef(null);
   const pnl = formatPnL(trade.pnl);
@@ -81,6 +88,8 @@ const TradeRow = ({ trade, onEdit, onDelete }) => {
   // Obtener primera imagen para thumbnail
   const firstImage = trade.images && trade.images.length > 0 ? trade.images[0] : null;
   const imageCount = trade.images ? trade.images.length : 0;
+  const hasTags = trade.tags && trade.tags.length > 0;
+  const hasNotesContent = Boolean(trade.notes || trade.post_analysis || hasTags);
 
   // Manejar doble click en la fila
   const handleRowDoubleClick = (e) => {
@@ -88,12 +97,10 @@ const TradeRow = ({ trade, onEdit, onDelete }) => {
     if (menuRef.current && menuRef.current.contains(e.target)) {
       return;
     }
-    // Si hay imágenes, abrir el visor de imágenes
-    if (firstImage) {
-      setShowImageModal(true);
-    } else if (trade.notes || trade.post_analysis || (trade.tags && trade.tags.length > 0)) {
-      // Si no hay imágenes pero hay tags, notas o análisis, mostrar modal de notas
-      setShowNotesModal(true);
+    // Con imágenes se abre el visor; sin imágenes, el modal de notas
+    // (solo si hay tags, notas o análisis que mostrar)
+    if (firstImage || hasNotesContent) {
+      onOpenDetail(trade);
     }
   };
 
@@ -113,10 +120,11 @@ const TradeRow = ({ trade, onEdit, onDelete }) => {
               thumbnailSize="h-10 w-10"
               notes={trade.notes}
               postAnalysis={trade.post_analysis}
-              externalOpen={showImageModal}
-              onExternalOpenChange={setShowImageModal}
+              externalOpen={isDetailOpen}
+              onExternalOpenChange={(open) => (open ? onOpenDetail(trade) : onCloseDetail())}
+              headerActions={detailActions}
               belowImages={
-                trade.tags && trade.tags.length > 0 ? (
+                hasTags ? (
                   <div className="flex flex-wrap gap-1.5">
                     {trade.tags.map((tag) => (
                       <TradeTagBadge key={tag.id} tag={tag} />
@@ -246,14 +254,21 @@ const TradeRow = ({ trade, onEdit, onDelete }) => {
     </tr>
 
     {/* Modal de notas (cuando no hay imágenes) */}
-    {!firstImage && (trade.notes || trade.post_analysis || (trade.tags && trade.tags.length > 0)) && (
+    {!firstImage && isDetailOpen && (
       <Modal
-        isOpen={showNotesModal}
-        onClose={() => setShowNotesModal(false)}
+        isOpen
+        onClose={onCloseDetail}
         title={`Notas - ${trade.symbol}`}
         size="md"
+        headerActions={detailActions}
       >
-        {trade.tags && trade.tags.length > 0 && (
+        {/* Solo alcanzable navegando desde otro trade */}
+        {!hasNotesContent && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">
+            Este trade no tiene imágenes, notas ni tags.
+          </p>
+        )}
+        {hasTags && (
           <div className="flex flex-wrap gap-1.5 mb-4">
             {trade.tags.map((tag) => (
               <TradeTagBadge key={tag.id} tag={tag} />

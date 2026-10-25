@@ -18,6 +18,8 @@ const ImageViewer = ({
   externalOpen = null,
   onExternalOpenChange = null,
   startIndex = 0,
+  // Botones extra en el header del modal (a la izquierda de cerrar)
+  headerActions = null,
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
 
@@ -128,35 +130,36 @@ const ImageViewer = ({
 
   const firstImage = imageList[0];
   const firstImageUrl = getImageUrl(firstImage);
-
-  if (!firstImageUrl || imageErrors[0]) {
-    return (
-      <div className={`${thumbnailSize} bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center ${className}`}>
-        <span className="text-gray-400 text-xs">Error</span>
-      </div>
-    );
-  }
+  // Si el thumbnail falla se muestra el placeholder, pero el modal se sigue
+  // renderizando para que pueda abrirse externamente (p. ej. al navegar trades).
+  const thumbnailFailed = !firstImageUrl || imageErrors[0];
 
   return (
     <>
       {/* Thumbnail */}
-      <button
-        onClick={() => {
-          setCurrentIndex(0);
-          setIsOpen(true);
-        }}
-        className={`${thumbnailSize} relative group rounded overflow-hidden border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors ${className}`}
-      >
-        <img
-          src={firstImageUrl}
-          alt={alt}
-          className="w-full h-full object-cover"
-          onError={() => handleImageError(0)}
-        />
-        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
-          <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+      {thumbnailFailed ? (
+        <div className={`${thumbnailSize} bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center ${className}`}>
+          <span className="text-gray-400 text-xs">Error</span>
         </div>
-      </button>
+      ) : (
+        <button
+          onClick={() => {
+            setCurrentIndex(0);
+            setIsOpen(true);
+          }}
+          className={`${thumbnailSize} relative group rounded overflow-hidden border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors ${className}`}
+        >
+          <img
+            src={firstImageUrl}
+            alt={alt}
+            className="w-full h-full object-cover"
+            onError={() => handleImageError(0)}
+          />
+          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+            <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+        </button>
+      )}
 
       {/* Modal con galería */}
       <Modal
@@ -164,6 +167,7 @@ const ImageViewer = ({
         onClose={() => setIsOpen(false)}
         size="xl"
         title={`${alt} (${currentIndex + 1}/${imageList.length})`}
+        headerActions={headerActions}
       >
         <div className="relative">
           {/* Botón pantalla completa */}
