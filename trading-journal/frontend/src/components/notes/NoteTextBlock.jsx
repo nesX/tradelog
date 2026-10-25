@@ -25,31 +25,34 @@ const MARKDOWN_COMPONENTS = { more: MoreBlock };
 const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
   const { value, editing, startEditing, textareaRef, handleChange, handleBlur } =
     useAutosaveTextarea({ block, onUpdate });
-  // Doble click para editar: el click simple no hace nada (permite seleccionar
-  // texto o seguir un link sin entrar en edición).
-  const handleClick = useClickOrDoubleClick({ onDoubleClick: startEditing });
+  // Con contenido, doble click para editar: el click simple no hace nada
+  // (permite seleccionar texto o seguir un link sin entrar en edición). Vacío no
+  // hay nada que seleccionar, así que basta un click.
+  const handleDoubleClick = useClickOrDoubleClick({ onDoubleClick: startEditing });
+  const handleClick = value ? handleDoubleClick : startEditing;
 
   /* ---------- MODO EDICIÓN ---------- */
+  // Misma caja, padding, fuente e interlineado que el preview (prose-sm = 14px /
+  // 24px) para que entrar en edición no mueva el bloque; solo queda fijo el ring
+  // que en preview aparece con hover.
   if (editing) {
     return (
-      <div className="relative">
+      <div className="relative rounded-xl px-4 py-3 ring-1 ring-gray-200 dark:ring-gray-600/50">
         <textarea
           ref={textareaRef}
           value={value}
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full min-h-[80px] resize-none
-                     bg-transparent
-                     border border-blue-400 dark:border-blue-500
-                     rounded-xl p-4 pb-6
-                     text-sm text-gray-900 dark:text-gray-100
-                     font-mono leading-relaxed outline-none transition-colors"
-          placeholder="Escribe en markdown...&#10;&#10;# Título&#10;**negrita**   *italica*&#10;- elemento de lista&#10;`código inline`"
+          rows={1}
+          className="block w-full resize-none bg-transparent p-0
+                     text-sm leading-6 text-gray-800 dark:text-gray-200 outline-none
+                     placeholder:italic placeholder:text-gray-300 dark:placeholder:text-gray-600"
+          placeholder="Escribe en markdown..."
           style={{ overflow: 'hidden' }}
         />
         {/* Indicador de guardado */}
         {saveStatus && (
-          <span className="absolute bottom-1.5 right-2.5 text-xs text-gray-400 pointer-events-none">
+          <span className="absolute bottom-1 right-2 text-xs text-gray-400 pointer-events-none">
             {saveStatus}
           </span>
         )}
@@ -81,8 +84,8 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
           </ReactMarkdown>
         </div>
       ) : (
-        <p className="text-sm text-gray-300 dark:text-gray-600 italic select-none">
-          Doble click para escribir...
+        <p className="text-sm leading-6 text-gray-300 dark:text-gray-600 italic select-none">
+          Haz click para escribir...
         </p>
       )}
 

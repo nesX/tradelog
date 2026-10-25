@@ -38,7 +38,9 @@ const DOT_COLORS = {
 const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => {
   const { value, editing, startEditing, textareaRef, handleChange, handleBlur } =
     useAutosaveTextarea({ block, onUpdate });
-  const handleClick = useClickOrDoubleClick({ onDoubleClick: startEditing });
+  // Con contenido, doble click para editar; vacío, basta un click.
+  const handleDoubleClick = useClickOrDoubleClick({ onDoubleClick: startEditing });
+  const handleClick = value ? handleDoubleClick : startEditing;
 
   const metadata = block.metadata || {};
   const style = metadata.style || 'info';
@@ -73,25 +75,24 @@ const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => 
       </div>
 
       {/* Contenido */}
+      {/* En edición, mismo alto mínimo, fuente e interlineado que el preview
+          (prose-sm = 14px / 24px) y sin borde: el destacado ya delimita el bloque. */}
       {editing ? (
-        <div className="relative">
+        <div className="min-h-[32px]">
           <textarea
             ref={textareaRef}
             value={value}
             onChange={handleChange}
             onBlur={handleBlur}
-            className="w-full min-h-[60px] resize-none bg-transparent
-                       border border-blue-400 dark:border-blue-500
-                       rounded-lg p-3 pb-6
-                       text-sm text-gray-900 dark:text-gray-100
-                       font-mono leading-relaxed outline-none transition-colors"
+            rows={1}
+            className="block w-full resize-none bg-transparent p-0
+                       text-sm leading-6 text-gray-800 dark:text-gray-200 outline-none
+                       placeholder:italic placeholder:text-gray-400 dark:placeholder:text-gray-500"
             placeholder="Escribe en markdown..."
             style={{ overflow: 'hidden' }}
           />
           {saveStatus && (
-            <span className="absolute bottom-1.5 right-2.5 text-xs text-gray-400 pointer-events-none">
-              {saveStatus}
-            </span>
+            <span className="text-xs text-gray-400">{saveStatus}</span>
           )}
         </div>
       ) : (
@@ -113,8 +114,8 @@ const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => 
               </ReactMarkdown>
             </div>
           ) : (
-            <p className="text-sm text-gray-400 dark:text-gray-500 italic select-none">
-              Doble click para escribir...
+            <p className="text-sm leading-6 text-gray-400 dark:text-gray-500 italic select-none">
+              Haz click para escribir...
             </p>
           )}
           {saveStatus && (
