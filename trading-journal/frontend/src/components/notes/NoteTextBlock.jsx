@@ -9,6 +9,7 @@ import remarkNoSetext from '../../utils/remarkNoSetext';
 import preserveBlankLines from '../../utils/markdownSpacing';
 import MoreBlock from './MoreBlock';
 import { useAutosaveTextarea } from '../../hooks/useAutosaveTextarea';
+import { useClickOrDoubleClick } from '../../hooks/useClickOrDoubleClick';
 
 const MARKDOWN_PLUGINS = [
   remarkGfm,
@@ -24,6 +25,9 @@ const MARKDOWN_COMPONENTS = { more: MoreBlock };
 const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
   const { value, editing, startEditing, textareaRef, handleChange, handleBlur } =
     useAutosaveTextarea({ block, onUpdate });
+  // Doble click para editar: el click simple no hace nada (permite seleccionar
+  // texto o seguir un link sin entrar en edición).
+  const handleClick = useClickOrDoubleClick({ onDoubleClick: startEditing });
 
   /* ---------- MODO EDICIÓN ---------- */
   if (editing) {
@@ -56,8 +60,8 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
   /* ---------- MODO PREVIEW ---------- */
   return (
     <div
-      onClick={startEditing}
-      className="group relative cursor-text rounded-xl px-4 py-3
+      onClick={handleClick}
+      className="group relative cursor-text touch-manipulation rounded-xl px-4 py-3
                  hover:ring-1 hover:ring-gray-200 dark:hover:ring-gray-600/50
                  transition-colors min-h-[44px]"
     >
@@ -78,7 +82,7 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
         </div>
       ) : (
         <p className="text-sm text-gray-300 dark:text-gray-600 italic select-none">
-          Haz click para escribir...
+          Doble click para escribir...
         </p>
       )}
 

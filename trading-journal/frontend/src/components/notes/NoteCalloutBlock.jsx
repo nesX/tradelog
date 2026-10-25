@@ -6,6 +6,7 @@ import remarkMore from '../../utils/remarkMore';
 import remarkSafeDirectives from '../../utils/remarkSafeDirectives';
 import MoreBlock from './MoreBlock';
 import { useAutosaveTextarea } from '../../hooks/useAutosaveTextarea';
+import { useClickOrDoubleClick } from '../../hooks/useClickOrDoubleClick';
 
 const MARKDOWN_PLUGINS = [
   remarkGfm,
@@ -37,6 +38,7 @@ const DOT_COLORS = {
 const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => {
   const { value, editing, startEditing, textareaRef, handleChange, handleBlur } =
     useAutosaveTextarea({ block, onUpdate });
+  const handleClick = useClickOrDoubleClick({ onDoubleClick: startEditing });
 
   const metadata = block.metadata || {};
   const style = metadata.style || 'info';
@@ -94,8 +96,8 @@ const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => 
         </div>
       ) : (
         <div
-          onClick={startEditing}
-          className="cursor-text min-h-[32px]"
+          onClick={handleClick}
+          className="cursor-text touch-manipulation min-h-[32px]"
         >
           {value ? (
             <div
@@ -112,7 +114,7 @@ const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => 
             </div>
           ) : (
             <p className="text-sm text-gray-400 dark:text-gray-500 italic select-none">
-              Haz click para escribir...
+              Doble click para escribir...
             </p>
           )}
           {saveStatus && (

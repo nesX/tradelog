@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Link2, ExternalLink, FileText, AlertCircle } from 'lucide-react';
 import { parseReferenceUrl } from '../../utils/referenceLinks.js';
+import { useClickOrDoubleClick } from '../../hooks/useClickOrDoubleClick.js';
 
 // Ruta interna de react-router (relativa) hacia la nota/bloque referenciado. Usar
 // <Link to> en vez de <a href absoluto target="_blank"> evita sacar de la PWA
@@ -40,6 +41,25 @@ const SubNoteView = ({ block }) => {
   );
 };
 
+// Tarjeta del enlace configurado. Compartida por el modo lectura y el modo
+// edición en reposo (en este último intercepta el click vía `onClick`).
+const ReferenceCard = ({ to, label, onClick, title }) => (
+  <Link
+    to={to}
+    onClick={onClick}
+    title={title}
+    className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group touch-manipulation"
+  >
+    <div className="flex-shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
+      <Link2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+    </div>
+    <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors truncate">
+      {label || 'Referencia'}
+    </span>
+    <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 flex-shrink-0" />
+  </Link>
+);
+
 const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
   const meta = block.metadata || {};
   const isConfigured = Boolean(meta.target_note_id);
@@ -48,11 +68,21 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
   const [urlInput, setUrlInput] = useState('');
   const [parseError, setParseError] = useState(null);
   const [labelDraft, setLabelDraft] = useState(meta.label || '');
+  const [editingLabel, setEditingLabel] = useState(false);
+  const cancelEditRef = useRef(false);
   const canEdit = typeof onUpdateMetadata === 'function';
+  const navigate = useNavigate();
+  const toPath = getToPath(meta);
 
   useEffect(() => {
     setLabelDraft(meta.label || '');
   }, [meta.label]);
+
+  // Como una sub-nota: click abre la referencia; doble click edita la etiqueta.
+  const handleCardClick = useClickOrDoubleClick({
+    onSingleClick: () => navigate(toPath),
+    onDoubleClick: () => setEditingLabel(true),
+  });
 
   // Sub-notas: render simple con título en vivo, sin editar label.
   if (isSubNote) {
@@ -81,8 +111,25 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
 
   const commitLabel = () => {
     const trimmed = labelDraft.trim();
-    if (!trimmed || trimmed === meta.label) return;
+    if (!trimmed) {
+      setLabelDraft(meta.label || '');
+      return;
+    }
+    if (trimmed === meta.label) return;
     onUpdateMetadata({ label: trimmed });
+  };
+
+  // Al salir del input (blur, Enter o Escape) se vuelve a la tarjeta. Escape
+  // descarta el borrador: se marca con un ref porque el blur se dispara en el
+  // mismo tick y su closure aún vería el texto editado.
+  const finishLabelEdit = () => {
+    if (cancelEditRef.current) {
+      cancelEditRef.current = false;
+      setLabelDraft(meta.label || '');
+    } else {
+      commitLabel();
+    }
+    setEditingLabel(false);
   };
 
   const handleLabelKey = (e) => {
@@ -91,9 +138,16 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
       e.currentTarget.blur();
     }
     if (e.key === 'Escape') {
-      setLabelDraft(meta.label || '');
+      cancelEditRef.current = true;
       e.currentTarget.blur();
     }
+  };
+
+  const handleCardLinkClick = (e) => {
+    // Click con modificador (Ctrl/Cmd/Shift/Alt): comportamiento nativo del link (nueva pestaña/ventana).
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    handleCardClick(e);
   };
 
   // Modo lectura: solo render del link.
@@ -106,20 +160,7 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
         </div>
       );
     }
-    return (
-      <Link
-        to={getToPath(meta)}
-        className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group"
-      >
-        <div className="flex-shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
-          <Link2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-        </div>
-        <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors truncate">
-          {meta.label || 'Referencia'}
-        </span>
-        <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 flex-shrink-0" />
-      </Link>
-    );
+    return <ReferenceCard to={toPath} label={meta.label} />;
   }
 
   // Modo edición: bloque sin configurar → input para pegar URL.
@@ -148,31 +189,39 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
     );
   }
 
-  // Modo edición: bloque configurado → label editable + botón "Abrir".
-  const toPath = getToPath(meta);
-  return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition-colors group">
-      <div className="flex-shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
-        <Link2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+  // Modo edición: bloque configurado, editando la etiqueta (tras doble click).
+  if (editingLabel) {
+    return (
+      <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-400 dark:border-blue-500 bg-gray-50 dark:bg-gray-800">
+        <div className="flex-shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
+          <Link2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+        </div>
+        <input
+          type="text"
+          autoFocus
+          value={labelDraft}
+          onChange={(e) => setLabelDraft(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={finishLabelEdit}
+          onKeyDown={handleLabelKey}
+          placeholder="Etiqueta de la referencia"
+          maxLength={200}
+          className="flex-1 bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 placeholder-gray-400 outline-none"
+        />
       </div>
-      <input
-        type="text"
-        value={labelDraft}
-        onChange={(e) => setLabelDraft(e.target.value)}
-        onBlur={commitLabel}
-        onKeyDown={handleLabelKey}
-        placeholder="Etiqueta de la referencia"
-        maxLength={200}
-        className="flex-1 bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 placeholder-gray-400 outline-none border-b border-transparent focus:border-blue-400 dark:focus:border-blue-500 transition-colors"
-      />
-      <Link
-        to={toPath}
-        title="Abrir referencia"
-        className="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors flex-shrink-0"
-      >
-        Abrir <ExternalLink className="w-3 h-3" />
-      </Link>
-    </div>
+    );
+  }
+
+  // Modo edición: bloque configurado en reposo → tarjeta como en lectura.
+  // `labelDraft` (y no meta.label) para no mostrar la etiqueta vieja mientras
+  // el guardado recién lanzado vuelve del servidor.
+  return (
+    <ReferenceCard
+      to={toPath}
+      label={labelDraft}
+      onClick={handleCardLinkClick}
+      title="Click para abrir · doble click para editar la etiqueta"
+    />
   );
 };
 
