@@ -1,20 +1,8 @@
 import { FileText, Loader2 } from 'lucide-react';
 import { useNoteSearch } from '../../hooks/useNotes.js';
 import { sanitizeHighlight } from '../../utils/sanitizeHighlight.js';
+import { buildBreadcrumb } from '../../utils/notesGrouping.js';
 
-const buildBreadcrumb = (parentId, flat) => {
-  if (!parentId || !flat) return null;
-  const map = {};
-  for (const n of flat) map[n.id] = n;
-
-  const path = [];
-  let current = map[parentId];
-  while (current) {
-    path.unshift(current.title || 'Sin título');
-    current = current.parent_note_id ? map[current.parent_note_id] : null;
-  }
-  return path.length > 0 ? path.join(' › ') : null;
-};
 
 const HighlightedText = ({ html, fallback }) => {
   if (!html) return <span>{fallback}</span>;

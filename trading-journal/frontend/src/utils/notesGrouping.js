@@ -22,3 +22,25 @@ export function groupBySections(rootNodes) {
   groups.push(current);
   return groups;
 }
+
+/**
+ * Ruta de ancestros de una nota ("Abuelo › Padre") a partir de la lista plana del tree.
+ * Sirve para distinguir sub-notas con títulos parecidos en listados planos (búsquedas).
+ *
+ * @param {string|null} parentId - parent_note_id de la nota
+ * @param {Array} flat - Lista plana de notas (treeData.flat)
+ * @returns {string|null} null si la nota es raíz
+ */
+export function buildBreadcrumb(parentId, flat) {
+  if (!parentId || !flat) return null;
+  const map = {};
+  for (const n of flat) map[n.id] = n;
+
+  const path = [];
+  let current = map[parentId];
+  while (current) {
+    path.unshift(current.title || 'Sin título');
+    current = current.parent_note_id ? map[current.parent_note_id] : null;
+  }
+  return path.length > 0 ? path.join(' › ') : null;
+}

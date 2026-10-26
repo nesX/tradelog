@@ -15,6 +15,7 @@ import NoteSearchResults from '../components/notes/NoteSearchResults.jsx';
 import NoteEditor from './NoteEditor.jsx';
 import Review from './Review.jsx';
 import Repaso from './Repaso.jsx';
+import { buildBreadcrumb } from '../utils/notesGrouping.js';
 
 // Ids de todos los descendientes de una nota (a partir del array plano). Se usa
 // para excluirlos como destino en el modal "Mover nota" (mover a un descendiente
@@ -39,18 +40,6 @@ const collectDescendantIdsFlat = (flatNotes, rootId) => {
   return result;
 };
 
-const buildBreadcrumb = (parentId, flatNotes) => {
-  if (!parentId || !flatNotes) return null;
-  const map = {};
-  for (const n of flatNotes) map[n.id] = n;
-  const path = [];
-  let current = map[parentId];
-  while (current) {
-    path.unshift(current.title || 'Sin título');
-    current = current.parent_note_id ? map[current.parent_note_id] : null;
-  }
-  return path.length > 0 ? path.join(' › ') : null;
-};
 
 const Notes = () => {
   const navigate = useNavigate();

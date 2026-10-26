@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FileOutput, Search, X, FileText, ChevronRight } from 'lucide-react';
 import { useNoteTree, useMoveBlockToNote } from '../../hooks/useNotes.js';
 import { useToast } from '../common/Toast.jsx';
-import { groupBySections } from '../../utils/notesGrouping.js';
+import { buildBreadcrumb, groupBySections } from '../../utils/notesGrouping.js';
 
 // Etiqueta legible del bloque que se va a mover (mismo criterio que el DragOverlay).
 const blockLabel = (block) => {
@@ -112,14 +112,17 @@ const MoveBlockToNoteModal = ({ block, sourceNoteId, onClose }) => {
   const tree = useMemo(() => sortByInNoteOrder(treeData?.tree ?? []), [treeData]);
 
   // Modo búsqueda: lista plana de matches seleccionables (la jerarquía deja de
-  // tener sentido visual al filtrar).
+  // tener sentido visual al filtrar). Cada match lleva la ruta de sus notas padre
+  // para distinguir sub-notas con títulos parecidos.
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return null;
-    return flattenTree(tree).filter(
-      (n) => n.type !== 'section' && !disabledIds.has(n.id) && n.title.toLowerCase().includes(q)
-    );
-  }, [tree, query, disabledIds]);
+    return flattenTree(tree)
+      .filter(
+        (n) => n.type !== 'section' && !disabledIds.has(n.id) && n.title.toLowerCase().includes(q)
+      )
+      .map((n) => ({ note: n, breadcrumb: buildBreadcrumb(n.parent_note_id, flat) }));
+  }, [tree, query, disabledIds, flat]);
 
   const toggleExpanded = (id) => {
     setExpandedIds((prev) => {
@@ -247,18 +250,25 @@ const MoveBlockToNoteModal = ({ block, sourceNoteId, onClose }) => {
                 Sin resultados para tu búsqueda.
               </p>
             ) : (
-              searchResults.map((n) => (
+              searchResults.map(({ note: n, breadcrumb }) => (
                 <button
                   key={n.id}
                   onClick={() => setSelected(n)}
-                  className={`w-full flex items-center gap-2 px-4 py-2 text-left transition-colors
+                  className={`w-full flex items-start gap-2 px-4 py-2 text-left transition-colors
                     ${selected?.id === n.id
                       ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
                       : 'text-gray-800 dark:text-gray-100 hover:bg-purple-50 dark:hover:bg-purple-900/20'
                     }`}
                 >
-                  <FileText className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                  <span className="text-sm truncate">{n.title || 'Sin título'}</span>
+                  <FileText className="w-3.5 h-3.5 mt-0.5 text-purple-400 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm truncate">{n.title || 'Sin título'}</p>
+                    {breadcrumb && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate" title={breadcrumb}>
+                        {breadcrumb}
+                      </p>
+                    )}
+                  </div>
                 </button>
               ))
             )
