@@ -5,7 +5,7 @@ import { useCreateBlock, useCreateNote } from './useNotes.js';
 
 export const BLOCK_OPTIONS = [
   { type: 'text',            label: 'Texto',          icon: AlignLeft,  color: 'text-gray-500'    },
-  { type: 'image',           label: 'Imagen',         icon: Image,      color: 'text-green-500'   },
+  { type: 'image',           label: 'Imagen',         icon: Image,      color: 'text-gray-500'    },
   { type: 'image_gallery',   label: 'Imágenes',       icon: Images,     color: 'text-green-500'   },
   { type: 'trade_reference', label: 'Trades',         icon: TrendingUp, color: 'text-emerald-500' },
   { type: 'sub_note',        label: 'Nota',           icon: Link,       color: 'text-blue-500'    },
