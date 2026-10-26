@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FileOutput, Search, X, FileText, ChevronRight } from 'lucide-react';
 import { useNoteTree, useMoveBlockToNote } from '../../hooks/useNotes.js';
 import { useToast } from '../common/Toast.jsx';
-import { buildBreadcrumb, groupBySections } from '../../utils/notesGrouping.js';
+import { buildBreadcrumb, groupBySections, subtreeIds } from '../../utils/notesGrouping.js';
 
 // Etiqueta legible del bloque que se va a mover (mismo criterio que el DragOverlay).
 const blockLabel = (block) => {
@@ -47,26 +47,6 @@ const flattenTree = (nodes, out = []) => {
     if (n.children?.length) flattenTree(n.children, out);
   }
   return out;
-};
-
-// Ids del subtree de una nota (incluyéndola) a partir de la lista plana del tree.
-const subtreeIds = (flat, rootId) => {
-  const childrenByParent = new Map();
-  for (const n of flat) {
-    if (!childrenByParent.has(n.parent_note_id)) childrenByParent.set(n.parent_note_id, []);
-    childrenByParent.get(n.parent_note_id).push(n.id);
-  }
-  const ids = new Set([rootId]);
-  const stack = [rootId];
-  while (stack.length) {
-    for (const childId of childrenByParent.get(stack.pop()) ?? []) {
-      if (!ids.has(childId)) {
-        ids.add(childId);
-        stack.push(childId);
-      }
-    }
-  }
-  return ids;
 };
 
 /**

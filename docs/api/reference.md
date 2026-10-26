@@ -350,7 +350,7 @@ Timeframes del usuario.
 | `PATCH` | `/api/notes/blocks/:blockId/follow-up` | Toggle de seguimiento. Body: `{ requires_follow_up: boolean }`. |
 | `PATCH` | `/api/notes/blocks/:blockId/revisit` | Toggle de repaso. Body: `{ marked_for_revisit: boolean }`. |
 | `PATCH` | `/api/notes/:noteId/blocks/reorder` | Reordenar bloques dentro de una nota. |
-| `DELETE` | `/api/notes/blocks/:blockId` | Borrar bloque. |
+| `DELETE` | `/api/notes/blocks/:blockId` | Borrar bloque. Si es el bloque `reference` de una sub-nota (su `linked_note_id` cuelga de la misma nota), soft-delete también de la sub-nota y su subtree. Devuelve `{ deleted_note_ids }`. |
 
 ### Imágenes en bloques
 

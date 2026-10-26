@@ -44,3 +44,29 @@ export function buildBreadcrumb(parentId, flat) {
   }
   return path.length > 0 ? path.join(' › ') : null;
 }
+
+/**
+ * Ids del subtree de una nota (incluyéndola) a partir de la lista plana del tree.
+ *
+ * @param {Array} flat - Lista plana de notas (treeData.flat)
+ * @param {number} rootId - Id de la nota raíz del subtree
+ * @returns {Set<number>}
+ */
+export function subtreeIds(flat, rootId) {
+  const childrenByParent = new Map();
+  for (const n of flat) {
+    if (!childrenByParent.has(n.parent_note_id)) childrenByParent.set(n.parent_note_id, []);
+    childrenByParent.get(n.parent_note_id).push(n.id);
+  }
+  const ids = new Set([rootId]);
+  const stack = [rootId];
+  while (stack.length) {
+    for (const childId of childrenByParent.get(stack.pop()) ?? []) {
+      if (!ids.has(childId)) {
+        ids.add(childId);
+        stack.push(childId);
+      }
+    }
+  }
+  return ids;
+}

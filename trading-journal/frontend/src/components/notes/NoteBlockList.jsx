@@ -31,7 +31,8 @@ import NoteBlockAddButton from './NoteBlockAddButton.jsx';
 import BlockTouchMenu from './BlockTouchMenu.jsx';
 import MoveBlockToNoteModal from './MoveBlockToNoteModal.jsx';
 import ConfirmDialog from '../common/ConfirmDialog.jsx';
-import { useDeleteBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd } from '../../hooks/useNotes.js';
+import { useDeleteBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd, useNoteTree } from '../../hooks/useNotes.js';
+import { subtreeIds } from '../../utils/notesGrouping.js';
 
 function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus }) {
   // Inset horizontal uniforme (16px por lado) para todos los tipos: el borde
@@ -231,6 +232,7 @@ const blockHasContent = (block) => {
 
 const NoteBlockList = ({ blocks = [], noteId }) => {
   const deleteBlock = useDeleteBlock();
+  const { data: treeData } = useNoteTree();
   const updateBlock = useUpdateBlock();
   const updateBlockMetadata = useUpdateBlockMetadata();
   const moveBlockDnd = useMoveBlockDnd(noteId);
@@ -279,6 +281,16 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
     }
     deleteBlock.mutate({ blockId: block.id, noteId });
   }, [deleteBlock, noteId]);
+
+  // Si el bloque es una sub-nota (hija de esta nota), borrarlo elimina también la
+  // nota y su subtree (ver deleteBlock en el backend): el diálogo lo dice explícito.
+  const pendingSubNote =
+    pendingDeleteBlock?.block_type === 'reference' && pendingDeleteBlock.linked_note_id
+      ? treeData?.flat.find(
+          (n) => n.id === pendingDeleteBlock.linked_note_id && n.parent_note_id === noteId
+        )
+      : null;
+  const pendingSubNoteCount = pendingSubNote ? subtreeIds(treeData.flat, pendingSubNote.id).size - 1 : 0;
 
   const confirmDelete = () => {
     if (!pendingDeleteBlock) return;
@@ -372,8 +384,16 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
         isOpen={pendingDeleteBlock !== null}
         onClose={() => setPendingDeleteBlock(null)}
         onConfirm={confirmDelete}
-        title="Eliminar bloque"
-        message="Este bloque tiene contenido que se perderá y no se puede deshacer. ¿Quieres eliminarlo?"
+        title={pendingSubNote ? 'Eliminar nota' : 'Eliminar bloque'}
+        message={
+          pendingSubNote
+            ? `Se eliminará la nota "${pendingSubNote.title || 'Sin título'}"${
+                pendingSubNoteCount > 0
+                  ? ` y sus ${pendingSubNoteCount} sub-nota${pendingSubNoteCount !== 1 ? 's' : ''}`
+                  : ''
+              }. ¿Quieres eliminarla?`
+            : 'Este bloque tiene contenido que se perderá y no se puede deshacer. ¿Quieres eliminarlo?'
+        }
         confirmLabel="Eliminar"
         isLoading={deleteBlock.isPending}
       />

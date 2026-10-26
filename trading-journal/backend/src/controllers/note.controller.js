@@ -91,8 +91,8 @@ export const updateBlock = async (req, res) => {
 };
 
 export const deleteBlock = async (req, res) => {
-  await noteService.deleteBlock(req.user.id, parseInt(req.params.blockId));
-  sendDeleted(res, 'Bloque eliminado');
+  const data = await noteService.deleteBlock(req.user.id, parseInt(req.params.blockId));
+  sendSuccess(res, data, 'Bloque eliminado');
 };
 
 export const reorderBlocks = async (req, res) => {

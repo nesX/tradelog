@@ -116,12 +116,12 @@ export const updateTitle = async (userId, noteId, title) => {
   return result.rows[0] || null;
 };
 
-export const softDelete = async (userId, noteId) => {
+export const softDelete = async (userId, noteId, exec = pool) => {
   // Cap de profundidad (depth < 100) + DISTINCT como guard anti-ciclos: si por una
   // carrera quedara un ciclo en el árbol, el CTE no entra en recursión infinita.
   // `AND deleted_at IS NULL` en el UPDATE evita re-marcar descendientes ya borrados
   // (que perderían su deleted_at original).
-  const result = await pool.query(
+  const result = await exec.query(
     `WITH RECURSIVE descendants AS (
       SELECT id, 1 AS depth FROM notes WHERE id = $1 AND user_id = $2
       UNION ALL
@@ -562,11 +562,11 @@ export const updateBlockContent = async (blockId, content) => {
   return result.rows[0] || null;
 };
 
-export const deleteBlock = async (blockId) => {
+export const deleteBlock = async (blockId, exec = pool) => {
   // Un solo statement: borra las imágenes (RETURNING sus paths) y el bloque de forma
   // atómica. Antes eran dos queries: una imagen añadida entre el SELECT y el DELETE
   // quedaba huérfana en disco.
-  const result = await pool.query(
+  const result = await exec.query(
     `WITH imgs AS (
        DELETE FROM note_block_images WHERE block_id = $1 RETURNING image_path
      ), del AS (

@@ -445,8 +445,23 @@ export const deleteBlock = async (userId, blockId) => {
   if (!block) throw new NotFoundError('Bloque no encontrado');
   if (block.user_id !== userId) throw new NotFoundError('Bloque no encontrado');
 
-  const imagePaths = await repo.deleteBlock(blockId);
+  // Un bloque 'reference' que enlaza a una hija de su propia nota ES la sub-nota
+  // (mismo criterio que moveBlockToNote). Borrar solo el bloque dejaba la sub-nota
+  // viva pero inalcanzable desde el padre (seguía en Recientes y en el árbol), así
+  // que se borra junto con su subtree, con el mismo soft-delete que deleteNote.
+  const { imagePaths, deletedNoteIds } = await withUserLock(userId, async (client) => {
+    let deletedNoteIds = [];
+    if (block.block_type === 'reference' && block.linked_note_id) {
+      const linked = await repo.findNoteByIdAndUser(block.linked_note_id, userId, client);
+      if (linked && linked.parent_note_id === block.note_id) {
+        deletedNoteIds = await repo.softDelete(userId, linked.id, client);
+      }
+    }
+    const imagePaths = await repo.deleteBlock(blockId, client);
+    return { imagePaths, deletedNoteIds };
+  });
   await deleteFiles(imagePaths);
+  return { deleted_note_ids: deletedNoteIds };
 };
 
 export const reorderBlocks = async (userId, noteId, blockIds) => {

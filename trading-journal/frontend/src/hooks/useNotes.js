@@ -60,9 +60,13 @@ export const useUpdateNoteTitle = () => {
   return useMutation({
     mutationKey: [...noteKeys.all, 'updateNoteTitle'],
     mutationFn: ({ id, title }) => api.updateNoteTitle(id, title),
-    onSuccess: (_, { id }) => {
+    onSuccess: (res, { id }) => {
       qc.invalidateQueries({ queryKey: noteKeys.tree() });
       qc.invalidateQueries({ queryKey: noteKeys.detail(id) });
+      // El bloque de la sub-nota en el padre muestra el título vía JOIN
+      // (linked_note_title): sin esto, el padre cacheado seguía con el viejo.
+      const parentId = res?.data?.parent_note_id;
+      if (parentId) qc.invalidateQueries({ queryKey: noteKeys.detail(parentId) });
     },
   });
 };
@@ -137,7 +141,16 @@ export const useDeleteBlock = () => {
   return useMutation({
     mutationKey: [...noteKeys.all, 'deleteBlock'],
     mutationFn: ({ blockId }) => api.deleteBlock(blockId),
-    onSuccess: (_, { noteId }) => qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) }),
+    onSuccess: (res, { noteId }) => {
+      qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
+      // Borrar el bloque de una sub-nota borra también la sub-nota (y su subtree):
+      // refrescar el árbol (alimenta Recientes y el panel lateral).
+      const deletedNoteIds = res?.data?.deleted_note_ids || [];
+      if (deletedNoteIds.length > 0) {
+        deletedNoteIds.forEach((id) => qc.removeQueries({ queryKey: noteKeys.detail(id) }));
+        qc.invalidateQueries({ queryKey: noteKeys.tree() });
+      }
+    },
   });
 };
 
