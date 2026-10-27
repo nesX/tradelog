@@ -14,7 +14,7 @@ const Layout = ({ children }) => {
 
       {/* Footer simple */}
       <footer className="mt-auto py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-        Trading Journal - {new Date().getFullYear()}
+        Tradelog - {new Date().getFullYear()}
       </footer>
     </div>
   );

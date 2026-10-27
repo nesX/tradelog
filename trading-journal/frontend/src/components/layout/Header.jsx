@@ -54,7 +54,7 @@ const Header = () => {
               <TrendingUp className="w-5 h-5 text-white" />
             </div>
             <span className="hidden sm:block text-xl font-bold text-gray-900 dark:text-white">
-              Trading Journal
+              Tradelog
             </span>
           </Link>
 

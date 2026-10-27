@@ -10,7 +10,7 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         id: '/',
-        name: 'Trading Journal',
+        name: 'Tradelog',
         short_name: 'Tradelog',
         description: 'Registra y analiza tus operaciones de trading',
         lang: 'es',

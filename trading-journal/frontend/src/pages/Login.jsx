@@ -104,7 +104,7 @@ const Login = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Trading Journal
+                Tradelog
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
                 Registra y analiza tus operaciones de trading
@@ -153,7 +153,7 @@ const Login = () => {
 
         {/* Créditos */}
         <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
-          Trading Journal &copy; {new Date().getFullYear()}
+          Tradelog &copy; {new Date().getFullYear()}
         </p>
       </div>
     </div>
