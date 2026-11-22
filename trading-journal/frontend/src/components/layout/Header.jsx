@@ -56,7 +56,7 @@ const Header = () => {
         { path: '/', label: 'Trades', icon: TrendingUp },
         { path: '/notes', label: 'Notas', icon: BookOpen },
         { path: '/todo', label: 'TODO', icon: ListTodo },
-      ].filter(({ path }) => !isActive(path)) // la sección actual no necesita link
+      ]
     : [
         { path: '/', label: 'Trades', icon: TrendingUp },
         { path: '/create', label: 'Nuevo', icon: Plus },
