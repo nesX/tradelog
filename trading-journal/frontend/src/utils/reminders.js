@@ -39,10 +39,17 @@ export const formatSignedPct = (value, decimals = 2) => {
   return `${sign}${Math.abs(value).toFixed(decimals)}%`;
 };
 
+/** Precio al que salta el aviso previo (misma fórmula que priceAlertEvaluator del backend). */
+export const nearLevel = ({ direction, target, nearPct }) => {
+  if (nearPct == null || !target || Number.isNaN(nearPct)) return null;
+  return direction === 'above' ? target * (1 - nearPct / 100) : target * (1 + nearPct / 100);
+};
+
 /** ¿El precio ya está dentro de la banda de aviso previo (o más allá del nivel)? */
 export const isWithinNearBand = ({ direction, target, nearPct }, price) => {
-  if (nearPct == null || price == null || !target) return false;
-  const level = direction === 'above' ? target * (1 - nearPct / 100) : target * (1 + nearPct / 100);
+  if (price == null) return false;
+  const level = nearLevel({ direction, target, nearPct });
+  if (level == null) return false;
   return direction === 'above' ? price >= level : price <= level;
 };
 

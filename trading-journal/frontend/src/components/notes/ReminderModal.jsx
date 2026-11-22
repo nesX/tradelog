@@ -20,6 +20,7 @@ import {
   distancePct,
   formatSignedPct,
   isWithinNearBand,
+  nearLevel,
   isCrossed,
   dailyCloseLocalTime,
   toLocalInputValue,
@@ -255,6 +256,7 @@ export default function ReminderModal({
   const nearPct = form.nearEnabled ? Number(form.nearPct) : null;
   const crossed = isCrossed(direction, level, price);
   const insideBand = !crossed && isWithinNearBand({ direction, target: level, nearPct }, price);
+  const nearPrice = nearPct >= 0.1 && nearPct <= 50 ? nearLevel({ direction, target: level, nearPct }) : null;
   const isEditing = Boolean(editingAlert || editingReminder);
   const saving = createAlert.isPending || updateAlert.isPending || createReminder.isPending || updateReminder.isPending;
 
@@ -493,6 +495,11 @@ export default function ReminderModal({
                   />
                   <span className="text-sm text-gray-500">%</span>
                 </div>
+                {nearPrice != null && (
+                  <span className="text-sm text-gray-500 dark:text-gray-400 tabular-nums">
+                    avisa en {formatPrice(nearPrice, tickSize)}
+                  </span>
+                )}
                 <label className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300">
                   <input
                     type="checkbox"
