@@ -12,7 +12,9 @@ trading-journal/backend/
 │   ├── server.js             # entry point: monta middlewares y rutas
 │   ├── config/
 │   │   ├── env.js            # variables validadas con Joi → export config
-│   │   └── database.js       # pool pg (max 20), query/getClient helpers
+│   │   └── database.js       # pool pg (max 20), query/getClient/withTransaction/withUserLock
+│   ├── clients/
+│   │   └── binanceFutures.js # API pública de Binance Futures (circuit breaker, peso, timeout)
 │   ├── middleware/
 │   │   ├── auth.js           # authenticate, optionalAuth (JWT)
 │   │   ├── authorize.js      # authorize('admin', 'super_admin')
@@ -62,10 +64,27 @@ Orden de inicialización:
    - `/api/backtest` → `backtestRoutes`
    - `/api/notes` → `noteRoutes`
    - `/api/admin` → `adminRoutes`
+   - `/api/todos` → `todoRoutes`
+   - `/api/market-symbols`, `/api/price-alerts`, `/api/date-reminders`, `/api/notifications` → recordatorios de análisis
 6. `GET /api/health` — siempre disponible, sin auth.
 7. `notFoundHandler` + `errorHandler` al final.
-8. `startServer()`: testConnection → mkdir uploads → `initSuperAdmin()` → `app.listen(config.port)`.
+8. `startServer()`: testConnection → mkdir uploads → `initSuperAdmin()` → `startNotePurgeJob()` → `startReminderJob()` → `app.listen(config.port)`.
 9. Manejo de `SIGTERM`/`SIGINT` para shutdown limpio. `unhandledRejection` se loguea; `uncaughtException` mata el proceso (sano).
+
+## Jobs dentro del proceso
+
+Corren en el mismo proceso (y contenedor) que la API; no hay workers aparte.
+
+- **Purga de notas** (`startNotePurgeJob`): `setInterval` cada `NOTE_PURGE_INTERVAL_HOURS`, con una pasada al arrancar.
+- **Recordatorios de análisis** (`startReminderJob` → `reminderJob.service.js → runTick()`): cadena de `setTimeout` cada `REMINDERS_TICK_MINUTES` (30; `0` lo desactiva). El primer tick va en `max(ahora + 1 min, last_run_at + intervalo)`, así un deploy no adelanta peticiones a Binance. Cada tick, bajo `pg_try_advisory_lock(28028, 0)` (forma de dos enteros, para no chocar con `withUserLock`):
+  1. Envía los recordatorios por fecha y las fechas límite vencidos (no usan Binance).
+  2. Si hay backoff vigente (`reminder_job_state.backoff_until`), termina.
+  3. Sincroniza el catálogo de perpetuos si tiene más de 24 h (`exchangeInfo`, peso 1).
+  4. Por cada símbolo con alertas activas, en serie y con 1 s de pausa, lee las velas de 1h desde su checkpoint, las evalúa (`priceAlertEvaluator.js`, función pura) en una transacción con las alertas bloqueadas y avanza el checkpoint.
+
+  Si `x-mbx-used-weight-1m` supera `BINANCE_MAX_USED_WEIGHT`, corta el tick. Un 429/418 persiste el backoff. Spec: [`features/specs/alertas-de-precio-en-notas.md`](../features/specs/alertas-de-precio-en-notas.md).
+
+`src/clients/` es a las APIs externas lo que `repositories/` es a la BD: todo lo que se pide a Binance pasa por `clients/binanceFutures.js`, que no toca la BD (los services persisten el backoff).
 
 ## Capas en detalle
 

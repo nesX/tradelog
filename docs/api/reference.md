@@ -328,7 +328,7 @@ Timeframes del usuario.
 | Método | Ruta | Notas |
 |--------|------|-------|
 | `POST` | `/api/notes` | Crear nota. Body: `{ title?, parent_note_id?, type? }` (`type` ∈ `note` \| `section`). |
-| `GET` | `/api/notes/:id` | Detalle con bloques. |
+| `GET` | `/api/notes/:id` | Detalle con bloques. Cada bloque trae `price_alerts` y `date_reminders` (con `last_price` del catálogo para la distancia), y la nota los suyos de nivel nota. Ver [Recordatorios de análisis](#recordatorios-de-análisis). |
 | `PATCH` | `/api/notes/:id/title` | Renombrar. |
 | `DELETE` | `/api/notes/:id` | Soft-delete recursivo (nota + descendientes vía `deleted_at`). Conserva las filas de bloques/imágenes; de disco solo borra archivos de imagen con >24h. |
 | `PATCH` | `/api/notes/:id/move` | Mover (cambia parent). |
@@ -385,6 +385,49 @@ Timeframes del usuario.
 | `PATCH` | `/api/todos/items/:itemId` | Body: `{ title?, completed? }` (al menos uno). Re-completar conserva el `completed_at` original. |
 | `PATCH` | `/api/todos/items/:itemId/move` | Reordenar dentro de la misma lista. Body: `{ targetId, dropType }` (`sibling-above` \| `sibling-below`). |
 | `DELETE` | `/api/todos/items/:itemId` | Borra el item y hace soft-delete de su nota. |
+
+---
+
+## Recordatorios de análisis
+
+Alertas de precio sobre perpetuos de Binance Futures USDⓈ-M (cripto y TradFi) y recordatorios por fecha, anclados a un bloque **o** a una nota (`block_id` XOR `note_id`; solo notas `type = 'note'` y sus bloques). Un job del backend crea las tarjetas de la bandeja `/recordatorios`. Ninguno de estos endpoints pide velas ni catálogo a Binance; el único acceso es el precio de la caché (como mucho una llamada por minuto para toda la app). Spec: [`features/specs/alertas-de-precio-en-notas.md`](../features/specs/alertas-de-precio-en-notas.md).
+
+Las fechas se envían en ISO 8601 **con zona** (`Z` u offset); sin zona → 400.
+
+### Catálogo — `/api/market-symbols`
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| `GET` | `/api/market-symbols` | Perpetuos vigentes (`invalid_at IS NULL`): primero los que el usuario usó en alertas (`last_used_at`), luego alfabético. Campos: `symbol`, `contract_type` (`PERPETUAL` \| `TRADIFI_PERPETUAL`), `base_asset`, `quote_asset`, `tick_size`, `last_price`, `last_price_at`. No hay alta: lo mantiene el sync diario del job. |
+| `GET` | `/api/market-symbols/:symbol/price` | `{ price, as_of }` desde la caché de 60 s, o `{ price: null }`. Si no se puede refrescar (backoff, peso alto, error) devuelve el último precio cacheado o el `last_price` del catálogo. |
+
+### Alertas de precio — `/api/price-alerts`
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| `POST` | `/api/price-alerts` | Body: `{ block_id \| note_id, symbol, target_price, direction, is_invalidation?, near_pct?, deadline_at?, message? }`. `direction` ∈ `above` \| `below`; `near_pct` 0.1–50 o `null` (sin aviso previo); `deadline_at` futura o `null`. Símbolo fuera del catálogo o deslistado → 400 "Símbolo no disponible en Binance Futures". El servidor pone `price_at_creation` y, si el precio ya está en la banda de aviso, `near_at`. |
+| `GET` | `/api/price-alerts?status=active\|triggered` | Alertas de notas no borradas con `last_price`, `last_price_at`, `distance_pct` (desde `last_price`, o desde `price_at_creation` si el job aún no leyó el símbolo) y el anclaje (`note_id`, `note_title`, `block_id`, `block_excerpt`). |
+| `PATCH` | `/api/price-alerts/:id` | Editar `target_price` / `direction` / `is_invalidation` / `near_pct` / `deadline_at` / `message`. Cambiar nivel, dirección o `is_invalidation` re-arma (una alerta disparada se re-arma aunque el nivel sea el mismo) y resuelve sus tarjetas abiertas como `rearmed`; una `deadline_at` nueva resuelve las `price_alert_deadline` como `updated`. |
+| `DELETE` | `/api/price-alerts/:id` | Borra la alerta; sus tarjetas abiertas se resuelven como `dismissed`. |
+
+### Recordatorios por fecha — `/api/date-reminders`
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| `POST` | `/api/date-reminders` | Body: `{ block_id \| note_id, remind_at, message? }`. `remind_at` al menos 1 min en el futuro. |
+| `GET` | `/api/date-reminders?status=pending\|sent` | Con el anclaje, ordenados por `remind_at`. |
+| `PATCH` | `/api/date-reminders/:id` | `remind_at` / `message`. Una fecha nueva re-programa (`pending`) y resuelve sus tarjetas abiertas como `rearmed`. |
+| `DELETE` | `/api/date-reminders/:id` | Borra; sus tarjetas abiertas se resuelven como `dismissed`. |
+
+### Bandeja — `/api/notifications`
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| `GET` | `/api/notifications?status=open\|resolved&before=<id>` | `{ items, next_before }`. Abiertas: todas, las más recientes primero. Resueltas: 50 por página ordenadas por `resolved_at` (el cursor `before` es el id de la última tarjeta; se pagina por `(resolved_at, id)`). Cada tarjeta trae `payload` (foto del momento), `price_alert` / `date_reminder` (estado actual, `null` si se borró), `note_id` / `block_id` del anclaje actual y `note_available`. |
+| `GET` | `/api/notifications/count` | `{ open }` para el badge. |
+| `POST` | `/api/notifications/:id/resolve` | Body: `{ resolution: 'dismissed', delete_sibling_alerts? }`. Idempotente (una tarjeta ya resuelta se devuelve tal cual). `delete_sibling_alerts` solo en `price_alert_invalidation` (si no, 400): borra las demás alertas activas del mismo anclaje. |
+
+Tipos de tarjeta: `price_alert_near`, `price_alert_hit`, `price_alert_invalidation`, `price_alert_deadline`, `price_alert_delisted`, `date_reminder_due`.
 
 ---
 

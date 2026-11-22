@@ -20,6 +20,7 @@ import Notes from './pages/Notes.jsx';
 import Review from './pages/Review.jsx';
 import Repaso from './pages/Repaso.jsx';
 import Todo from './pages/Todo.jsx';
+import Reminders from './pages/Reminders.jsx';
 
 // Configuración de React Query
 const queryClient = new QueryClient({
@@ -188,6 +189,16 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <Todo />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/recordatorios"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Reminders />
                       </Layout>
                     </ProtectedRoute>
                   }

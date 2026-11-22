@@ -20,8 +20,14 @@ import backtestRoutes from './routes/backtest.routes.js';
 import noteRoutes from './routes/note.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import todoRoutes from './routes/todo.routes.js';
+import marketSymbolRoutes from './routes/marketSymbol.routes.js';
+import priceAlertRoutes from './routes/priceAlert.routes.js';
+import dateReminderRoutes from './routes/dateReminder.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 import { initSuperAdmin } from './services/admin.service.js';
 import { purgeDeletedNotes } from './services/note.service.js';
+import { runTick, computeFirstDelay, getJobState } from './services/reminderJob.service.js';
+import { setBackoffUntil as setBinanceBackoffUntil } from './clients/binanceFutures.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,6 +71,10 @@ app.use('/api/backtest', backtestRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/todos', todoRoutes);
+app.use('/api/market-symbols', marketSymbolRoutes);
+app.use('/api/price-alerts', priceAlertRoutes);
+app.use('/api/date-reminders', dateReminderRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Ruta de health check
 app.get('/api/health', (req, res) => {
@@ -112,6 +122,46 @@ const startNotePurgeJob = () => {
 };
 
 // ======================
+// Job de recordatorios de análisis (alertas de precio y por fecha)
+// ======================
+// Cadena de setTimeout (no setInterval): el primer tick se programa desde
+// last_run_at, así un deploy no adelanta peticiones a Binance ni una racha de
+// deploys deja al job sin correr. Cada tick programa el siguiente al terminar.
+const startReminderJob = async () => {
+  const minutes = config.reminders.tickMinutes;
+  if (!minutes || minutes <= 0) {
+    logger.info('Job de recordatorios desactivado (REMINDERS_TICK_MINUTES=0)');
+    return;
+  }
+  const intervalMs = minutes * 60 * 1000;
+
+  let state;
+  try {
+    state = await getJobState();
+  } catch (err) {
+    logger.error('Job de recordatorios no iniciado: no se pudo leer reminder_job_state (¿falta la migración 028?)', err);
+    return;
+  }
+  if (state?.backoff_until) setBinanceBackoffUntil(state.backoff_until);
+
+  const schedule = (delayMs) => {
+    setTimeout(async () => {
+      try {
+        await runTick();
+      } catch (err) {
+        logger.error('Error en el job de recordatorios', err);
+      } finally {
+        schedule(intervalMs);
+      }
+    }, delayMs);
+  };
+
+  const firstDelay = computeFirstDelay(state?.last_run_at, intervalMs);
+  logger.info(`Job de recordatorios: cada ${minutes} min, primer tick en ${Math.round(firstDelay / 1000)} s`);
+  schedule(firstDelay);
+};
+
+// ======================
 // Iniciar servidor
 // ======================
 const startServer = async () => {
@@ -130,6 +180,9 @@ const startServer = async () => {
 
     // Job de purga diferida de notas soft-deleted
     startNotePurgeJob();
+
+    // Job de recordatorios de análisis
+    await startReminderJob();
 
     // Iniciar servidor
     app.listen(config.port, () => {

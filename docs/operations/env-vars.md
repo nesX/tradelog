@@ -27,6 +27,9 @@ Validadas por Joi en `src/config/env.js`. Si falta alguna requerida, el server *
 | `MAX_FILE_SIZE` | int (bytes) | no | `5242880` (5MB) | Tamaño máximo de imagen subida. **Nota**: el `errorHandler` muestra hardcoded "1MB" en el mensaje de error — inconsistencia documentada. |
 | `NOTE_PURGE_DAYS` | int (días) | no | `30` | Gracia antes de que la purga diferida borre definitivamente una nota soft-deleted y sus imágenes de disco. Restaurar dentro de este plazo conserva las imágenes. |
 | `NOTE_PURGE_INTERVAL_HOURS` | int (horas) | no | `24` | Cada cuánto corre el job de purga (`startNotePurgeJob` en `server.js`). `0` lo desactiva. Corre una pasada al arrancar. |
+| `REMINDERS_TICK_MINUTES` | int (minutos) | no | `30` | Intervalo del job de recordatorios de análisis (`startReminderJob` en `server.js`). `0` lo desactiva. El primer tick tras arrancar se programa desde el último (`reminder_job_state.last_run_at`), no al arrancar. |
+| `BINANCE_FUTURES_API_URL` | URL | no | `https://fapi.binance.com` | Base URL de datos de mercado de Binance Futures USDⓈ-M (endpoints públicos, sin API key). |
+| `BINANCE_MAX_USED_WEIGHT` | int | no | `1200` | Si `x-mbx-used-weight-1m` (peso usado por la IP en el minuto, compartido con market-tracker) lo supera, el job corta el tick y la caché de precios deja de refrescar. El límite de futuros es 2400/min. Ajustarlo según el peso habitual de market-tracker (spec §4.1). |
 | `ALLOWED_ORIGINS` | string (CSV) | no | `http://localhost:5173` | Lista coma-separada de orígenes permitidos por CORS. Se parsea con `.split(',')`. |
 | `LOG_LEVEL` | enum | no | `info` | `error` \| `warn` \| `info` \| `debug`. |
 | `LOG_DIR` | string | no | `./logs` | Donde Winston escribe JSON. |

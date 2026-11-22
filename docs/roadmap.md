@@ -77,6 +77,7 @@ Originados en [`analysis/scaling.md` Fase 0](analysis/scaling.md#fase-0--hardeni
 | Section dividers en sidebar | `section-dividers-en-sidebar-de-notas.md` | ✅ Implementado (migración 020) |
 | Sistema de estrategias | `sistema-de-estrategias.md` | 🟡 Parcial — `systems` y `signals` existen pero spec describe algo más amplio (templates, paneles dedicados) |
 | Progreso DnD | `progreso-draganddrop.md` | 📝 Doc de tracking del DnD (no es feature) |
+| Recordatorios de análisis (alertas de precio y por fecha) + bandeja `/recordatorios` | `alertas-de-precio-en-notas.md` | ✅ Implementado (migración 028, tasks 016–025 en `tasks/done/`). Falta la puesta en producción: task 026 |
 
 ### Mejoras de UX / DX
 

@@ -81,15 +81,19 @@ Layered: `routes → middleware → controllers → services → repositories �
 - `services/` — business logic (8 files; `note.service.js` is the largest at ~557 LOC)
 - `repositories/` — all SQL queries, parametrized
 - `validators/` — Joi schemas per dominio
-- `routes/` — 7 routers; all require `authenticate` except `/api/auth/google` and `/api/health`
+- `routes/` — routers; all require `authenticate` except `/api/auth/google` and `/api/health`
+- `clients/` — external APIs (`binanceFutures.js`: public Binance Futures market data with circuit breaker)
 
 Mount points (in `server.js`):
-- `/api/auth`, `/api/trades`, `/api/stats`, `/api/backtest`, `/api/notes`, `/api/admin`
+- `/api/auth`, `/api/trades`, `/api/stats`, `/api/backtest`, `/api/notes`, `/api/admin`, `/api/todos`
+- `/api/market-symbols`, `/api/price-alerts`, `/api/date-reminders`, `/api/notifications` (recordatorios de análisis; bandeja `/recordatorios` en el frontend)
 - `/api/systems`, `/api/timeframes` (via `systemRoutes` mounted at `/api`)
 - `/api/health` (público)
 - `/api/images/:filename` (static from `uploads/`, público)
 
 **Auth**: Google OAuth (id_token via `google-auth-library`) → custom JWT (`jsonwebtoken`, `JWT_EXPIRES_IN=7d`). Roles: `user` / `admin` / `super_admin`. Super_admin is bootstrapped at startup via `SUPER_ADMIN_EMAIL` env. Details: [`docs/architecture/auth.md`](docs/architecture/auth.md).
+
+**Jobs** (same process as the API): note purge (`startNotePurgeJob`) and analysis reminders (`startReminderJob` → `reminderJob.service.js`, every `REMINDERS_TICK_MINUTES`; polls Binance Futures 1h candles from a per-symbol checkpoint). Details: [`docs/architecture/backend.md`](docs/architecture/backend.md#jobs-dentro-del-proceso).
 
 **Images**: uploaded via multer to `uploads/` (volumen). Served at `GET /api/images/:filename`. **Client compresses to webp before upload** (`utils/imageCompression.js`).
 
@@ -107,7 +111,7 @@ Mount points (in `server.js`):
 - `api/endpoints.js` — 76+ endpoint functions
 - `hooks/` — TanStack Query hooks. Query keys via factory pattern (`tradeKeys`).
 - `contexts/` — `AuthContext`, `ThemeContext`
-- `pages/` — Home, CreateTrade, Stats, Settings, Login, Notes, NoteEditor, Review, Backtest×3, admin/Users
+- `pages/` — Home, CreateTrade, Stats, Settings, Login, Notes, NoteEditor, Review, Backtest×3, Todo, Reminders (`/recordatorios`), admin/Users
 - `components/` — common, layout, auth, admin, trades, notes (18 archivos), backtest
 - `utils/` — `imageCompression.js`, `treeManipulation.js`, `formatters.js`, `referenceLinks.js`, `notesGrouping.js`
 

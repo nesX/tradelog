@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { Tag, X, Plus, Check, Pencil } from 'lucide-react';
+import { Tag, X, Plus, Check, Pencil, BellRing } from 'lucide-react';
 import {
   useNote,
   useNoteTree,
@@ -13,6 +13,9 @@ import NoteBreadcrumb from '../components/notes/NoteBreadcrumb.jsx';
 import NoteTagBadge from '../components/notes/NoteTagBadge.jsx';
 import NoteSaveIndicator from '../components/notes/NoteSaveIndicator.jsx';
 import CopyReferenceButton from '../components/notes/CopyReferenceButton.jsx';
+import ReminderModal from '../components/notes/ReminderModal.jsx';
+import { ReminderChips } from '../components/notes/ReminderChip.jsx';
+import { hasArmedReminders } from '../utils/reminders.js';
 
 const NoteEditor = ({ embeddedId }) => {
   const params = useParams();
@@ -33,6 +36,8 @@ const NoteEditor = ({ embeddedId }) => {
   const titleInputRef = useRef(null);
   const skipBlurRef = useRef(false);
   const scrolledBlockRef = useRef(null);
+  // Modal de recordatorios de nivel nota: null | { alert?, reminder? }
+  const [noteReminder, setNoteReminder] = useState(null);
 
   // Auto-foco en título si es una nota recién creada (título por defecto)
   useEffect(() => {
@@ -220,12 +225,36 @@ const NoteEditor = ({ embeddedId }) => {
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
-              <div className="flex-shrink-0 mt-0.5">
+              <div className="flex-shrink-0 mt-0.5 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setNoteReminder({})}
+                  title="Recordatorios de la nota (precio o fecha)"
+                  aria-label="Recordatorios de la nota"
+                  className={`p-1.5 rounded-md transition-colors hover:bg-rose-50 dark:hover:bg-rose-900/30 ${
+                    hasArmedReminders(note.price_alerts, note.date_reminders)
+                      ? 'text-rose-500'
+                      : 'text-gray-400 hover:text-rose-500'
+                  }`}
+                >
+                  <BellRing
+                    className="w-4 h-4"
+                    fill={hasArmedReminders(note.price_alerts, note.date_reminders) ? 'currentColor' : 'none'}
+                  />
+                </button>
                 <CopyReferenceButton noteId={noteId} variant="header" />
               </div>
             </div>
           )}
         </div>
+
+        {/* Recordatorios de nivel nota (los de bloque van bajo cada bloque) */}
+        <ReminderChips
+          alerts={note.price_alerts}
+          reminders={note.date_reminders}
+          onOpen={(item) => setNoteReminder(item)}
+          className="mb-3"
+        />
 
         {/* Tags */}
         <div className="flex items-center gap-1.5 flex-wrap pb-3 relative" ref={tagPickerRef}>
@@ -305,6 +334,17 @@ const NoteEditor = ({ embeddedId }) => {
       <div className="max-w-3xl mx-auto w-full px-6 md:touch:pl-10 pt-4 pb-40">
         <NoteBlockList blocks={note.blocks || []} noteId={noteId} />
       </div>
+
+      {noteReminder && (
+        <ReminderModal
+          onClose={() => setNoteReminder(null)}
+          anchor={{ noteId }}
+          alerts={note.price_alerts || []}
+          reminders={note.date_reminders || []}
+          initialAlert={noteReminder.alert || null}
+          initialReminder={noteReminder.reminder || null}
+        />
+      )}
     </div>
   );
 };

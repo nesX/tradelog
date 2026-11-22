@@ -353,3 +353,25 @@ export const createTodoItem = (listId, data) => apiClient.post(`/api/todos/lists
 export const updateTodoItem = (itemId, data) => apiClient.patch(`/api/todos/items/${itemId}`, data);
 export const moveTodoItem = (itemId, payload) => apiClient.patch(`/api/todos/items/${itemId}/move`, payload);
 export const deleteTodoItem = (itemId) => apiClient.delete(`/api/todos/items/${itemId}`);
+
+// ==================
+// RECORDATORIOS DE ANÁLISIS (alertas de precio, recordatorios por fecha, bandeja)
+// ==================
+
+// Catálogo de perpetuos de Binance Futures (lo mantiene el job; sin alta manual)
+export const getMarketSymbols = () => apiClient.get('/api/market-symbols');
+export const getSymbolPrice = (symbol) => apiClient.get(`/api/market-symbols/${encodeURIComponent(symbol)}/price`);
+
+export const getPriceAlerts = (params) => apiClient.get('/api/price-alerts', { params });
+export const createPriceAlert = (data) => apiClient.post('/api/price-alerts', data);
+export const updatePriceAlert = (id, data) => apiClient.patch(`/api/price-alerts/${id}`, data);
+export const deletePriceAlert = (id) => apiClient.delete(`/api/price-alerts/${id}`);
+
+export const getDateReminders = (params) => apiClient.get('/api/date-reminders', { params });
+export const createDateReminder = (data) => apiClient.post('/api/date-reminders', data);
+export const updateDateReminder = (id, data) => apiClient.patch(`/api/date-reminders/${id}`, data);
+export const deleteDateReminder = (id) => apiClient.delete(`/api/date-reminders/${id}`);
+
+export const getNotifications = (params) => apiClient.get('/api/notifications', { params });
+export const getNotificationCount = () => apiClient.get('/api/notifications/count');
+export const resolveNotification = (id, data) => apiClient.post(`/api/notifications/${id}/resolve`, data);

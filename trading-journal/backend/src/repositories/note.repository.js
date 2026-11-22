@@ -64,6 +64,7 @@ export const getById = async (userId, noteId) => {
         LEFT JOIN trades t ON t.id = nbt.trade_id AND t.deleted_at IS NULL
         WHERE nbt.block_id = nb.id), '[]'
       ) as trades,
+      ${blockReminderColumns('nb.id', 'block_id')},
       ln.title as linked_note_title
     FROM note_blocks nb
     LEFT JOIN notes ln ON ln.id = nb.linked_note_id AND ln.deleted_at IS NULL AND ln.user_id = $2
@@ -80,11 +81,53 @@ export const getById = async (userId, noteId) => {
     [noteId]
   );
 
+  // Alertas y recordatorios de nivel nota (los de bloque van en cada bloque)
+  const noteRemindersResult = await pool.query(
+    `SELECT ${blockReminderColumns('$1::int', 'note_id')}`,
+    [noteId]
+  );
+
   const note = noteResult.rows[0];
   note.blocks = blocksResult.rows;
   note.tags = tagsResult.rows;
+  note.price_alerts = noteRemindersResult.rows[0].price_alerts;
+  note.date_reminders = noteRemindersResult.rows[0].date_reminders;
   return note;
 };
+
+/**
+ * Subqueries json_agg con las alertas de precio y los recordatorios por fecha de
+ * un anclaje, para pintar los chips sin otra petición. `anchorExpr` es la
+ * expresión del id (columna o parámetro) y `anchorColumn` la columna de anclaje
+ * ('block_id' | 'note_id'); ambos son literales fijos, nunca datos. Dentro de
+ * json_agg los NUMERIC salen como números JSON.
+ */
+const blockReminderColumns = (anchorExpr, anchorColumn) => `
+      COALESCE(
+        (SELECT json_agg(
+          json_build_object(
+            'id', pa.id, 'symbol', pa.symbol, 'direction', pa.direction,
+            'target_price', pa.target_price, 'is_invalidation', pa.is_invalidation,
+            'near_pct', pa.near_pct, 'deadline_at', pa.deadline_at, 'message', pa.message,
+            'status', pa.status, 'armed_at', pa.armed_at, 'triggered_at', pa.triggered_at,
+            'price_at_creation', pa.price_at_creation, 'contract_type', ms.contract_type, 'tick_size', ms.tick_size,
+            'last_price', ms.last_price, 'last_price_at', ms.last_price_at
+          ) ORDER BY pa.created_at ASC
+        )
+        FROM price_alerts pa
+        JOIN market_symbols ms ON ms.symbol = pa.symbol
+        WHERE pa.${anchorColumn} = ${anchorExpr}), '[]'
+      ) as price_alerts,
+      COALESCE(
+        (SELECT json_agg(
+          json_build_object(
+            'id', dr.id, 'remind_at', dr.remind_at, 'message', dr.message,
+            'status', dr.status, 'sent_at', dr.sent_at
+          ) ORDER BY dr.remind_at ASC
+        )
+        FROM date_reminders dr
+        WHERE dr.${anchorColumn} = ${anchorExpr}), '[]'
+      ) as date_reminders`;
 
 export const create = async (userId, { title = 'Sin título', parent_note_id = null, type = 'note' }, exec = pool) => {
 

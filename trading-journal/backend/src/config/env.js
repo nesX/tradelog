@@ -26,6 +26,12 @@ const envSchema = Joi.object({
   NOTE_PURGE_DAYS: Joi.number().min(1).default(30), // gracia antes de borrar definitivamente
   NOTE_PURGE_INTERVAL_HOURS: Joi.number().min(0).default(24), // 0 = desactivar el job
 
+  // Recordatorios de análisis (alertas de precio sobre Binance Futures y por fecha)
+  REMINDERS_TICK_MINUTES: Joi.number().min(0).default(30), // 0 = desactivar el job
+  BINANCE_FUTURES_API_URL: Joi.string().uri().default('https://fapi.binance.com'),
+  // Si x-mbx-used-weight-1m lo supera, se corta el tick (límite de futuros: 2400/min por IP)
+  BINANCE_MAX_USED_WEIGHT: Joi.number().integer().min(1).default(1200),
+
   // CORS
   ALLOWED_ORIGINS: Joi.string().default('http://localhost:5179'),
 
@@ -77,6 +83,15 @@ export const config = {
   notePurge: {
     days: envVars.NOTE_PURGE_DAYS,
     intervalHours: envVars.NOTE_PURGE_INTERVAL_HOURS,
+  },
+
+  reminders: {
+    tickMinutes: envVars.REMINDERS_TICK_MINUTES,
+  },
+
+  binance: {
+    futuresApiUrl: envVars.BINANCE_FUTURES_API_URL.replace(/\/+$/, ''),
+    maxUsedWeight: envVars.BINANCE_MAX_USED_WEIGHT,
   },
 
   cors: {

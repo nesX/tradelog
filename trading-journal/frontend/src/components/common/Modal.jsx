@@ -13,6 +13,8 @@ const Modal = ({
   showCloseButton = true,
   // Botones extra en el header, a la izquierda del botón de cerrar
   headerActions = null,
+  // En pantallas chicas (< sm) ocupa toda la pantalla; desde sm, el tamaño normal
+  fullScreenOnMobile = false,
 }) => {
   // Cerrar con Escape
   useEffect(() => {
@@ -59,9 +61,15 @@ const Modal = ({
       />
 
       {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-4">
+      <div
+        className={`flex min-h-full items-center justify-center ${
+          fullScreenOnMobile ? 'p-0 sm:p-4 items-stretch sm:items-center' : 'p-4'
+        }`}
+      >
         <div
-          className={`relative w-full ${sizes[size]} bg-white dark:bg-gray-800 rounded-xl shadow-xl transform transition-all`}
+          className={`relative w-full ${sizes[size]} bg-white dark:bg-gray-800 shadow-xl transform transition-all ${
+            fullScreenOnMobile ? 'min-h-screen sm:min-h-0 rounded-none sm:rounded-xl' : 'rounded-xl'
+          }`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}

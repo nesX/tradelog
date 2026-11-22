@@ -2,6 +2,9 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Trash2, GripVertical, FileOutput } from 'lucide-react';
 import { BlockFollowUpToggle } from './BlockFollowUpToggle.jsx';
 import { BlockRevisitToggle } from './BlockRevisitToggle.jsx';
+import { BlockReminderToggle } from './BlockReminderToggle.jsx';
+import { ReminderChips } from './ReminderChip.jsx';
+import ReminderModal from './ReminderModal.jsx';
 import {
   DndContext,
   DragOverlay,
@@ -89,6 +92,7 @@ function SortableBlockItem({
   onUpdate,
   onUpdateMetadata,
   onOpenMove,
+  onOpenReminder,
   saveStatus,
   blockOptions,
   noteActions,
@@ -137,6 +141,7 @@ function SortableBlockItem({
           noteId={noteId}
           position={idx + 1}
           onOpenMove={onOpenMove}
+          onOpenReminder={onOpenReminder}
           onDelete={onDelete}
           dragListeners={listeners}
           topClass={actionTop}
@@ -177,6 +182,9 @@ function SortableBlockItem({
 
               {/* Toggle repaso */}
               <BlockRevisitToggle block={block} />
+
+              {/* Recordatorios del bloque (alertas de precio y por fecha) */}
+              <BlockReminderToggle block={block} onOpen={onOpenReminder} />
 
               {/* Copiar referencia al bloque (no aplica a bloques que ya son referencias) */}
               {block.block_type !== 'reference' && (
@@ -223,6 +231,17 @@ function SortableBlockItem({
           saveStatus={saveStatus}
         />
       </div>
+
+      {/* Chips de recordatorios: fuera del contenedor del bloque para no mover
+          sus controles flotantes (centrados en vertical). */}
+      {noteActions && (
+        <ReminderChips
+          alerts={block.price_alerts}
+          reminders={block.date_reminders}
+          onOpen={(item) => onOpenReminder(block.id, item)}
+          className="px-4 pb-2 -mt-0.5"
+        />
+      )}
     </div>
   );
 }
@@ -251,7 +270,8 @@ const blockHasContent = (block) => {
 /**
  * Lista editable de bloques de una nota. También la usa el contenido de un
  * pendiente (TODO), que limita los tipos de bloque (`blockOptions`) y oculta las
- * acciones propias de notas (`noteActions`: seguimiento, repaso, referencia, mover).
+ * acciones propias de notas (`noteActions`: seguimiento, repaso, recordatorios,
+ * referencia, mover).
  */
 const NoteBlockList = ({
   blocks = [],
@@ -268,6 +288,10 @@ const NoteBlockList = ({
   const [saveStatus, setSaveStatus] = useState({});
   const [activeBlockId, setActiveBlockId] = useState(null);
   const [moveBlockId, setMoveBlockId] = useState(null);
+  // { blockId, alert?, reminder? }: modal de recordatorios del bloque (desde el
+  // toggle, el menú táctil o un chip, que lo abre editando ese elemento)
+  const [reminderTarget, setReminderTarget] = useState(null);
+  const openReminder = useCallback((blockId, item = {}) => setReminderTarget({ blockId, ...item }), []);
   const [pendingDeleteBlock, setPendingDeleteBlock] = useState(null);
   // Timers de limpieza del label "Guardado ✓"; se cancelan al desmontar.
   const statusTimersRef = useRef([]);
@@ -384,6 +408,7 @@ const NoteBlockList = ({
                 onUpdate={handleUpdate}
                 onUpdateMetadata={handleUpdateMetadata}
                 onOpenMove={setMoveBlockId}
+                onOpenReminder={openReminder}
                 saveStatus={saveStatus[block.id]}
                 blockOptions={blockOptions}
                 noteActions={noteActions}
@@ -410,6 +435,23 @@ const NoteBlockList = ({
           onClose={() => setMoveBlockId(null)}
         />
       )}
+
+      {reminderTarget && (() => {
+        // El bloque se lee de la lista en cada render: tras crear o borrar, la nota
+        // se refresca y la lista del modal se actualiza sola.
+        const block = blocks.find((b) => b.id === reminderTarget.blockId);
+        if (!block) return null;
+        return (
+          <ReminderModal
+            onClose={() => setReminderTarget(null)}
+            anchor={{ blockId: block.id }}
+            alerts={block.price_alerts || []}
+            reminders={block.date_reminders || []}
+            initialAlert={reminderTarget.alert || null}
+            initialReminder={reminderTarget.reminder || null}
+          />
+        );
+      })()}
 
       <ConfirmDialog
         isOpen={pendingDeleteBlock !== null}

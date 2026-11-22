@@ -90,6 +90,26 @@ export const withUserLock = async (userId, fn) => {
 };
 
 /**
+ * Ejecuta `fn(client)` dentro de una transacción (BEGIN/COMMIT, ROLLBACK si lanza).
+ *
+ * @param {(client: pg.PoolClient) => Promise<any>} fn
+ */
+export const withTransaction = async (fn) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
  * Verifica la conexión a la base de datos
  * @returns {Promise<boolean>} true si la conexión es exitosa
  */

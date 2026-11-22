@@ -1,9 +1,38 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical, BookOpen, Menu, X, LayoutDashboard, Users, ListTodo } from 'lucide-react';
+import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical, BookOpen, Menu, X, LayoutDashboard, Users, ListTodo, Bell } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import UserMenu from '../auth/UserMenu.jsx';
+import { useNotificationCount } from '../../hooks/useNotifications.js';
+
+/**
+ * Campana de la bandeja /recordatorios con el número de tarjetas abiertas (sin
+ * badge cuando hay 0). Solo en el área de notas.
+ */
+const RemindersBell = ({ active, className = '' }) => {
+  const { data: openCount = 0 } = useNotificationCount();
+  return (
+    <Link
+      to="/recordatorios"
+      title={openCount > 0 ? `Recordatorios (${openCount} pendientes)` : 'Recordatorios'}
+      aria-label="Recordatorios"
+      className={`relative p-2 rounded-lg transition-colors ${
+        active
+          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+          : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+      } ${className}`}
+    >
+      <Bell className="w-5 h-5" />
+      {openCount > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 min-w-[1.1rem] h-[1.1rem] px-1 flex items-center justify-center
+                         rounded-full bg-rose-500 text-white text-[10px] font-semibold leading-none">
+          {openCount > 99 ? '99+' : openCount}
+        </span>
+      )}
+    </Link>
+  );
+};
 
 const Header = () => {
   const location = useLocation();
@@ -20,7 +49,7 @@ const Header = () => {
 
   // Notas (y lo que cuelga de ellas) funciona casi como una app aparte: header
   // reducido, sin estadísticas/backtesting/usuarios ni el link a app.nesx.
-  const isNotesArea = ['/notes', '/review', '/repaso', '/todo'].some(isActive);
+  const isNotesArea = ['/notes', '/review', '/repaso', '/todo', '/recordatorios'].some(isActive);
 
   const primaryNav = isNotesArea
     ? [
@@ -88,6 +117,8 @@ const Header = () => {
               </Link>
             ))}
 
+            {isNotesArea && <RemindersBell active={isActive('/recordatorios')} className="ml-1" />}
+
             <button
               onClick={toggleTheme}
               className="ml-2 p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
@@ -128,6 +159,8 @@ const Header = () => {
                 <Icon className="w-5 h-5" />
               </Link>
             ))}
+
+            {isNotesArea && <RemindersBell active={isActive('/recordatorios')} />}
 
             {/* Hamburger */}
             <button

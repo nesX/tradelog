@@ -6,6 +6,7 @@ import {
   Plus,
   Flag,
   BookMarked,
+  BellRing,
   Link2,
   FileOutput,
   Trash2,
@@ -15,6 +16,7 @@ import { useToggleFollowUp } from '../../hooks/useBlockFollowUp.js';
 import { useToggleRevisit } from '../../hooks/useBlockRevisit.js';
 import { useToast } from '../common/Toast.jsx';
 import { buildBlockUrl } from '../../utils/referenceLinks.js';
+import { hasArmedReminders } from '../../utils/reminders.js';
 
 /**
  * Alternativa táctil (tablet/móvil) a los controles flotantes de bloque:
@@ -29,14 +31,15 @@ import { buildBlockUrl } from '../../utils/referenceLinks.js';
  * Solo visible en dispositivos sin hover (variante `touch:`); en desktop
  * siguen los controles flotantes de siempre.
  *
- * `noteActions` = false oculta seguimiento, repaso, copiar referencia y mover
- * (el contenido de un pendiente no participa de esas vistas).
+ * `noteActions` = false oculta seguimiento, repaso, recordatorios, copiar
+ * referencia y mover (el contenido de un pendiente no participa de esas vistas).
  */
 const BlockTouchMenu = ({
   block,
   noteId,
   position,
   onOpenMove,
+  onOpenReminder,
   onDelete,
   dragListeners,
   topClass = 'top-1/2',
@@ -164,6 +167,19 @@ const BlockTouchMenu = ({
                       fill={block.marked_for_revisit ? 'currentColor' : 'none'}
                     />
                     {block.marked_for_revisit ? 'Quitar repaso' : 'Marcar repaso'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      closeMenu();
+                      onOpenReminder(block.id);
+                    }}
+                    className={itemClass}
+                  >
+                    <BellRing
+                      className="w-4 h-4 text-rose-500"
+                      fill={hasArmedReminders(block.price_alerts, block.date_reminders) ? 'currentColor' : 'none'}
+                    />
+                    Recordatorio
                   </button>
                   {block.block_type !== 'reference' && (
                     <button onClick={handleCopyReference} className={itemClass}>
