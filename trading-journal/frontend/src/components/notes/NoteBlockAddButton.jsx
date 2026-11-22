@@ -32,7 +32,7 @@ const NoteBlockAddButton = ({ noteId, position, topClass = 'top-1/2' }) => {
   return (
     <div
       ref={ref}
-      className={`absolute -left-8 ${topClass} -translate-y-1/2 z-20 transition-opacity touch:hidden
+      className={`absolute -left-7 ${topClass} -translate-y-1/2 z-20 transition-opacity touch:hidden
                   ${open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
     >
       <button
@@ -41,19 +41,16 @@ const NoteBlockAddButton = ({ noteId, position, topClass = 'top-1/2' }) => {
           if (!loading) setOpen((v) => !v);
         }}
         disabled={loading}
-        className="w-6 h-6 flex items-center justify-center rounded-full
-                   bg-white dark:bg-gray-800
-                   border border-gray-200 dark:border-gray-700
+        className="w-6 h-6 flex items-center justify-center
                    text-gray-400 hover:text-blue-600 dark:hover:text-blue-400
-                   hover:border-blue-400 dark:hover:border-blue-500
-                   shadow-sm transition-colors
+                   transition-colors
                    disabled:opacity-40 disabled:cursor-not-allowed"
         title="Insertar bloque debajo"
       >
         {loading ? (
           <div className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin" />
         ) : (
-          <Plus className="w-3.5 h-3.5" />
+          <Plus className="w-[1.1rem] h-[1.1rem]" />
         )}
       </button>
 

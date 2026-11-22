@@ -21,23 +21,20 @@ const NoteBlockInsert = ({ noteId, position }) => {
   };
 
   return (
-    <div className="relative group flex items-center justify-center py-0.5" ref={ref}>
+    <div className="relative group flex items-center justify-center pt-4 pb-1" ref={ref}>
       {/* Botón + */}
       <button
         onClick={() => !loading && setOpen((v) => !v)}
         disabled={loading}
         className="flex-shrink-0 w-6 h-6 flex items-center justify-center
-                   rounded-full border border-gray-200 dark:border-gray-700
-                   bg-white dark:bg-gray-800
                    text-gray-400 hover:text-blue-600 dark:hover:text-blue-400
-                   hover:border-blue-400 dark:hover:border-blue-500
-                   transition-all shadow-sm
+                   transition-colors
                    disabled:opacity-30 disabled:cursor-not-allowed"
         title="Insertar bloque"
       >
         {loading
           ? <div className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin" />
-          : <Plus className="w-3.5 h-3.5" />
+          : <Plus className="w-[1.1rem] h-[1.1rem]" />
         }
       </button>
 
