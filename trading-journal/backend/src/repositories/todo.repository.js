@@ -5,15 +5,28 @@ import { generateKeyBetween } from 'fractional-indexing';
 // LISTAS
 // ============================================================
 
+// Cantidad de pendientes que se devuelven como vista previa de cada lista.
+const PREVIEW_ITEMS_LIMIT = 5;
+
 export const getLists = async (userId) => {
   const result = await pool.query(
     `SELECT l.id, l.name, l.position, l.created_at, l.updated_at,
       (SELECT COUNT(*)::int FROM todo_items ti
-       WHERE ti.list_id = l.id AND ti.completed_at IS NULL) AS pending_count
+       WHERE ti.list_id = l.id AND ti.completed_at IS NULL) AS pending_count,
+      COALESCE((
+        SELECT json_agg(json_build_object('id', p.id, 'title', p.title)
+                        ORDER BY p.position COLLATE "C" ASC, p.created_at ASC)
+        FROM (
+          SELECT ti.id, ti.title, ti.position, ti.created_at FROM todo_items ti
+          WHERE ti.list_id = l.id AND ti.completed_at IS NULL
+          ORDER BY ti.position COLLATE "C" ASC, ti.created_at ASC
+          LIMIT $2
+        ) p
+      ), '[]'::json) AS preview_items
     FROM todo_lists l
     WHERE l.user_id = $1
     ORDER BY l.position COLLATE "C" ASC, l.created_at ASC`,
-    [userId]
+    [userId, PREVIEW_ITEMS_LIMIT]
   );
   return result.rows;
 };
@@ -39,7 +52,7 @@ export const createList = async (userId, name, exec = pool) => {
   const result = await exec.query(
     `INSERT INTO todo_lists (user_id, name, position)
      VALUES ($1, $2, $3)
-     RETURNING *, 0 AS pending_count`,
+     RETURNING *, 0 AS pending_count, '[]'::json AS preview_items`,
     [userId, name, position]
   );
   return result.rows[0];

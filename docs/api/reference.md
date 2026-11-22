@@ -376,7 +376,7 @@ Timeframes del usuario.
 
 | Método | Ruta | Notas |
 |--------|------|-------|
-| `GET` | `/api/todos/lists` | Listas del usuario con `pending_count`. |
+| `GET` | `/api/todos/lists` | Listas del usuario con `pending_count` y `preview_items` (primeros 5 pendientes, `{ id, title }`, en orden). |
 | `POST` | `/api/todos/lists` | Crear lista. Body: `{ name }`. |
 | `PATCH` | `/api/todos/lists/:listId` | Renombrar. Body: `{ name }`. |
 | `DELETE` | `/api/todos/lists/:listId` | Borra la lista y sus items; soft-delete de sus notas (la purga diferida borra después las imágenes). |

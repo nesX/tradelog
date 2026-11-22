@@ -98,9 +98,10 @@ export const useUpdateTodoItem = (listId) => {
     onError: (_, __, context) => {
       if (context?.previous) qc.setQueryData(todoKeys.items(listId), context.previous);
     },
-    onSettled: (_, __, { completed }) => {
+    // La lista también: su contador y la vista previa de pendientes cambian.
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: todoKeys.items(listId) });
-      if (completed !== undefined) qc.invalidateQueries({ queryKey: todoKeys.lists() });
+      qc.invalidateQueries({ queryKey: todoKeys.lists() });
     },
   });
 };
@@ -121,7 +122,10 @@ export const useMoveTodoItem = (listId) => {
     onError: (_, __, context) => {
       if (context?.previous) qc.setQueryData(todoKeys.items(listId), context.previous);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: todoKeys.items(listId) }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: todoKeys.items(listId) });
+      qc.invalidateQueries({ queryKey: todoKeys.lists() });
+    },
   });
 };
 

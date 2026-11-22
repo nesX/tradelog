@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ListTodo, Pencil, Trash2 } from 'lucide-react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, ListTodo, Pencil, Trash2 } from 'lucide-react';
 import ConfirmDialog from '../components/common/ConfirmDialog.jsx';
-import TodoListTabs from '../components/todo/TodoListTabs.jsx';
+import TodoListGrid from '../components/todo/TodoListGrid.jsx';
 import TodoListView from '../components/todo/TodoListView.jsx';
 import {
   useTodoLists,
@@ -12,7 +12,8 @@ import {
 } from '../hooks/useTodos.js';
 
 /**
- * Listas de pendientes. Cada item puede desplegarse en línea con contenido
+ * Listas de pendientes. `/todo` muestra todas las listas como cards y
+ * `/todo/:listId` una lista; cada item puede desplegarse en línea con contenido
  * (texto markdown e imágenes) guardado como bloques de una nota oculta.
  */
 export default function Todo() {
@@ -31,12 +32,10 @@ export default function Todo() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const skipSaveRef = useRef(false);
 
-  // Sin lista en la URL (o una que ya no existe): ir a la primera disponible.
+  // Lista en la URL que ya no existe: volver a la cuadrícula.
   useEffect(() => {
-    if (isLoading || activeList) return;
-    if (lists.length > 0) navigate(`/todo/${lists[0].id}`, { replace: true });
-    else if (listIdParam) navigate('/todo', { replace: true });
-  }, [isLoading, activeList, lists, listIdParam, navigate]);
+    if (!isLoading && listIdParam && !activeList) navigate('/todo', { replace: true });
+  }, [isLoading, activeList, listIdParam, navigate]);
 
   useEffect(() => setEditingName(false), [listId]);
 
@@ -70,84 +69,100 @@ export default function Todo() {
     return <p className="py-24 text-center text-sm text-gray-400 dark:text-gray-500">Cargando…</p>;
   }
 
+  if (!activeList) {
+    return (
+      <div>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pendientes</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Tus listas de TODO</p>
+        </div>
+
+        <TodoListGrid lists={lists} onCreate={handleCreateList} />
+
+        {lists.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <ListTodo className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Crea tu primera lista con <span className="font-medium">Nueva lista</span>.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto">
-      <TodoListTabs lists={lists} activeListId={activeList?.id} onCreate={handleCreateList} />
+      <Link
+        to="/todo"
+        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800
+                   dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Listas
+      </Link>
 
-      {lists.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <ListTodo className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Crea tu primera lista con <span className="font-medium">Nueva lista</span>.
-          </p>
-        </div>
-      )}
-
-      {activeList && (
-        <>
-          <div className="flex items-center gap-2 mt-4 mb-4 group">
-            {editingName ? (
-              <input
-                autoFocus
-                value={nameValue}
-                onChange={(e) => setNameValue(e.target.value)}
-                onBlur={saveName}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') saveName();
-                  if (e.key === 'Escape') {
-                    skipSaveRef.current = true;
-                    setEditingName(false);
-                  }
-                }}
-                maxLength={200}
-                className="flex-1 min-w-0 text-2xl font-bold bg-transparent outline-none
-                           border-b-2 border-blue-500 text-gray-900 dark:text-white"
-                aria-label="Nombre de la lista"
-              />
-            ) : (
-              <h1
-                onDoubleClick={startEditingName}
-                className="flex-1 min-w-0 truncate text-2xl font-bold text-gray-900 dark:text-white"
-              >
-                {activeList.name}
-              </h1>
-            )}
-            {!editingName && (
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 touch:opacity-100 transition-opacity">
-                <button
-                  onClick={startEditingName}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100
-                             dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
-                  title="Renombrar lista"
-                  aria-label="Renombrar lista"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50
-                             dark:hover:text-red-400 dark:hover:bg-red-900/30 transition-colors"
-                  title="Eliminar lista"
-                  aria-label="Eliminar lista"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          <TodoListView key={activeList.id} listId={activeList.id} />
-
-          <ConfirmDialog
-            isOpen={confirmDelete}
-            onClose={() => setConfirmDelete(false)}
-            onConfirm={handleDeleteList}
-            title="Eliminar lista"
-            message={`Se eliminará la lista "${activeList.name}" con todos sus pendientes y su contenido.`}
-            isLoading={deleteList.isPending}
+      <div className="flex items-center gap-2 mt-3 mb-4 group">
+        {editingName ? (
+          <input
+            autoFocus
+            value={nameValue}
+            onChange={(e) => setNameValue(e.target.value)}
+            onBlur={saveName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') saveName();
+              if (e.key === 'Escape') {
+                skipSaveRef.current = true;
+                setEditingName(false);
+              }
+            }}
+            maxLength={200}
+            className="flex-1 min-w-0 text-2xl font-bold bg-transparent outline-none
+                       border-b-2 border-blue-500 text-gray-900 dark:text-white"
+            aria-label="Nombre de la lista"
           />
-        </>
-      )}
+        ) : (
+          <h1
+            onDoubleClick={startEditingName}
+            className="flex-1 min-w-0 truncate text-2xl font-bold text-gray-900 dark:text-white"
+          >
+            {activeList.name}
+          </h1>
+        )}
+        {!editingName && (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 touch:opacity-100 transition-opacity">
+            <button
+              onClick={startEditingName}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100
+                         dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+              title="Renombrar lista"
+              aria-label="Renombrar lista"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50
+                         dark:hover:text-red-400 dark:hover:bg-red-900/30 transition-colors"
+              title="Eliminar lista"
+              aria-label="Eliminar lista"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <TodoListView key={activeList.id} listId={activeList.id} />
+
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={handleDeleteList}
+        title="Eliminar lista"
+        message={`Se eliminará la lista "${activeList.name}" con todos sus pendientes y su contenido.`}
+        isLoading={deleteList.isPending}
+      />
     </div>
   );
 }
