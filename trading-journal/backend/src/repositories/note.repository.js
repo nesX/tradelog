@@ -23,7 +23,7 @@ export const getTree = async (userId) => {
          WHERE nta.note_id = n.id), '[]'
       ) as tags
     FROM notes n
-    WHERE n.user_id = $1 AND n.deleted_at IS NULL
+    WHERE n.user_id = $1 AND n.deleted_at IS NULL AND n.type <> 'todo'
     ORDER BY n.position COLLATE "C" ASC, n.created_at ASC`,
     [userId]
   );
@@ -223,7 +223,8 @@ export const reorderSiblings = async (userId, noteIds, exec = pool) => {
 export const getSiblingNoteIds = async (userId, parentNoteId, exec = pool) => {
   const result = await exec.query(
     `SELECT id FROM notes
-     WHERE parent_note_id IS NOT DISTINCT FROM $1 AND user_id = $2 AND deleted_at IS NULL`,
+     WHERE parent_note_id IS NOT DISTINCT FROM $1 AND user_id = $2 AND deleted_at IS NULL
+       AND type <> 'todo'`,
     [parentNoteId, userId]
   );
   return result.rows.map((r) => r.id);
@@ -951,7 +952,7 @@ export const getFullTree = async (userId) => {
     FROM note_blocks nb
     JOIN notes n ON n.id = nb.note_id
     LEFT JOIN notes ln ON ln.id = nb.linked_note_id AND ln.deleted_at IS NULL AND ln.user_id = $1
-    WHERE n.user_id = $1 AND n.deleted_at IS NULL
+    WHERE n.user_id = $1 AND n.deleted_at IS NULL AND n.type = 'note'
     ORDER BY nb.position COLLATE "C" ASC`,
     [userId]
   );
@@ -1000,6 +1001,7 @@ export const findPendingFollowUp = async (userId, hoursBack = null) => {
      WHERE n.user_id = $1
        AND b.requires_follow_up = true
        AND n.deleted_at IS NULL
+       AND n.type = 'note'
        ${timeFilter}
      ORDER BY b.updated_at ASC
      LIMIT 200`,
@@ -1040,6 +1042,7 @@ export const findMarkedForRevisit = async (userId, hoursBack = null) => {
      WHERE n.user_id = $1
        AND b.marked_for_revisit = true
        AND n.deleted_at IS NULL
+       AND n.type = 'note'
        ${timeFilter}
      ORDER BY b.updated_at ASC
      LIMIT 200`,
@@ -1058,6 +1061,7 @@ export const findRecentActivity = async (userId, hoursBack) => {
      WHERE n.user_id = $1
        AND b.updated_at >= NOW() - ($2 || ' hours')::INTERVAL
        AND n.deleted_at IS NULL
+       AND n.type = 'note'
      ORDER BY b.updated_at DESC
      LIMIT 200`,
     [userId, hoursBack]

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical, BookOpen, Menu, X, LayoutDashboard, Users } from 'lucide-react';
+import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical, BookOpen, Menu, X, LayoutDashboard, Users, ListTodo } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import UserMenu from '../auth/UserMenu.jsx';
@@ -13,22 +13,34 @@ const Header = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
-  const primaryNav = [
-    { path: '/', label: 'Trades', icon: TrendingUp },
-    { path: '/create', label: 'Nuevo', icon: Plus },
-    { path: '/notes', label: 'Notas', icon: BookOpen },
-  ];
-
-  const secondaryNav = [
-    { path: '/stats', label: 'Estadísticas', icon: BarChart3 },
-    { path: '/backtest', label: 'Backtesting', icon: FlaskConical },
-    ...(isAdmin ? [{ path: '/admin/users', label: 'Usuarios', icon: Users }] : []),
-  ];
-
   const isActive = (path) =>
     path === '/'
       ? location.pathname === path
       : location.pathname === path || location.pathname.startsWith(path + '/');
+
+  // Notas (y lo que cuelga de ellas) funciona casi como una app aparte: header
+  // reducido, sin estadísticas/backtesting/usuarios ni el link a app.nesx.
+  const isNotesArea = ['/notes', '/review', '/repaso', '/todo'].some(isActive);
+
+  const primaryNav = isNotesArea
+    ? [
+        { path: '/', label: 'Trades', icon: TrendingUp },
+        { path: '/notes', label: 'Notas', icon: BookOpen },
+        { path: '/todo', label: 'TODO', icon: ListTodo },
+      ].filter(({ path }) => !isActive(path)) // la sección actual no necesita link
+    : [
+        { path: '/', label: 'Trades', icon: TrendingUp },
+        { path: '/create', label: 'Nuevo', icon: Plus },
+        { path: '/notes', label: 'Notas', icon: BookOpen },
+      ];
+
+  const secondaryNav = isNotesArea
+    ? []
+    : [
+        { path: '/stats', label: 'Estadísticas', icon: BarChart3 },
+        { path: '/backtest', label: 'Backtesting', icon: FlaskConical },
+        ...(isAdmin ? [{ path: '/admin/users', label: 'Usuarios', icon: Users }] : []),
+      ];
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -84,16 +96,18 @@ const Header = () => {
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
 
-            <a
-              href="https://app.nesx.co"
-              title="Ir a app.nesx.co"
-              className="p-2 rounded-lg text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <LayoutDashboard className="w-5 h-5" />
-            </a>
+            {!isNotesArea && (
+              <a
+                href="https://app.nesx.co"
+                title="Ir a app.nesx.co"
+                className="p-2 rounded-lg text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <LayoutDashboard className="w-5 h-5" />
+              </a>
+            )}
 
             <div className="ml-2">
-              <UserMenu />
+              <UserMenu showNotesExport={isNotesArea} />
             </div>
           </nav>
 
@@ -150,7 +164,7 @@ const Header = () => {
                     {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                     {isDark ? 'Modo claro' : 'Modo oscuro'}
                   </button>
-                  <UserMenu />
+                  <UserMenu showNotesExport={isNotesArea} />
                 </div>
               </div>
             )}

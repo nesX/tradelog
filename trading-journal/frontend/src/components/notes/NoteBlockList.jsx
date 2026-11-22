@@ -32,6 +32,7 @@ import BlockTouchMenu from './BlockTouchMenu.jsx';
 import MoveBlockToNoteModal from './MoveBlockToNoteModal.jsx';
 import ConfirmDialog from '../common/ConfirmDialog.jsx';
 import { useDeleteBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd, useNoteTree } from '../../hooks/useNotes.js';
+import { BLOCK_OPTIONS } from '../../hooks/useBlockInserter.js';
 import { subtreeIds } from '../../utils/notesGrouping.js';
 
 function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus }) {
@@ -80,7 +81,18 @@ function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus })
   );
 }
 
-function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMetadata, onOpenMove, saveStatus }) {
+function SortableBlockItem({
+  block,
+  noteId,
+  idx,
+  onDelete,
+  onUpdate,
+  onUpdateMetadata,
+  onOpenMove,
+  saveStatus,
+  blockOptions,
+  noteActions,
+}) {
   const { attributes, isDragging, listeners, setNodeRef, setActivatorNodeRef, transform, transition } = useSortable({ id: block.id });
 
   const style = {
@@ -113,7 +125,7 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
       >
         {/* Botón "+" en el margen izquierdo: inserta un bloque debajo.
             Solo desktop; en táctil la inserción vive en el menú "⋮". */}
-        <NoteBlockAddButton noteId={noteId} position={idx + 1} topClass={actionTop} />
+        <NoteBlockAddButton noteId={noteId} position={idx + 1} topClass={actionTop} options={blockOptions} />
 
         {/* Táctil (tablets/móvil): un único botón "⋮" con todas las acciones
             en un menú; mantener pulsado arrastra. Reemplaza al "+" y a la
@@ -128,6 +140,8 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
           onDelete={onDelete}
           dragListeners={listeners}
           topClass={actionTop}
+          options={blockOptions}
+          noteActions={noteActions}
         />
 
         {/* Floating actions (grid 2x2), solo desktop (hover). Flotan en el
@@ -156,31 +170,35 @@ function SortableBlockItem({ block, noteId, idx, onDelete, onUpdate, onUpdateMet
             <GripVertical className="w-3.5 h-3.5" />
           </button>
 
-          {/* Toggle seguimiento */}
-          <BlockFollowUpToggle block={block} noteId={noteId} />
+          {noteActions && (
+            <>
+              {/* Toggle seguimiento */}
+              <BlockFollowUpToggle block={block} noteId={noteId} />
 
-          {/* Toggle repaso */}
-          <BlockRevisitToggle block={block} />
+              {/* Toggle repaso */}
+              <BlockRevisitToggle block={block} />
 
-          {/* Copiar referencia al bloque (no aplica a bloques que ya son referencias) */}
-          {block.block_type !== 'reference' && (
-            <CopyReferenceButton noteId={noteId} blockId={block.id} />
+              {/* Copiar referencia al bloque (no aplica a bloques que ya son referencias) */}
+              {block.block_type !== 'reference' && (
+                <CopyReferenceButton noteId={noteId} blockId={block.id} />
+              )}
+
+              {/* Mover el bloque a otra nota (todos los tipos; si es una sub-nota,
+                  el backend reparenta también la nota vinculada) */}
+              <button
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); onOpenMove(block.id); }}
+                className="w-6 h-6 flex items-center justify-center rounded
+                           bg-white dark:bg-gray-800
+                           border border-gray-200 dark:border-gray-700
+                           text-gray-400 hover:text-purple-600 dark:hover:text-purple-400
+                           hover:border-purple-300 dark:hover:border-purple-700
+                           shadow-sm transition-colors"
+                title="Mover a otra nota"
+              >
+                <FileOutput className="w-3.5 h-3.5" />
+              </button>
+            </>
           )}
-
-          {/* Mover el bloque a otra nota (todos los tipos; si es una sub-nota,
-              el backend reparenta también la nota vinculada) */}
-          <button
-            onClick={(e) => { e.stopPropagation(); e.preventDefault(); onOpenMove(block.id); }}
-            className="w-6 h-6 flex items-center justify-center rounded
-                       bg-white dark:bg-gray-800
-                       border border-gray-200 dark:border-gray-700
-                       text-gray-400 hover:text-purple-600 dark:hover:text-purple-400
-                       hover:border-purple-300 dark:hover:border-purple-700
-                       shadow-sm transition-colors"
-            title="Mover a otra nota"
-          >
-            <FileOutput className="w-3.5 h-3.5" />
-          </button>
 
           <button
             onClick={() => onDelete(block)}
@@ -230,7 +248,18 @@ const blockHasContent = (block) => {
   }
 };
 
-const NoteBlockList = ({ blocks = [], noteId }) => {
+/**
+ * Lista editable de bloques de una nota. También la usa el contenido de un
+ * pendiente (TODO), que limita los tipos de bloque (`blockOptions`) y oculta las
+ * acciones propias de notas (`noteActions`: seguimiento, repaso, referencia, mover).
+ */
+const NoteBlockList = ({
+  blocks = [],
+  noteId,
+  blockOptions = BLOCK_OPTIONS,
+  noteActions = true,
+  emptyMessage = 'Esta nota está vacía',
+}) => {
   const deleteBlock = useDeleteBlock();
   const { data: treeData } = useNoteTree();
   const updateBlock = useUpdateBlock();
@@ -326,9 +355,9 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
   if (blocks.length === 0) {
     return (
       <div>
-        <NoteBlockInsert noteId={noteId} position={0} />
+        <NoteBlockInsert noteId={noteId} position={0} options={blockOptions} />
         <p className="text-center text-sm text-gray-300 dark:text-gray-600 italic py-8 select-none">
-          Esta nota está vacía — usa el&nbsp;<strong>+</strong>&nbsp;para agregar contenido.
+          {emptyMessage} — usa el&nbsp;<strong>+</strong>&nbsp;para agregar contenido.
         </p>
       </div>
     );
@@ -356,9 +385,11 @@ const NoteBlockList = ({ blocks = [], noteId }) => {
                 onUpdateMetadata={handleUpdateMetadata}
                 onOpenMove={setMoveBlockId}
                 saveStatus={saveStatus[block.id]}
+                blockOptions={blockOptions}
+                noteActions={noteActions}
               />
             ))}
-            <NoteBlockInsert noteId={noteId} position={blocks.length} />
+            <NoteBlockInsert noteId={noteId} position={blocks.length} options={blockOptions} />
           </div>
         </SortableContext>
         <DragOverlay>

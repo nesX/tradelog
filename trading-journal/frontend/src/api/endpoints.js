@@ -338,3 +338,18 @@ export const getTopTrades = async (limit = 5) => {
     params: { limit },
   });
 };
+
+// ============================================
+// TODO (el contenido de cada item se edita con los endpoints de bloques de notas)
+// ============================================
+
+export const getTodoLists = () => apiClient.get('/api/todos/lists');
+export const createTodoList = (data) => apiClient.post('/api/todos/lists', data);
+export const updateTodoList = (listId, data) => apiClient.patch(`/api/todos/lists/${listId}`, data);
+export const deleteTodoList = (listId) => apiClient.delete(`/api/todos/lists/${listId}`);
+
+export const getTodoItems = (listId) => apiClient.get(`/api/todos/lists/${listId}/items`);
+export const createTodoItem = (listId, data) => apiClient.post(`/api/todos/lists/${listId}/items`, data);
+export const updateTodoItem = (itemId, data) => apiClient.patch(`/api/todos/items/${itemId}`, data);
+export const moveTodoItem = (itemId, payload) => apiClient.patch(`/api/todos/items/${itemId}/move`, payload);
+export const deleteTodoItem = (itemId) => apiClient.delete(`/api/todos/items/${itemId}`);

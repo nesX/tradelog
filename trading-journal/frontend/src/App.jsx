@@ -19,6 +19,7 @@ import BacktestNew from './pages/BacktestNew.jsx';
 import Notes from './pages/Notes.jsx';
 import Review from './pages/Review.jsx';
 import Repaso from './pages/Repaso.jsx';
+import Todo from './pages/Todo.jsx';
 
 // Configuración de React Query
 const queryClient = new QueryClient({
@@ -167,6 +168,26 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <Repaso />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/todo"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Todo />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/todo/:listId"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Todo />
                       </Layout>
                     </ProtectedRoute>
                   }

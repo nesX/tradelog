@@ -28,8 +28,21 @@ import { buildBlockUrl } from '../../utils/referenceLinks.js';
  *
  * Solo visible en dispositivos sin hover (variante `touch:`); en desktop
  * siguen los controles flotantes de siempre.
+ *
+ * `noteActions` = false oculta seguimiento, repaso, copiar referencia y mover
+ * (el contenido de un pendiente no participa de esas vistas).
  */
-const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragListeners, topClass = 'top-1/2' }) => {
+const BlockTouchMenu = ({
+  block,
+  noteId,
+  position,
+  onOpenMove,
+  onDelete,
+  dragListeners,
+  topClass = 'top-1/2',
+  options = BLOCK_OPTIONS,
+  noteActions = true,
+}) => {
   const [open, setOpen] = useState(false);
   // 'actions' (menú principal) | 'insert' (tipos de bloque a insertar)
   const [view, setView] = useState('actions');
@@ -136,36 +149,40 @@ const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragLis
                 <span className="flex-1 text-left">Insertar debajo</span>
                 <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
               </button>
-              <button onClick={handleFollowUp} className={itemClass}>
-                <Flag
-                  className="w-4 h-4 text-amber-500"
-                  fill={block.requires_follow_up ? 'currentColor' : 'none'}
-                />
-                {block.requires_follow_up ? 'Resolver seguimiento' : 'Marcar seguimiento'}
-              </button>
-              <button onClick={handleRevisit} className={itemClass}>
-                <BookMarked
-                  className="w-4 h-4 text-blue-500"
-                  fill={block.marked_for_revisit ? 'currentColor' : 'none'}
-                />
-                {block.marked_for_revisit ? 'Quitar repaso' : 'Marcar repaso'}
-              </button>
-              {block.block_type !== 'reference' && (
-                <button onClick={handleCopyReference} className={itemClass}>
-                  <Link2 className="w-4 h-4 text-blue-500" />
-                  Copiar referencia
-                </button>
+              {noteActions && (
+                <>
+                  <button onClick={handleFollowUp} className={itemClass}>
+                    <Flag
+                      className="w-4 h-4 text-amber-500"
+                      fill={block.requires_follow_up ? 'currentColor' : 'none'}
+                    />
+                    {block.requires_follow_up ? 'Resolver seguimiento' : 'Marcar seguimiento'}
+                  </button>
+                  <button onClick={handleRevisit} className={itemClass}>
+                    <BookMarked
+                      className="w-4 h-4 text-blue-500"
+                      fill={block.marked_for_revisit ? 'currentColor' : 'none'}
+                    />
+                    {block.marked_for_revisit ? 'Quitar repaso' : 'Marcar repaso'}
+                  </button>
+                  {block.block_type !== 'reference' && (
+                    <button onClick={handleCopyReference} className={itemClass}>
+                      <Link2 className="w-4 h-4 text-blue-500" />
+                      Copiar referencia
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      closeMenu();
+                      onOpenMove(block.id);
+                    }}
+                    className={itemClass}
+                  >
+                    <FileOutput className="w-4 h-4 text-purple-500" />
+                    Mover a otra nota
+                  </button>
+                </>
               )}
-              <button
-                onClick={() => {
-                  closeMenu();
-                  onOpenMove(block.id);
-                }}
-                className={itemClass}
-              >
-                <FileOutput className="w-4 h-4 text-purple-500" />
-                Mover a otra nota
-              </button>
               <button
                 onClick={() => {
                   closeMenu();
@@ -188,7 +205,7 @@ const BlockTouchMenu = ({ block, noteId, position, onOpenMove, onDelete, dragLis
                 <ChevronLeft className="w-3.5 h-3.5" />
                 Volver
               </button>
-              {BLOCK_OPTIONS.map(({ type, label, icon: Icon, color }) => (
+              {options.map(({ type, label, icon: Icon, color }) => (
                 <button key={type} onClick={() => handleInsert(type)} className={itemClass}>
                   <Icon className={`w-4 h-4 ${color}`} />
                   {label}

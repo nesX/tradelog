@@ -11,7 +11,7 @@ import { useBlockInserter, BLOCK_OPTIONS } from '../../hooks/useBlockInserter.js
  * Solo desktop: en dispositivos táctiles se oculta (`touch:hidden`) porque
  * la inserción vive en el menú "⋮" del bloque (BlockTouchMenu).
  */
-const NoteBlockAddButton = ({ noteId, position, topClass = 'top-1/2' }) => {
+const NoteBlockAddButton = ({ noteId, position, topClass = 'top-1/2', options = BLOCK_OPTIONS }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const { insert, loading } = useBlockInserter(noteId);
@@ -61,7 +61,7 @@ const NoteBlockAddButton = ({ noteId, position, topClass = 'top-1/2' }) => {
                      border border-gray-200 dark:border-gray-700
                      rounded-xl shadow-lg overflow-hidden min-w-[150px]"
         >
-          {BLOCK_OPTIONS.map(({ type, label, icon: Icon, color }) => (
+          {options.map(({ type, label, icon: Icon, color }) => (
             <button
               key={type}
               onClick={() => handleInsert(type)}

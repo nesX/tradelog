@@ -9,7 +9,6 @@ import { useToast } from '../components/common/Toast.jsx';
 import ConfirmDialog from '../components/common/ConfirmDialog.jsx';
 import NoteTree from '../components/notes/NoteTree.jsx';
 import NoteTagManager from '../components/notes/NoteTagManager.jsx';
-import NoteExportMenu from '../components/notes/NoteExportMenu.jsx';
 import NoteSearch from '../components/notes/NoteSearch.jsx';
 import NoteSearchResults from '../components/notes/NoteSearchResults.jsx';
 import NoteEditor from './NoteEditor.jsx';
@@ -403,11 +402,6 @@ const Notes = () => {
             <BookMarked className="w-4 h-4 text-blue-500" fill="currentColor" />
             Repaso
           </button>
-        </div>
-
-        {/* Exportación al pie del sidebar */}
-        <div className="px-3 py-2.5 border-t border-gray-200 dark:border-gray-700">
-          <NoteExportMenu />
         </div>
       </aside>
 

@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
-import { LogOut, ChevronDown, Settings } from 'lucide-react';
+import { LogOut, ChevronDown, Settings, FileJson, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { useNotesExport } from '../../hooks/useNotesExport.js';
 
 /**
- * Menu de usuario con avatar y opciones
+ * Menu de usuario con avatar y opciones.
+ * `showNotesExport` añade la exportación de notas (solo en la sección de notas).
  */
-const UserMenu = () => {
+const UserMenu = ({ showNotesExport = false }) => {
   const { user, logout } = useAuth();
+  const { loading: exporting, exportJSON, exportMarkdown } = useNotesExport();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -26,6 +29,11 @@ const UserMenu = () => {
   const handleLogout = () => {
     setIsOpen(false);
     logout();
+  };
+
+  const handleExport = (exportFn) => {
+    setIsOpen(false);
+    exportFn();
   };
 
   if (!user) return null;
@@ -69,6 +77,26 @@ const UserMenu = () => {
             <Settings className="w-4 h-4 mr-3" />
             Configuración
           </Link>
+          {showNotesExport && (
+            <>
+              <button
+                onClick={() => handleExport(exportJSON)}
+                disabled={!!exporting}
+                className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                <FileJson className="w-4 h-4 mr-3 text-blue-500" />
+                {exporting === 'json' ? 'Exportando...' : 'Exportar notas (JSON)'}
+              </button>
+              <button
+                onClick={() => handleExport(exportMarkdown)}
+                disabled={!!exporting}
+                className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                <FileText className="w-4 h-4 mr-3 text-green-500" />
+                {exporting === 'md' ? 'Exportando...' : 'Exportar notas (Markdown)'}
+              </button>
+            </>
+          )}
           <button
             onClick={handleLogout}
             className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"

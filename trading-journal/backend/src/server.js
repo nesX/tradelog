@@ -19,6 +19,7 @@ import systemRoutes from './routes/system.routes.js';
 import backtestRoutes from './routes/backtest.routes.js';
 import noteRoutes from './routes/note.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import todoRoutes from './routes/todo.routes.js';
 import { initSuperAdmin } from './services/admin.service.js';
 import { purgeDeletedNotes } from './services/note.service.js';
 
@@ -63,6 +64,7 @@ app.use('/api', systemRoutes);
 app.use('/api/backtest', backtestRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/todos', todoRoutes);
 
 // Ruta de health check
 app.get('/api/health', (req, res) => {

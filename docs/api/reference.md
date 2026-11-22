@@ -370,6 +370,24 @@ Timeframes del usuario.
 
 ---
 
+## TODO
+
+`/api/todos/*` — listas de pendientes. Cada item tiene detrás una nota oculta (`notes.type = 'todo'`, campo `note_id`) cuyo contenido se edita con los endpoints de **Bloques** e **Imágenes en bloques** de `/api/notes` (solo `text`, `image` e `image_gallery`). Esas notas no aparecen en el árbol, búsqueda, exportación, Revisión ni Repaso.
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| `GET` | `/api/todos/lists` | Listas del usuario con `pending_count`. |
+| `POST` | `/api/todos/lists` | Crear lista. Body: `{ name }`. |
+| `PATCH` | `/api/todos/lists/:listId` | Renombrar. Body: `{ name }`. |
+| `DELETE` | `/api/todos/lists/:listId` | Borra la lista y sus items; soft-delete de sus notas (la purga diferida borra después las imágenes). |
+| `GET` | `/api/todos/lists/:listId/items` | Items ordenados por `position` (pendientes y completados juntos; el cliente los separa). Incluye `has_content`. |
+| `POST` | `/api/todos/lists/:listId/items` | Crear item (entra arriba de todo). Body: `{ title }`. Crea también su nota con un bloque de texto vacío. |
+| `PATCH` | `/api/todos/items/:itemId` | Body: `{ title?, completed? }` (al menos uno). Re-completar conserva el `completed_at` original. |
+| `PATCH` | `/api/todos/items/:itemId/move` | Reordenar dentro de la misma lista. Body: `{ targetId, dropType }` (`sibling-above` \| `sibling-below`). |
+| `DELETE` | `/api/todos/items/:itemId` | Borra el item y hace soft-delete de su nota. |
+
+---
+
 ## Backtest
 
 `/api/backtest/*` — sesiones de backtesting con trades virtuales.

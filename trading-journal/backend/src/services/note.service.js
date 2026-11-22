@@ -14,6 +14,9 @@ const uploadsDir = () => path.resolve(config.upload.dir);
 // tienen su propio cap de profundidad como guard anti-ciclos, ver repo.)
 const MAX_NOTE_DEPTH = 10;
 
+// Bloques permitidos en la nota de contenido de un item de TODO (notes.type = 'todo').
+const TODO_BLOCK_TYPES = ['text', 'image', 'image_gallery'];
+
 const deleteFiles = async (filenames) => {
   for (const filename of filenames) {
     if (filename) {
@@ -46,6 +49,7 @@ export const createNote = async (userId, { title, parent_note_id, type = 'note' 
     const parent = await repo.getById(userId, parent_note_id);
     if (!parent) throw new NotFoundError('Nota padre no encontrada');
     if (parent.type === 'section') throw new ValidationError('Una nota no puede tener una sección como padre');
+    if (parent.type === 'todo') throw new ValidationError('Un pendiente no puede tener sub-notas');
     const parentDepth = await repo.getNoteDepth(parent_note_id);
     if (parentDepth >= MAX_NOTE_DEPTH) {
       throw new ValidationError(`No se puede anidar más de ${MAX_NOTE_DEPTH} niveles de notas`);
@@ -338,6 +342,9 @@ export const moveBlockToNote = async ({ blockId, targetNoteId, userId }) => {
     if (targetNote.type === 'section') {
       throw new ValidationError('Las secciones no pueden contener bloques');
     }
+    if (targetNote.type === 'todo') {
+      throw new ValidationError('No se pueden mover bloques a un pendiente');
+    }
     if (block.note_id === targetNoteId) {
       throw new ValidationError('El bloque ya está en esa nota');
     }
@@ -381,6 +388,9 @@ export const createBlock = async (userId, noteId, data) => {
   const note = await repo.getById(userId, noteId);
   if (!note) throw new NotFoundError('Nota no encontrada');
   if (note.type === 'section') throw new ValidationError('Las secciones no pueden tener bloques');
+  if (note.type === 'todo' && !TODO_BLOCK_TYPES.includes(data.block_type)) {
+    throw new ValidationError('Un pendiente solo admite bloques de texto e imágenes');
+  }
 
   // linked_note_id solo tiene sentido en bloques 'reference' (legacy); rechazarlo en
   // cualquier otro tipo y validar SIEMPRE ownership para evitar IDOR (leer títulos ajenos).

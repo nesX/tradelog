@@ -85,7 +85,7 @@ Modelo jerárquico tipo Notion con bloques tipados y reordenamiento por `fractio
 
 | Tabla | Propósito |
 |-------|-----------|
-| `notes` | Nodo del árbol de notas. Campos: `id`, `user_id`, `title`, `parent_note_id` (self-FK), `position` (string fractional), `type` (`'note'` \| `'section'`), `deleted_at` (soft-delete). |
+| `notes` | Nodo del árbol de notas. Campos: `id`, `user_id`, `title`, `parent_note_id` (self-FK), `position` (string fractional), `type` (`'note'` \| `'section'` \| `'todo'`), `deleted_at` (soft-delete). Las de tipo `'todo'` son el contenido oculto de un item de TODO (ver abajo). |
 | `note_blocks` | Bloques dentro de una nota: `block_type` (`text`, `image_gallery`, `image`, `reference`, `callout`, `trade_reference`), `content` (TEXT), `metadata` (JSONB), `position` (string fractional), `requires_follow_up` (bool, "Revisión"), `marked_for_revisit` (bool, "Repaso"). |
 | `note_block_images` | Imágenes asociadas a un bloque `image_gallery` o `image` (este último guarda como máximo una: subir otra reemplaza la anterior). `position` INTEGER (reorden por índice, no fractional). |
 | `note_block_trades` | Trades referenciados desde un bloque `trade_reference`. M:N entre `note_blocks` y `trades`. |
@@ -111,6 +111,17 @@ La vista "Repaso" (`GET /api/notes/blocks/revisit`) lista estos bloques ordenado
 #### Drag-and-drop
 
 El campo `position` es un string ordenable lexicográficamente (algoritmo `fractional-indexing`). Insertar entre dos elementos `a` y `b` solo requiere generar un string entre `a` y `b` — sin reescribir el resto de la tabla. Ver el paquete `fractional-indexing` (también usado en frontend para optimistic updates en `utils/treeManipulation.js`).
+
+### TODO
+
+| Tabla | Propósito |
+|-------|-----------|
+| `todo_lists` | Listas de pendientes por usuario. `position` fractional. |
+| `todo_items` | Items de una lista (`list_id` con `ON DELETE CASCADE`): `title`, `position` fractional (compartida entre pendientes y completados), `completed_at`, `note_id` (UNIQUE, FK a `notes` con `ON DELETE CASCADE`). |
+
+Cada item reutiliza el sistema de bloques de notas a través de su nota `type = 'todo'` (siempre raíz: el CHECK `sections_only_at_root` ya lo exige). Las consultas del árbol, búsqueda, exportación, Revisión y Repaso filtran ese tipo. Borrar un item o una lista hace soft-delete de las notas; `purgeDeletedNotes` borra después bloques e imágenes.
+
+Migración: `027_migration_todos.sql`.
 
 ### Backtesting
 

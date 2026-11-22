@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { useBlockInserter, BLOCK_OPTIONS } from '../../hooks/useBlockInserter.js';
 
-const NoteBlockInsert = ({ noteId, position }) => {
+const NoteBlockInsert = ({ noteId, position, options = BLOCK_OPTIONS }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const { insert, loading } = useBlockInserter(noteId);
@@ -45,7 +45,7 @@ const NoteBlockInsert = ({ noteId, position }) => {
                         border border-gray-200 dark:border-gray-700
                         rounded-xl shadow-lg overflow-hidden
                         min-w-[150px]">
-          {BLOCK_OPTIONS.map(({ type, label, icon: Icon, color }) => (
+          {options.map(({ type, label, icon: Icon, color }) => (
             <button
               key={type}
               onClick={() => handleInsert(type)}
