@@ -18,4 +18,6 @@ Follow-ups que quedaron abiertos (decisión consciente, no bugs):
   (hoy el cliente encadena 3 requests con feedback de fallo parcial vía toast).
 
 Esta carpeta queda para futuros bugs; al empezar uno moverlo a `../in-progress/`
-y al terminar a `../done/`.
+y al terminar a `../done/`, anteponiendo al nombre el siguiente número de
+secuencia de 3 dígitos (`016-Título.md`, `017-...`). La secuencia refleja el
+orden de cierre; no se renumeran los existentes.
