@@ -20,3 +20,8 @@ export const setCatalogSyncedAt = async (exec = pool) => {
 export const setBackoffUntil = async (date, exec = pool) => {
   await exec.query(`UPDATE reminder_job_state SET backoff_until = $1 WHERE id = 1`, [date]);
 };
+
+/** Marca de agua de los avisos push: id de la última tarjeta de la que ya se intentó avisar. */
+export const setPushNotifiedId = async (id, exec = pool) => {
+  await exec.query(`UPDATE reminder_job_state SET push_notified_id = $1 WHERE id = 1`, [id]);
+};

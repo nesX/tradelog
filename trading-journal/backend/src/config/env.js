@@ -32,6 +32,13 @@ const envSchema = Joi.object({
   // Si x-mbx-used-weight-1m lo supera, se corta el tick (límite de futuros: 2400/min por IP)
   BINANCE_MAX_USED_WEIGHT: Joi.number().integer().min(1).default(1200),
 
+  // Notificaciones push (Web Push). Opcionales y sin formato a propósito: una clave
+  // mal pegada no puede tumbar el arranque. Las comprueba clients/webPush.js, que
+  // deja el push desactivado si falta alguna o no es válida.
+  VAPID_PUBLIC_KEY: Joi.string().allow('').optional(),
+  VAPID_PRIVATE_KEY: Joi.string().allow('').optional(),
+  VAPID_SUBJECT: Joi.string().allow('').optional(), // default: mailto: + SUPER_ADMIN_EMAIL
+
   // CORS
   ALLOWED_ORIGINS: Joi.string().default('http://localhost:5179'),
 
@@ -87,6 +94,12 @@ export const config = {
 
   reminders: {
     tickMinutes: envVars.REMINDERS_TICK_MINUTES,
+  },
+
+  push: {
+    publicKey: envVars.VAPID_PUBLIC_KEY || null,
+    privateKey: envVars.VAPID_PRIVATE_KEY || null,
+    subject: envVars.VAPID_SUBJECT || (envVars.SUPER_ADMIN_EMAIL ? `mailto:${envVars.SUPER_ADMIN_EMAIL}` : null),
   },
 
   binance: {

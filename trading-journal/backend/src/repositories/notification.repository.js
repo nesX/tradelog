@@ -133,3 +133,20 @@ export const resolveOpenByReminder = async (reminderId, resolution, exec = pool)
   );
   return result.rowCount;
 };
+
+// ---------- Avisos push (marca de agua en reminder_job_state.push_notified_id) ----------
+
+/** Tarjetas creadas después de la marca, por id (la última fila es la nueva marca). */
+export const findCreatedAfter = async (id) => {
+  const result = await pool.query(
+    `SELECT id, user_id, type, price_alert_id, date_reminder_id, payload, created_at
+     FROM notifications WHERE id > $1 ORDER BY id`,
+    [id]
+  );
+  return result.rows;
+};
+
+export const maxId = async () => {
+  const result = await pool.query(`SELECT COALESCE(MAX(id), 0)::int AS max_id FROM notifications`);
+  return result.rows[0].max_id;
+};

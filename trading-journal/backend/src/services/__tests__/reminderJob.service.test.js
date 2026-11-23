@@ -35,6 +35,8 @@ const mockReminderRepo = { findDueForUpdate: jest.fn(), markSent: jest.fn() };
 const mockNotificationRepo = { insert: jest.fn() };
 const mockJobStateRepo = { get: jest.fn(), setLastRunAt: jest.fn(), setBackoffUntil: jest.fn() };
 const mockCatalog = { syncCatalog: jest.fn(), delistSymbols: jest.fn() };
+const mockPushService = { notifyNew: jest.fn() };
+const mockLogger = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 const mockLockClient = { query: jest.fn(), release: jest.fn() };
 const mockTxClient = { query: jest.fn() };
 
@@ -45,13 +47,12 @@ jest.unstable_mockModule('../../repositories/dateReminder.repository.js', () => 
 jest.unstable_mockModule('../../repositories/notification.repository.js', () => mockNotificationRepo);
 jest.unstable_mockModule('../../repositories/reminderJobState.repository.js', () => mockJobStateRepo);
 jest.unstable_mockModule('../marketSymbol.service.js', () => mockCatalog);
+jest.unstable_mockModule('../push.service.js', () => mockPushService);
 jest.unstable_mockModule('../../config/database.js', () => ({
   getClient: async () => mockLockClient,
   withTransaction: (fn) => fn(mockTxClient),
 }));
-jest.unstable_mockModule('../../utils/logger.js', () => ({
-  logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-}));
+jest.unstable_mockModule('../../utils/logger.js', () => ({ logger: mockLogger }));
 
 const { runTick, computeFirstDelay } = await import('../reminderJob.service.js');
 
@@ -102,6 +103,7 @@ beforeEach(() => {
   mockSymbolRepo.findWatched.mockResolvedValue([]);
   mockBinance.getUsedWeight.mockReturnValue(10);
   mockBinance.getHourlyKlines.mockImplementation(async (_s, from) => candlesFrom(from, 2));
+  mockPushService.notifyNew.mockResolvedValue({ sent: 0, failed: 0, removed: 0 });
 });
 
 describe('runTick', () => {
@@ -282,6 +284,68 @@ describe('runTick', () => {
     await runTick({ pauseMs: 0 });
 
     expect(mockSymbolRepo.updateCheckpoint.mock.calls[0][1].checkedUntil).toEqual(new Date(current));
+  });
+});
+
+describe('runTick: avisos push', () => {
+  it('avisa al final del tick, después de crear las tarjetas, y lo anota en el resumen', async () => {
+    mockReminderRepo.findDueForUpdate.mockResolvedValue([
+      { id: 1, user_id: 1, remind_at: '2027-03-01T13:00:00Z', note_id: 10, block_id: null },
+    ]);
+    mockPushService.notifyNew.mockResolvedValue({ sent: 1, failed: 0, removed: 0 });
+
+    const summary = await runTick({ pauseMs: 0 });
+
+    expect(mockPushService.notifyNew).toHaveBeenCalledTimes(1);
+    const [insertedAt] = mockNotificationRepo.insert.mock.invocationCallOrder;
+    expect(mockPushService.notifyNew.mock.invocationCallOrder[0]).toBeGreaterThan(insertedAt);
+    expect(summary.push).toEqual({ sent: 1, failed: 0, removed: 0 });
+  });
+
+  it('sin el advisory lock no avisa', async () => {
+    mockLockClient.query.mockResolvedValue({ rows: [{ locked: false }] });
+
+    await runTick({ pauseMs: 0 });
+
+    expect(mockPushService.notifyNew).not.toHaveBeenCalled();
+  });
+
+  it('con backoff vigente avisa de lo que sí se creó', async () => {
+    mockJobStateRepo.get.mockResolvedValue({ backoff_until: new Date(Date.now() + 60_000) });
+
+    const summary = await runTick({ pauseMs: 0 });
+
+    expect(mockPushService.notifyNew).toHaveBeenCalledTimes(1);
+    expect(summary.push).toBeDefined();
+  });
+
+  it('cuando Binance corta el tick por backoff, avisa igual', async () => {
+    mockSymbolRepo.findWatched.mockResolvedValue([symbol('AAAUSDT')]);
+    mockBinance.getHourlyKlines.mockRejectedValue(new BinanceBackoffError(new Date(Date.now() + 60_000)));
+
+    await runTick({ pauseMs: 0 });
+
+    expect(mockPushService.notifyNew).toHaveBeenCalledTimes(1);
+  });
+
+  it('si el tick falla a mitad, avisa igual y el error se propaga', async () => {
+    mockReminderRepo.findDueForUpdate.mockRejectedValue(new Error('BD caída'));
+
+    await expect(runTick({ pauseMs: 0 })).rejects.toThrow('BD caída');
+    expect(mockPushService.notifyNew).toHaveBeenCalledTimes(1);
+    expect(mockLockClient.release).toHaveBeenCalled();
+  });
+
+  it('el log del tick pasa a info si se envió o falló algún aviso', async () => {
+    await runTick({ pauseMs: 0 });
+    expect(mockLogger.debug).toHaveBeenCalledWith('Recordatorios: tick', expect.anything());
+
+    mockPushService.notifyNew.mockResolvedValue({ sent: 0, failed: 2, removed: 0 });
+    await runTick({ pauseMs: 0 });
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      'Recordatorios: tick',
+      expect.objectContaining({ push: { sent: 0, failed: 2, removed: 0 } })
+    );
   });
 });
 

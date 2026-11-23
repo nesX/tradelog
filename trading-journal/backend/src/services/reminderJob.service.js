@@ -10,6 +10,7 @@ import * as jobStateRepo from '../repositories/reminderJobState.repository.js';
 import { evaluateAlert, HOUR_MS } from './priceAlertEvaluator.js';
 import { buildPriceAlertPayload, buildDateReminderPayload } from './notificationPayload.js';
 import { syncCatalog, delistSymbols } from './marketSymbol.service.js';
+import * as pushService from './push.service.js';
 
 /**
  * Job de recordatorios de análisis (§3.2 de la spec). Un solo job para todo:
@@ -209,9 +210,8 @@ const processSymbol = (sym, candles, nowMs) =>
 
 // ---------- Tick ----------
 
-const tick = async (pauseMs) => {
-  const summary = { dateReminders: 0, deadlines: 0, catalog: null, symbols: 0, cards: 0, errors: 0 };
-
+/** Pasos del tick; va anotando lo que hace en `summary`. */
+const runSteps = async (summary, pauseMs) => {
   await jobStateRepo.setLastRunAt();
 
   // 3 va primero porque no depende de Binance: un backoff no lo retrasa. El 4 solo
@@ -222,7 +222,7 @@ const tick = async (pauseMs) => {
   const state = await jobStateRepo.get();
   if (state?.backoff_until && new Date(state.backoff_until).getTime() > Date.now()) {
     binance.setBackoffUntil(state.backoff_until);
-    return summary;
+    return;
   }
 
   try {
@@ -238,6 +238,9 @@ const tick = async (pauseMs) => {
     }
 
     const symbols = await symbolRepo.findWatched();
+    // Secuencial a propósito: cada transacción termina antes de empezar la siguiente,
+    // y los avisos push solo leen tarjetas con commit. No paralelizar sin revisar la
+    // marca de agua de push.service.js (notifyNew).
     for (let i = 0; i < symbols.length; i += 1) {
       const sym = symbols[i];
       if (i > 0) await sleep(pauseMs);
@@ -271,7 +274,18 @@ const tick = async (pauseMs) => {
     await jobStateRepo.setBackoffUntil(err.retryAfter);
     logger.error(`Recordatorios: Binance pidió esperar hasta ${err.retryAfter.toISOString()}; se corta el tick`);
   }
+};
 
+const tick = async (pauseMs) => {
+  const summary = { dateReminders: 0, deadlines: 0, catalog: null, symbols: 0, cards: 0, errors: 0 };
+  try {
+    await runSteps(summary, pauseMs);
+  } finally {
+    // Avisos push de las tarjetas nuevas. Aquí corren con el advisory lock tomado
+    // (runTick solo llama a tick si lo consiguió) y con todas las transacciones del
+    // tick terminadas, también si se cortó por un backoff o un error.
+    summary.push = await pushService.notifyNew();
+  }
   return summary;
 };
 
@@ -289,8 +303,9 @@ export const runTick = async ({ pauseMs = 1000 } = {}) => {
 
     const summary = await tick(pauseMs);
     // Solo se loguea a nivel info cuando hubo algo que contar (no cada 30 min)
-    const { dateReminders, deadlines, catalog, cards, errors } = summary;
-    const level = dateReminders || deadlines || catalog || cards || errors ? 'info' : 'debug';
+    const { dateReminders, deadlines, catalog, cards, errors, push } = summary;
+    const pushed = push.sent || push.failed || push.removed;
+    const level = dateReminders || deadlines || catalog || cards || errors || pushed ? 'info' : 'debug';
     logger[level]('Recordatorios: tick', { ...summary, usedWeight: binance.getUsedWeight() });
     return summary;
   } finally {

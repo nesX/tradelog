@@ -24,10 +24,12 @@ import marketSymbolRoutes from './routes/marketSymbol.routes.js';
 import priceAlertRoutes from './routes/priceAlert.routes.js';
 import dateReminderRoutes from './routes/dateReminder.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import pushRoutes from './routes/push.routes.js';
 import { initSuperAdmin } from './services/admin.service.js';
 import { purgeDeletedNotes } from './services/note.service.js';
 import { runTick, computeFirstDelay, getJobState } from './services/reminderJob.service.js';
 import { setBackoffUntil as setBinanceBackoffUntil } from './clients/binanceFutures.js';
+import { isEnabled as isWebPushEnabled } from './clients/webPush.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,6 +77,7 @@ app.use('/api/market-symbols', marketSymbolRoutes);
 app.use('/api/price-alerts', priceAlertRoutes);
 app.use('/api/date-reminders', dateReminderRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/push', pushRoutes);
 
 // Ruta de health check
 app.get('/api/health', (req, res) => {
@@ -183,6 +186,10 @@ const startServer = async () => {
 
     // Job de recordatorios de análisis
     await startReminderJob();
+
+    // Avisos push: se comprueba ya para que un push desactivado salga en el log al
+    // arrancar (si no, saldría en el primer tick)
+    if (isWebPushEnabled()) logger.info('Web Push activado');
 
     // Iniciar servidor
     app.listen(config.port, () => {

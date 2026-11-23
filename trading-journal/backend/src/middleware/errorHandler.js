@@ -81,7 +81,9 @@ export const errorHandler = (err, req, res, _next) => {
       return sendValidationError(res, err.details);
     }
 
-    return sendError(res, err.message, err.statusCode, err.code);
+    // Otros AppError pueden traer `details` (p. ej. el status de un push rechazado)
+    const details = err instanceof ValidationError ? null : err.details;
+    return sendError(res, err.message, err.statusCode, err.code, details);
   }
 
   // Errores de Joi (validación)
