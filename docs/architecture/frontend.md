@@ -86,7 +86,8 @@ apiClient.interceptors.response.use(
     if (error.response?.data?.error) { /* extraer */ }
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      if (window.location.pathname !== '/login') window.location.href = '/login';
+      // recuerda adónde volver (p. ej. /recordatorios?card=… al tocar una notificación)
+      if (pathname !== '/login') window.location.href = `/login?next=${encodeURIComponent(pathname + search)}`;
     }
     return Promise.reject(errorResponse);
   }
@@ -94,6 +95,8 @@ apiClient.interceptors.response.use(
 ```
 
 `baseURL` viene de `import.meta.env.VITE_API_URL` (embedded en build).
+
+Tras el login, `Login.jsx` vuelve a `state.from` (de `ProtectedRoute`) o a `?next=`, siempre pasado por `utils/safeNext.js`: solo rutas de la propia app, nunca una redirección abierta.
 
 ## TanStack Query
 
@@ -197,6 +200,21 @@ Antes de subir:
 
 Esto **descarga al servidor** de procesar imágenes: ya no necesitamos `sharp` en backend (aunque sigue siendo recomendable para generar thumbnails — ver [scaling](../analysis/scaling.md#fase-3--almacenamiento-de-imágenes)).
 
+## PWA y service worker — `src/sw.js`
+
+`vite-plugin-pwa` con `strategies: 'injectManifest'`: el SW es nuestro (`src/sw.js`) y el plugin le inyecta la lista de precache y lo bundlea con Vite. Lo registra `registerSW.js` (en el `load` de la página) con `registerType: 'autoUpdate'`: el SW nuevo toma el control sin esperar y la siguiente carga ya sirve el build nuevo.
+
+- **Lo de siempre**: precache del shell (`cleanupOutdatedCaches` + `precacheAndRoute`), `NavigationRoute` a `/index.html` con `/api` excluido, `skipWaiting` + `clientsClaim`. Sin `runtimeCaching`: no se cachean datos de la API.
+- **Notificaciones push**: `push` muestra el aviso con `utils/pushNotification.js` (que usa los textos de las tarjetas, `utils/notificationText.js`) y avisa a las ventanas (`notifications-changed`). `notificationclick` enfoca la app y le pide navegar (`navigate`), o la abre en la URL.
+- **Regla**: nada de lo que importa `sw.js` puede tocar `window`, `document` ni `localStorage` al cargarse; si no, el SW nuevo falla al instalarse y los dispositivos se quedan con el frontend viejo. Lo comprueban los tests de `utils/` en Node.
+- Solo existe en el build: `npm run build && npm run preview` (o `devOptions.enabled` en `vite.config.js`). En `npm run dev` la sección de avisos muestra "solo funcionan en la app compilada".
+
+### Avisos en este dispositivo
+
+- `components/notifications/PushToggle.jsx` (en `/recordatorios`) + `hooks/usePushSubscription.js`: estado de **este** dispositivo y el interruptor para vincularlo a la cuenta. Vincular es siempre manual.
+- `PushBridge` en `App.jsx` (uno para toda la app; cada ruta tiene su propio `Layout`): con sesión, `usePushSync` mantiene vivo el dispositivo que la cuenta vinculó y lo desvincula de cualquier otra; siempre, `useServiceWorkerMessages` atiende los mensajes del SW.
+- Spec: [`notificaciones-push-pwa.md`](../features/specs/notificaciones-push-pwa.md).
+
 ## Build y deploy
 
 - Dev: `npm run dev` → Vite con HMR + proxy `/api` → `http://localhost:5000`.
@@ -206,8 +224,8 @@ Esto **descarga al servidor** de procesar imágenes: ya no necesitamos `sharp` e
 ## Gaps actuales (resumen)
 
 - ❌ No hay code splitting / lazy routes.
-- ❌ No hay PWA / service worker / IndexedDB.
-- ❌ No hay tests configurados.
+- ⚠️ PWA instalable con service worker propio (precache del shell y notificaciones push), pero sin caché de datos de la API ni IndexedDB.
+- ⚠️ Solo tests de utilidades puras (`node --test` en `src/utils/*.test.js`); sin tests de componentes.
 - ❌ Stats page hace 6 fetches en paralelo y no se invalida cuando se crea/edita un trade (ver TODO conocido en CLAUDE.md).
 - ❌ No hay manejo global de errores fuera de toasts puntuales.
 

@@ -78,7 +78,7 @@ Originados en [`analysis/scaling.md` Fase 0](analysis/scaling.md#fase-0--hardeni
 | Sistema de estrategias | `sistema-de-estrategias.md` | 🟡 Parcial — `systems` y `signals` existen pero spec describe algo más amplio (templates, paneles dedicados) |
 | Progreso DnD | `progreso-draganddrop.md` | 📝 Doc de tracking del DnD (no es feature) |
 | Recordatorios de análisis (alertas de precio y por fecha) + bandeja `/recordatorios` | `alertas-de-precio-en-notas.md` | ✅ Implementado y en prod (migración 028, tasks 016–026 en `tasks/done/`) |
-| Notificaciones push de los recordatorios (Web Push en la PWA) | `notificaciones-push-pwa.md` | ❌ Spec lista, sin implementar |
+| Notificaciones push de los recordatorios (Web Push en la PWA) | `notificaciones-push-pwa.md` | 🟡 Implementado (tasks 028–031); falta la puesta en prod (task 032) |
 
 ### Mejoras de UX / DX
 

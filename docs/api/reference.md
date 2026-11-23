@@ -427,6 +427,18 @@ Las fechas se envían en ISO 8601 **con zona** (`Z` u offset); sin zona → 400.
 | `GET` | `/api/notifications/count` | `{ open }` para el badge. |
 | `POST` | `/api/notifications/:id/resolve` | Body: `{ resolution: 'dismissed', delete_sibling_alerts? }`. Idempotente (una tarjeta ya resuelta se devuelve tal cual). `delete_sibling_alerts` solo en `price_alert_invalidation` (si no, 400): borra las demás alertas activas del mismo anclaje. |
 
+### Avisos push — `/api/push`
+
+Vinculan **este** dispositivo a la cuenta para recibir las tarjetas nuevas como notificaciones del sistema (Web Push). Vincular es siempre manual (sección "Avisos en este dispositivo" de `/recordatorios`), y un dispositivo recibe los avisos de una sola cuenta. Spec: [`notificaciones-push-pwa.md`](../features/specs/notificaciones-push-pwa.md).
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/api/push/config` | `{ enabled, public_key }` (`public_key: null` si el push está desactivado por falta de claves VAPID). |
+| `POST` | `/api/push/subscriptions` | Body: `{ endpoint, keys: { p256dh, auth }, user_agent? }` (lo que da `subscription.toJSON()`; `expirationTime` se descarta). `201`. Vincula el dispositivo; si era de otra cuenta, pasa a esta. `409 PUSH_DISABLED` sin claves; `400 PUSH_ENDPOINT_NOT_ALLOWED` si el host del endpoint no es FCM, Mozilla, Apple o WNS (anti-SSRF). |
+| `POST` | `/api/push/subscriptions/status` | Mismo body. `{ linked }`. Si el dispositivo estaba vinculado a otra cuenta, lo desvincula de ella; si es de esta, renueva claves y `last_seen_at`. Nunca vincula. |
+| `DELETE` | `/api/push/subscriptions` | Body: `{ endpoint }`. Desvincula el dispositivo (solo la fila de la cuenta; no falla si no existía). |
+| `POST` | `/api/push/test` | Body: `{ endpoint }`. Envía una notificación de prueba y espera al servicio de push: `{ delivered: true }`; `410 PUSH_SUBSCRIPTION_GONE` (fila borrada: el frontend resuscribe); `502 PUSH_REJECTED` con `details.status` (p. ej. 403 = claves VAPID que no coinciden); `502 PUSH_SEND_FAILED`; `404` si el dispositivo no es de la cuenta. |
+
 Tipos de tarjeta: `price_alert_near`, `price_alert_hit`, `price_alert_invalidation`, `price_alert_deadline`, `price_alert_delisted`, `date_reminder_due`.
 
 ---

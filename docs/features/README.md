@@ -24,7 +24,7 @@ Esta carpeta contiene las especificaciones detalladas de cada feature mayor del 
 | [`sistema-de-gestion-de-usuarios.md`](specs/sistema-de-gestion-de-usuarios.md) | 37 KB | 🟡 Parcial | Super_admin + admin existen + page admin/Users. Spec describe invitaciones, RBAC más fino, no implementados. |
 | [`sistema-de-estrategias.md`](specs/sistema-de-estrategias.md) | 27 KB | 🟡 Parcial | Tablas `systems`, `signals`, `timeframes` existen. Spec describe templates y paneles más elaborados que aún no están. |
 | [`alertas-de-precio-en-notas.md`](specs/alertas-de-precio-en-notas.md) | 53 KB | ✅ Implementado (en prod) | Recordatorios de análisis: alertas de precio sobre perpetuos de Binance Futures (cripto y TradFi, velas 1h), invalidaciones por cierre diario, recordatorios por fecha y bandeja `/recordatorios`. Migración 028. Tasks 016–026. |
-| [`notificaciones-push-pwa.md`](specs/notificaciones-push-pwa.md) | 48 KB | ❌ No implementado | Web Push (VAPID) de las tarjetas de `/recordatorios` a los dispositivos que lo activan (PWA instalada en iOS). Migración 029, SW con `injectManifest`. |
+| [`notificaciones-push-pwa.md`](specs/notificaciones-push-pwa.md) | 48 KB | 🟡 Implementado, falta prod | Web Push (VAPID) de las tarjetas de `/recordatorios` a los dispositivos que lo activan (PWA instalada en iOS). Migración 029, SW con `injectManifest`. Tasks 028–031 hechas; la 032 (prod y verificación en dispositivos) pendiente. |
 
 ## Cómo se infirió el estado
 

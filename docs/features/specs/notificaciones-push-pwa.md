@@ -15,32 +15,50 @@ La app ya es instalable como PWA (`vite-plugin-pwa`, `display: 'standalone'`), y
 ### Casos de uso
 
 1. **Toque de madrugada**: `BTCUSDT` toca 60,000 a las 03:40. En el siguiente tick llega al móvil la notificación "BTCUSDT tocó 60.000 · Análisis macro BTC 2026". Al tocarla se abre `/recordatorios` con la tarjeta resaltada.
-2. **Aviso previo y toque**: "BTCUSDT a 2,1% de 60.000" llega en la oficina, con tiempo para releer el análisis. Horas después, el toque **reemplaza** esa notificación en el centro de notificaciones, y vuelve a sonar.
+2. **Aviso previo y toque**: "BTCUSDT a 2.1% de 60.000" llega en la oficina, con tiempo para releer el análisis. Horas después, el toque **reemplaza** esa notificación en el centro de notificaciones, y vuelve a sonar.
 3. **Recordatorio por fecha**: el día programado, a las 08:00, llega "Revisar tras el cierre trimestral".
 4. **Recuperación tras una caída**: el server estuvo 8 h caído y el primer tick crea 6 tarjetas. Llega **una** notificación, "6 recordatorios nuevos · BTCUSDT, ETHUSDT, XAUUSDT y 3 más", en vez de seis seguidas.
 5. **Varios dispositivos**: el aviso llega al móvil y al portátil donde se activó. En un dispositivo donde no se activó, no llega.
-6. **Dispositivo compartido**: al cerrar sesión, ese dispositivo deja de recibir avisos de la cuenta, aunque la API no responda.
+6. **Vincular un dispositivo**: en `/recordatorios`, la sección "Avisos en este dispositivo" dice si el dispositivo en el que estás está vinculado a tu cuenta. Al activarla, se vincula y desde ese momento recibe los avisos. Los recordatorios no dependen de los dispositivos: se crean, se disparan y se resuelven igual aunque no haya ninguno vinculado.
+7. **Dos cuentas en el mismo navegador**: cada cuenta configura sus avisos por separado, y un dispositivo nunca recibe avisos de una cuenta distinta a la que lo está usando. Si en un navegador vinculado a A se entra con B, el dispositivo deja de recibir los avisos de A. B solo los recibe si activa los suyos.
 
 ### Decisiones tomadas
 
 | Tema | Decisión |
 |------|----------|
 | Canal | **Web Push estándar** (protocolo con claves VAPID), con la librería `web-push` en el backend. Sin Firebase SDK, sin OneSignal ni otros servicios de terceros: el navegador elige su servicio de push (FCM, Apple, Mozilla, WNS) y el backend le habla directamente. |
-| Qué genera push | **Los seis tipos** de tarjeta. Todos requieren una acción, y la cercanía es justamente el aviso que más se aprovecha si llega a tiempo. |
+| Qué genera push | **Cinco de los seis tipos** de tarjeta: todos menos la **tesis invalidada**, que solo queda en la bandeja. La cercanía es justamente el aviso que más se aprovecha si llega a tiempo. Las invalidaciones se van a replantear más adelante (§7). |
 | Qué tarjetas avisar | Las que tienen `id` mayor que una **marca de agua** guardada en `reminder_job_state`. Así se cubre cualquier ruta que cree tarjetas, sin cambiar las funciones del job (§3.5). |
 | Agrupación | Por usuario y por tick: primero, un solo mensaje por alerta (gana la tarjeta más importante); después, **hasta 3 → una notificación por tarjeta** y **más de 3 → un resumen**. |
 | Reemplazo | Una notificación nueva de la misma alerta **reemplaza** a la anterior (`tag`) y **vuelve a sonar** (`renotify`). |
 | Destino al tocar | Tarjeta suelta → `/recordatorios?card=<id>` (pestaña Pendientes, tarjeta resaltada). Resumen → `/recordatorios`. No se salta directo a la nota: las acciones (re-armar, archivar…) están en la tarjeta, y "Ver análisis" queda a un toque. |
 | Texto | Lo arma el **service worker** con el mismo módulo que las tarjetas (`utils/notificationText.js`). Así no se duplican textos en el backend, y las fechas salen en la hora local del dispositivo. Si algo falla al armarlo, se muestra un aviso genérico. |
-| Activación | **Por dispositivo**, con un interruptor en `/recordatorios`. La intención ("quiero avisos aquí") se guarda en el dispositivo, para recuperar suscripciones que el navegador suelta solo. Sin preferencias por tipo de aviso (§7). |
+| Activación | **Manual y por dispositivo**, con la sección "Avisos en este dispositivo" en `/recordatorios`. Ahí se ve si **este** dispositivo está vinculado a la cuenta, y se activa (vincula) o desactiva. **Solo esa acción vincula un dispositivo**: la sincronización al abrir la app únicamente renueva el que ya está vinculado (§5.4). **Un dispositivo, una cuenta**: recibe solo los avisos de la cuenta con la que se usa. Al usarlo con otra cuenta, se desvincula de la anterior, y cada cuenta lo activa por separado. Sin preferencias por tipo de aviso (§7). |
 | Entrega | Sin cola ni reintentos por mensaje: si el servicio de push falla, ese aviso se pierde, pero la tarjeta sigue en la bandeja y en la campana. Un reinicio entre crear la tarjeta y avisar **no** pierde el aviso: lo envía el siguiente tick. |
 | Horario | Sin horas de silencio: se delega en el "No molestar" del sistema operativo (§7). |
 | Sin claves VAPID (o inválidas) | El push queda **desactivado** y el resto funciona igual. Una clave mal pegada nunca tumba el arranque. Dev no necesita claves. |
-| Cerrar sesión | Desuscribe el dispositivo **en el navegador** (no depende de la API), borra la fila y cierra las notificaciones visibles. |
+| Cerrar sesión | **No cambia nada por ahora**: el dispositivo sigue vinculado y recibiendo los avisos de la cuenta hasta que se desactive desde `/recordatorios` o se use con otra cuenta (§5.7). |
+
+### Qué tarjetas generan aviso
+
+Son los seis tipos de tarjeta que ya crea el job de recordatorios (§3.6 de la spec de recordatorios). Cinco generan una notificación con el mismo titular que la tarjeta. La tesis invalidada **no genera aviso**: su tarjeta aparece en `/recordatorios` como hoy.
+
+| Tarjeta | Cuándo se crea | Ejemplo de notificación |
+|---------|----------------|-------------------------|
+| **Nivel tocado** (`price_alert_hit`) | El precio tocó el nivel de una alerta | "BTCUSDT tocó 60.000" |
+| **Cerca del nivel** (`price_alert_near`) | El precio entró en la banda del aviso previo (3% por defecto) | "BTCUSDT a 2.1% de 60.000" |
+| ~~Tesis invalidada~~ (`price_alert_invalidation`) | Una alerta marcada como invalidación cerró el día más allá del nivel | **Sin aviso** (solo tarjeta en la bandeja) |
+| **Fecha límite** (`price_alert_deadline`) | Venció la fecha límite de una alerta sin que se tocara el nivel | "BTCUSDT ↓ 60.000 no se tocó antes del 31/03/2027" |
+| **Perpetuo deslistado** (`price_alert_delisted`) | Binance dejó de cotizar el símbolo de una alerta | "XYZUSDT dejó de cotizar en Binance Futures" |
+| **Recordatorio** (`date_reminder_due`) | Llegó la fecha de un recordatorio por fecha | El mensaje del recordatorio, o "Revisar este análisis" |
+
+El cuerpo de la notificación lleva el detalle de la tarjeta y el título de la nota (§4.2).
 
 ### Objetivos de diseño
 
 - **No tocar la lógica de las tarjetas**: el push lee lo que el job ya guardó.
+- **Vincular es siempre manual**: ningún proceso automático vincula un dispositivo a una cuenta que no lo activó en él.
+- **Un dispositivo nunca recibe avisos de otra cuenta**: en cuanto se usa con una cuenta, deja de estar vinculado a cualquier otra.
 - **Un push nunca rompe un tick**: los errores de envío se loguean y el tick sigue.
 - **Nunca avisar de algo que no existe**: solo se leen tarjetas que ya hicieron commit.
 - **Una notificación rota nunca rompe la suscripción**: el SW siempre muestra algo, aunque reciba un mensaje que no entiende.
@@ -100,7 +118,7 @@ UPDATE reminder_job_state
 
 ### 3.1 Cliente — `src/clients/webPush.js`
 
-Envuelve la librería `web-push` (dependencia nueva), igual que `binanceFutures.js` envuelve Binance:
+Envuelve la librería `web-push` (dependencia nueva, **3.6.7**: la 4.0.0 es una versión mayor de noviembre de 2026 que pasa a ESM y no se ha probado), igual que `binanceFutures.js` envuelve Binance:
 
 - **Inicialización perezosa** (en la primera llamada, no al importar). Todo va dentro de un único `try/catch`:
   1. Comprueba que estén **las dos** claves (la regla "o las dos o ninguna" vive aquí, no en `env.js`).
@@ -119,7 +137,13 @@ Envuelve la librería `web-push` (dependencia nueva), igual que `binanceFutures.
 
 `src/repositories/pushSubscription.repository.js`:
 
-- `upsert({ userId, endpoint, p256dh, auth, userAgent })`: `INSERT … ON CONFLICT (endpoint) DO UPDATE SET user_id, p256dh, auth, user_agent, last_seen_at = NOW()`.
+- `link({ userId, endpoint, p256dh, auth, userAgent })`: vinculación **manual**. `INSERT … ON CONFLICT (endpoint) DO UPDATE SET user_id, p256dh, auth, user_agent, last_seen_at = NOW()`. Si el dispositivo estaba vinculado a otra cuenta, pasa a esta.
+- `checkIn({ userId, endpoint, p256dh, auth, userAgent })`: lo usa la comprobación **automática** al abrir la app (§5.4). En una transacción:
+  1. `DELETE … WHERE endpoint = $1 AND user_id <> $2`: si el dispositivo estaba vinculado a otra cuenta, se desvincula de ella.
+  2. `UPDATE … SET p256dh, auth, user_agent, last_seen_at = NOW() WHERE endpoint = $1 AND user_id = $2`.
+  3. Devuelve si actualizó alguna fila (`linked`).
+
+  Nunca inserta: vincular sigue siendo manual (`link`).
 - `deleteByEndpoint(userId, endpoint)`: solo si la fila es del usuario.
 - `findByEndpoint(userId, endpoint)`.
 - `findByUserIds(userIds)`: `WHERE user_id = ANY($1)`.
@@ -136,6 +160,8 @@ En repositories existentes:
 
 **1. Descartar las viejas**: las tarjetas con `created_at` de hace más de 24 h no se avisan. Solo ocurre si el envío estuvo parado mucho tiempo, y un aviso de hace días es ruido.
 
+**Antes de todo, filtrar por tipo**: solo generan aviso los tipos de `PUSH_TYPES` (constante en `pushMessage.js`): `price_alert_hit`, `price_alert_near`, `price_alert_deadline`, `price_alert_delisted` y `date_reminder_due`. Las `price_alert_invalidation` se descartan aquí. La marca de agua avanza igual sobre ellas (§3.4): se leen, pero no se avisan.
+
 **2. Tag por tarjeta**:
 
 | Tarjeta | Tag |
@@ -146,7 +172,7 @@ En repositories existentes:
 
 Se calcula en el backend y viaja en el mensaje: el `payload` de la tarjeta no trae esos ids.
 
-**3. Colapsar por tag**. Si un usuario tiene varias tarjetas con el mismo tag en el mismo lote, se queda solo la más importante: `price_alert_invalidation` > `price_alert_hit` > `price_alert_delisted` > `price_alert_near` > `price_alert_deadline`.
+**3. Colapsar por tag**. Si un usuario tiene varias tarjetas con el mismo tag en el mismo lote, se queda solo la más importante: `price_alert_hit` > `price_alert_delisted` > `price_alert_near` > `price_alert_deadline`. Las invalidaciones ya se descartaron en el filtro por tipo.
 
 - Hoy esto solo pasa cuando, en el mismo tick, una alerta vence su fecha límite y además toca o se acerca: las dos cosas se evalúan con las velas, en el paso 8 del job. Cercanía y toque de la misma alerta nunca salen en el mismo tick: `processSymbol` emite una u otra.
 - **Cercanía va antes que fecha límite**: al vencer, la alerta **sigue armada** (solo se pone `deadline_at = NULL`; ver "Ciclo de vida" en la spec de recordatorios). El "cerca de" dice que el precio se acerca ahora mismo; la fecha límite pregunta si el análisis sigue vigente y puede esperar.
@@ -194,7 +220,8 @@ El `topic` de Web Push es el mismo `tag`: si el dispositivo está offline, el se
 ### 3.4 Service — `src/services/push.service.js`
 
 - `getConfig()` → `{ enabled, public_key }`.
-- `subscribe(userId, { endpoint, keys, user_agent })` → comprueba la allowlist (§3.7) y llama a `upsert`.
+- `link(userId, { endpoint, keys, user_agent })` → comprueba la allowlist (§3.7) y llama a `link` del repository.
+- `status(userId, { endpoint, keys, user_agent })` → llama a `checkIn` y devuelve `{ linked }`. Si desvinculó otra cuenta, lo loguea a nivel `info` (ids de usuario, nunca el endpoint).
 - `unsubscribe(userId, endpoint)`.
 - `sendTest(userId, endpoint)`: busca la fila (`findByEndpoint`, `NotFoundError` si no es del usuario), envía `{ v: 1, kind: 'test', created_at }` y **espera la respuesta** del servicio de push. Es la única herramienta de diagnóstico en el iPhone, así que devuelve lo que pasó (§3.6). Con un 404/410 borra la fila.
 - `notifyNew()`. Lo llama el job y **nunca lanza excepciones**. Estructura:
@@ -285,8 +312,9 @@ Todas con `authenticate`. Siguen el patrón de 6 pasos de [`workflow.md`](../../
 | Método y ruta | Body | Respuesta |
 |---------------|------|-----------|
 | `GET /api/push/config` | — | `{ enabled, public_key }` (`public_key: null` si está desactivado) |
-| `POST /api/push/subscriptions` | `{ endpoint, keys: { p256dh, auth }, user_agent? }` | `201` (upsert; idempotente) |
-| `DELETE /api/push/subscriptions` | `{ endpoint }` | `204`; no falla si no existía |
+| `POST /api/push/subscriptions` | `{ endpoint, keys: { p256dh, auth }, user_agent? }` | `201`. Vincula el dispositivo a la cuenta (manual; idempotente). |
+| `POST /api/push/subscriptions/status` | `{ endpoint, keys: { p256dh, auth }, user_agent? }` | `200 { linked }`. Si el dispositivo es de otra cuenta, lo desvincula de ella. Si es de esta, renueva `last_seen_at` y las claves. Nunca vincula. |
+| `DELETE /api/push/subscriptions` | `{ endpoint }` | `200` (`sendDeleted`, como el resto de `DELETE` de la API); no falla si no existía |
 | `POST /api/push/test` | `{ endpoint }` | ver abajo |
 
 Validación (Joi):
@@ -316,8 +344,12 @@ El `DELETE` lleva body. Desde axios se envía con `api.delete(url, { data })`.
   - **Por sufijo con punto inicial**: `.push.apple.com` (Safari e iOS; hoy `web.push.apple.com`) y `.notify.windows.com` (Edge en Windows).
 
   Nunca un regex sobre la URL completa: `https://fcm.googleapis.com.evil.com/` tiene que fallar, y hay un test que lo comprueba. Un rechazo se loguea con el host, para detectar navegadores legítimos que falten en la lista.
-- **Ninguna fila ajena**: `DELETE` y `test` filtran por `user_id`. `upsert` reasigna el endpoint al usuario actual, que es correcto: solo puede conocer el endpoint quien tiene el navegador.
-- **Contenido**: el mensaje va cifrado de extremo a extremo hasta el navegador (RFC 8291), así que el servicio de push no lo puede leer. Aun así, viaja lo mínimo (§3.3). Las notificaciones visibles muestran precios y títulos de notas: el logout las cierra (§5.7).
+- **Filas de otras cuentas**: `DELETE` y `test` filtran por `user_id`. Solo dos operaciones tocan la fila de otra cuenta, y siempre la del **mismo** endpoint:
+  - `POST /subscriptions` (vinculación manual): la reasigna.
+  - `status`: la borra.
+
+  Es correcto: solo puede conocer el endpoint quien tiene ese navegador, y la regla es que el dispositivo recibe solo los avisos de la cuenta con la que se usa.
+- **Contenido**: el mensaje va cifrado de extremo a extremo hasta el navegador (RFC 8291), así que el servicio de push no lo puede leer. Aun así, viaja lo mínimo (§3.3). Las notificaciones muestran precios y títulos de notas, y siguen llegando después de cerrar sesión (§5.7).
 - La clave privada VAPID se trata igual que `JWT_SECRET`: solo en `.env`, nunca en git.
 
 ### 3.8 Variables de entorno (`config/env.js`)
@@ -331,7 +363,8 @@ El `DELETE` lleva body. Desde axios se envía con `api.delete(url, { data })`.
 - En Joi son strings opcionales, **sin formato ni `.and()`**: `env.js` lanza al arrancar, y una sola clave definida o mal pegada no puede tumbar un deploy. Todas las comprobaciones están en `webPush.js` (§3.1).
 - Se generan **una sola vez** con `npx web-push generate-vapid-keys`.
 - **No se rotan**. Cada suscripción queda atada a la clave pública con la que se creó, así que un cambio de claves deja todas inservibles. La app las renueva sola la próxima vez que se abre en cada dispositivo (§5.4).
-- Dev: `backend/.env` y la lista `environment:` del backend en `docker-compose.yml`, que declara las variables una por una. Prod: `trading-journal/.env`, que `docker-compose.prod.yml` carga entero con `env_file`.
+- Dev: `backend/.env`. El contenedor monta `./backend` y `dotenv` lee ese archivo, así que no hace falta tocar `docker-compose.yml`. Prod: `trading-journal/.env`, que `docker-compose.prod.yml` carga entero con `env_file`.
+- Aceptan `''` (`.allow('')`): Joi rechaza un string vacío, y una línea `VAPID_SUBJECT=` en blanco tumbaría el arranque.
 
 ---
 
@@ -388,7 +421,7 @@ self.addEventListener('push', (event) => { … });
 self.addEventListener('notificationclick', (event) => { … });
 ```
 
-**`push`**. Todo va dentro de `event.waitUntil(...)`:
+**`push`**. Todo va dentro de `event.waitUntil(...)`. El título y las opciones los arma `utils/pushNotification.js` (puro, con tests en Node), que nunca lanza; `sw.js` solo lo llama. Si aun así `showNotification` lanza, se muestra el genérico.
 
 1. Construye `{ title, options }` dentro de un **único `try/catch`** que cubre el parseo, `describe()` y el formateo. Si algo lanza, o llega un `v` distinto de 1, un `kind` desconocido o un `type` que `describe()` no conoce, usa el aviso genérico: "Tienes recordatorios nuevos" → `/recordatorios`.
    - Motivo: el navegador solo busca un SW nuevo al navegar, o en un evento push si pasaron 24 h desde la última comprobación. Un push con un tipo nuevo puede llegar a un SW de un build anterior. Si no muestra nada, iOS revoca la suscripción.
@@ -434,7 +467,7 @@ Se mueven a un módulo **sin React ni lucide**, para que lo pueda importar el SW
 
 - Hoy `notificationText.js` importa `formatPrice` (`utils/reminders.js`) y `formatDate` (`utils/formatters.js`). `reminders.js` solo toca `localStorage` dentro de funciones con `try/catch`, así que cumple.
 - Blindaje: `utils/notificationText.test.js` corre con `node --test`, como los tests existentes del frontend, sin jsdom. Si algún import toca `window` al cargar, el test falla.
-- **Test de paridad**: para cada uno de los seis tipos, `describe()` sobre el payload recortado por `buildPushMessages` (§3.3) da el mismo `{ headline, detail }` que sobre el payload completo. Así se detecta si una tarjeta empieza a usar un campo que el push no envía. El recorte se replica en el test con una lista de campos que se mantiene a mano junto a la del backend.
+- **Test de paridad**: para cada uno de los cinco tipos con aviso (`PUSH_TYPES`), `describe()` sobre el payload recortado por `buildPushMessages` (§3.3) da el mismo `{ headline, detail }` que sobre el payload completo. Así se detecta si una tarjeta empieza a usar un campo que el push no envía. El recorte se replica en el test con una lista de campos que se mantiene a mano junto a la del backend.
 
 En el SW, `formatPrice` y `formatDate` formatean con el locale y la zona horaria del dispositivo.
 
@@ -444,22 +477,26 @@ En el SW, `formatPrice` y `formatDate` formatean con el locale y la zona horaria
 
 | Estado | Condición | UI |
 |--------|-----------|----|
-| `no-sw` | `navigator.serviceWorker.getRegistration()` devuelve `undefined` (p. ej. `npm run dev` sin `devOptions`) | Interruptor oculto, solo un texto: "Las notificaciones solo funcionan en la app compilada". Nunca se espera a `serviceWorker.ready`, que en ese caso no resuelve. |
+| `no-sw` | `navigator.serviceWorker.getRegistration()` devuelve `undefined` (p. ej. `npm run dev` sin `devOptions`) | Interruptor oculto, solo un texto: "Las notificaciones solo funcionan en la app compilada". En dev nunca se espera a `serviceWorker.ready`, que no resolvería. **En el build sí**, con un máximo de 10 s: en la primera visita el SW aún no está registrado (se registra en el `load`) o se está instalando, y `subscribe` falla sin un worker activo ("no active Service Worker"). |
 | `ios-install` | iOS o iPadOS sin `display-mode: standalone` | "Para recibir avisos en el iPhone, instala la app: Compartir → Añadir a pantalla de inicio" |
 | `ios-update` | iOS o iPadOS en standalone sin `'Notification' in window` o sin `'PushManager' in window` (iOS < 16.4) | "Actualiza a iOS 16.4 o posterior para recibir avisos" |
 | `unsupported` | Resto de navegadores sin `serviceWorker`, `PushManager` o `Notification` | "Este navegador no admite notificaciones" |
 | `server-disabled` | `GET /api/push/config` → `enabled: false` | Interruptor oculto |
 | `denied` | `Notification.permission === 'denied'` | "Bloqueaste las notificaciones. Actívalas en los ajustes del navegador para Tradelog" |
-| `lost` | Hay intención guardada, el permiso es `granted`, no hay suscripción y resuscribir falló (§5.4) | "Los avisos se desactivaron en este dispositivo" + botón **Reactivar** (gesto nuevo) |
-| `off` | Sin suscripción | Interruptor apagado |
-| `on` | `pushManager.getSubscription()` devuelve una suscripción | Interruptor encendido + "Enviar prueba" |
+| `lost` | Hay intención guardada, el permiso es `granted`, no hay suscripción y resuscribir falló (§5.4) | "Los avisos se desactivaron en este dispositivo" + botón **Reactivar** (gesto nuevo) y **Desactivar** (borra la intención; si no, se quedaría en `lost` para siempre) |
+| `off` | Sin suscripción, o `status` → `linked: false` | "Este dispositivo no recibe avisos" + interruptor apagado |
+| `on` | Hay suscripción local y `status` → `linked: true` | "Este dispositivo recibe los avisos de tu cuenta" + interruptor encendido + "Enviar prueba" |
+
+Además, `loading` ("Comprobando este dispositivo…") mientras se calcula, y `error` si falla la API al comprobarlo.
 
 Notas:
 
 - **Detección de iOS**: UA con `iPhone|iPad|iPod`, **o** UA `Macintosh` con `navigator.maxTouchPoints > 1`: el iPad en Safari se presenta como Mac. Sin esta segunda condición caería en `unsupported` en vez de en `ios-install`.
 - **Nunca se usa `Notification` como identificador suelto sin comprobar antes** `'Notification' in window`: en iOS < 16.4 lanza `ReferenceError`.
 
-**Intención**: `localStorage['tradelog.push.wanted'] = '1'`, siempre con `try/catch`. `enable()` la pone; `disable()` y el logout la quitan. Es lo que permite distinguir "lo apagué" de "el navegador soltó la suscripción" (§5.4).
+Si el dispositivo está vinculado (`on` u `off`) **lo dice el servidor** (`POST /subscriptions/status`), no el navegador: que el navegador tenga una suscripción no significa que esté vinculada a esta cuenta. La UI nunca menciona otras cuentas.
+
+**Intención**: `localStorage['tradelog.push.wanted.<userId>'] = '1'`, por usuario y siempre con `try/catch`. `enable()` la pone y `disable()` la quita. Permite distinguir "lo apagué" de "el navegador soltó la suscripción" (§5.4). Al ir por usuario, otra cuenta que inicie sesión en el mismo navegador no hereda la intención.
 
 **Acciones**:
 
@@ -467,10 +504,10 @@ Notas:
   - La `public_key` y el registro del SW se cargan **al montar** el componente. En el `onClick` no hay ningún `await` antes de `Notification.requestPermission()`: Safari puede perder el gesto si se espera algo antes.
   - Pasos:
     1. `Notification.requestPermission()`. Si no da `granted`, termina.
-    2. `registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: public_key })`.
+    2. Si ya hay suscripción local (estado `off`), la reutiliza. Si no, `registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: public_key })`.
     3. `POST /api/push/subscriptions` con `{ endpoint, keys }` sacados de `subscription.toJSON()`, más `navigator.userAgent`.
     4. Guarda la intención.
-  - Si falla el POST, deshace la suscripción local (`subscription.unsubscribe()`) para no quedar en un estado que el servidor no conoce.
+  - Si falla el POST y la suscripción la acaba de crear, la deshace (`subscription.unsubscribe()`) para no quedar en un estado que el servidor no conoce.
 - `disable()`:
   1. Quita la intención.
   2. `subscription.unsubscribe()` **siempre**, aunque falle la API: mata el endpoint en el navegador, y la fila del servidor se borra sola con el siguiente 410.
@@ -486,14 +523,16 @@ Errores de la API → toasts en español ("No se pudieron activar las notificaci
 
 ### 5.3 Interruptor — `components/notifications/PushToggle.jsx`
 
-En `/recordatorios`, una línea compacta sobre las pestañas:
+En `/recordatorios`, una sección compacta sobre las pestañas. Al montarse, lee el estado de **este** dispositivo (§5.2) y lo muestra:
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│ 🔔 Avisos en este dispositivo          [ ●━━ ]  Enviar prueba │
-└────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ 🔔 Avisos en este dispositivo                     [ ●━━ ]  Enviar prueba │
+│    Este dispositivo recibe los avisos de tu cuenta                │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
+- Activar vincula el dispositivo a la cuenta, y desactivar lo desvincula. Es la única forma de registrar un dispositivo.
 - Muestra el texto del estado de §5.2 cuando no hay interruptor, y el botón **Reactivar** en `lost`.
 - No hay lista de dispositivos ni ajustes por tipo de aviso (§7).
 
@@ -501,19 +540,27 @@ En `/recordatorios`, una línea compacta sobre las pestañas:
 
 Se monta una vez en el layout autenticado y corre una vez por carga de la app (no en cada navegación). Solo actúa si el estado no es `no-sw`, `ios-*`, `unsupported` ni `server-disabled`, y si el permiso es `granted`:
 
-1. **Hay suscripción local**:
-   - Compara su clave con la del servidor. `subscription.options.applicationServerKey` es un `ArrayBuffer`: se pasa a base64url antes de comparar. Si el navegador devuelve `null`, se toma como coincidente; si no, se resuscribiría en cada carga.
-   - **No coincide** (cambiaron las claves): `unsubscribe()` + `subscribe()` con la nueva + `POST`.
-   - **Coincide**: `POST /api/push/subscriptions` (upsert). Actualiza `last_seen_at`, recupera la fila si el servidor la había borrado, y la reasigna si en el navegador cambió el usuario.
-   - En ambos casos guarda la intención, por si la suscripción viene de antes de esta feature.
-2. **No hay suscripción, pero sí intención**: el navegador la soltó (caducidad, revocación o rotación sin evento). Intenta `subscribe()` + `POST`. Si falla (iOS puede exigir un gesto), el estado pasa a `lost` (§5.2).
+**Nunca vincula un dispositivo a una cuenta que no lo activó en él.** Hace dos cosas:
+
+- Mantiene vivo el dispositivo que esta cuenta ya vinculó a mano, con la intención del usuario actual como prueba.
+- Lo desvincula de cualquier otra cuenta (vía `status`).
+
+Como se monta con la sesión iniciada, en cuanto se usa el navegador con otra cuenta, deja de recibir los avisos de la anterior.
+
+1. **Hay suscripción local** → `POST /api/push/subscriptions/status`:
+   - `linked: true`: renueva `last_seen_at`. Además compara la clave de la suscripción con la del servidor: `subscription.options.applicationServerKey` es un `ArrayBuffer` y se pasa a base64url antes de comparar. Si el navegador devuelve `null`, se toma como coincidente; si no, se resuscribiría en cada carga. Si **no coincide** (cambiaron las claves): `unsubscribe()` + `subscribe()` con la nueva + `POST /subscriptions`.
+   - `linked: false` **con** intención del usuario actual: el servidor la borró (tras un 410, o porque se usó el navegador con otra cuenta). `unsubscribe()` + `subscribe()` + `POST /subscriptions`.
+   - `linked: false` **sin** intención: no hace nada más. El estado queda en `off`, y vincular es cosa del usuario.
+
+   Por la intención por usuario, si dos cuentas activaron los avisos en el mismo navegador, el dispositivo sigue a la que lo está usando: al abrir la app con A, `status` lo desvincula de B y la intención de A lo vuelve a vincular a A, y viceversa. Nunca recibe los de las dos a la vez.
+2. **No hay suscripción, pero sí intención del usuario actual**: el navegador la soltó (caducidad, revocación o rotación sin evento). Intenta `subscribe()` + `POST /subscriptions`. Si falla (iOS puede exigir un gesto), el estado pasa a `lost` (§5.2).
 3. **No hay suscripción ni intención**: no hace nada. Apagar el interruptor es definitivo.
 
 La rotación de endpoints también dispara `pushsubscriptionchange` en el SW, pero desde el SW no se puede llamar a la API porque el JWT vive en `localStorage`. Por eso se resuelve aquí.
 
 ### 5.5 Mensajes del SW — `useServiceWorkerMessages()`
 
-En el mismo layout, escucha `navigator.serviceWorker`:
+En `PushBridge` (`App.jsx`), montado **siempre**, también sin sesión: si se toca una notificación con la app abierta en `/login`, `navigate` lleva a la URL, `ProtectedRoute` manda a `/login` con `state.from` y el login vuelve a la tarjeta. `usePushSync` sí se monta solo con sesión. Escucha `navigator.serviceWorker`:
 
 - `notifications-changed` → `invalidateQueries({ queryKey: notificationKeys.all })`.
 - `navigate` → `navigate(url)`.
@@ -537,17 +584,14 @@ El login con Google usa Google Identity Services con `renderButton` y `callback`
 
 ### 5.7 Cerrar sesión
 
-`AuthContext.logout` (el botón del menú) pasa a ser `async`. Antes de borrar el token:
+**Sin cambios por ahora** (decisión del dueño del proyecto, 2026-11-23). `AuthContext.logout` y el interceptor de 401 quedan como están.
 
-1. Cierra las notificaciones visibles de la app: `registration.getNotifications()` → `close()` en cada una. Llevan precios y títulos de notas.
-2. `disable()` (§5.2): quita la intención, desuscribe en el navegador **siempre** y lanza el `DELETE` con un timeout de 2 s. Un fallo se ignora.
-   - Con la desuscripción local queda garantizado que el dispositivo compartido no recibe más avisos de la cuenta, aunque la API no responda.
-   - El orden importa: el `DELETE` necesita el token, y el interceptor de axios lo lee de `localStorage` al hacer la petición.
-3. Borra el token, como hoy.
-
-**El interceptor de 401 no llama a `logout()`**, y tiene que seguir así. Hoy solo borra el token y redirige. Si llamara a `logout()`, el `DELETE` saldría con el token caducado, daría otro 401 y entraría en bucle.
-
-Si la sesión caduca, la suscripción no se borra. Ese dispositivo sigue recibiendo los avisos de su usuario hasta que alguien inicie sesión en él (§5.4 reasigna el endpoint) o se apaguen los avisos.
+- Tras cerrar sesión, o si la sesión caduca, el dispositivo **sigue vinculado y recibiendo los avisos** de la cuenta.
+- Para dejar de recibirlos, se desactiva desde `/recordatorios` con la sesión iniciada.
+- Si otra cuenta inicia sesión en el mismo navegador, el dispositivo **deja de recibir los avisos de la anterior** en cuanto se abre la app (§5.4), y la nueva ve `off`. Solo recibe sus avisos si los activa, o si ya los había activado antes en ese navegador.
+- Desvincular al cerrar sesión queda en §7. Si se retoma, hay dos cosas a tener en cuenta:
+  - Desuscribir en el navegador antes de borrar el token, para no depender de la API.
+  - Que el interceptor de 401 nunca llame a `logout()`: el `DELETE` saldría con el token caducado y entraría en bucle.
 
 ---
 
@@ -564,14 +608,14 @@ Si la sesión caduca, la suscripción no se borra. Ese dispositivo sigue recibie
      - 404/410 borran y el resto no.
      - `notifyNew` nunca lanza.
      - Allowlist, incluido `fcm.googleapis.com.evil.com`.
-3. Endpoints `/api/push` (validator con `.truncate()`, controller, routes, mount en `server.js`). `test` espera la respuesta del servicio de push.
+3. Endpoints `/api/push` (validator con `.truncate()`, controller, routes, mount en `server.js`). `test` espera la respuesta del servicio de push. Tests de `status`: nunca inserta; borra la fila del mismo endpoint de otra cuenta y devuelve `linked: false`; con la fila propia, renueva y devuelve `linked: true`.
 4. Job: `try/finally` en `tick()` con `notifyNew()`, y el nivel del log.
-5. Frontend: extraer `utils/notificationText.js` de `NotificationCard.jsx`, sin cambios visibles en las tarjetas. `notificationText.test.js` con `node --test` (carga sin `window` y paridad de los seis tipos).
+5. Frontend: extraer `utils/notificationText.js` de `NotificationCard.jsx`, sin cambios visibles en las tarjetas. `notificationText.test.js` con `node --test` (carga sin `window` y paridad de los cinco tipos con aviso).
 6. SW:
    - `injectManifest` con las cuatro opciones migradas y `workbox-*` fijados a `7.4.1`.
    - `src/sw.js`: paridad con el SW actual, más `push` (con `try/catch` global, `renotify` y `timestamp`) y `notificationclick`.
    - Icono de badge.
-7. `utils/push.js`, `usePushSubscription` (estados e intención), `PushToggle` en `/recordatorios`, `usePushSync`, `useServiceWorkerMessages`, `?card=`, `?next=` en interceptor y `Login` (con `safeNext` y su test: `//x`, `/\x`, `https://x`), y logout.
+7. `utils/push.js`, `usePushSubscription` (estados e intención), `PushToggle` en `/recordatorios`, `usePushSync`, `useServiceWorkerMessages`, `?card=`, `?next=` en interceptor y `Login` (con `safeNext` y su test: `//x`, `/\x`, `https://x`). El logout no se toca.
 8. Docs:
    - `operations/env-vars.md`: las tres variables y cómo generar las claves.
    - `api/reference.md`, `architecture/database.md` y `architecture/backend.md`.
@@ -579,7 +623,19 @@ Si la sesión caduca, la suscripción no se borra. Ese dispositivo sigue recibie
    - README de specs y roadmap.
 9. Prod: generar las claves, añadirlas al `.env` de la VPS, aplicar la 029, desplegar y verificar (abajo).
 
-**Depende de**: la task 026 (job de recordatorios activo en prod). Sin el job, en prod solo funcionaría el push de prueba.
+**Depende de**: la task 026 (job de recordatorios activo en prod), cerrada el 2026-11-23.
+
+**Tasks**: el plan está dividido en las tasks 028–032 de [`docs/tasks/in-progress/`](../../tasks/in-progress/):
+
+| Task | Contenido |
+|------|-----------|
+| 028 | Backend de suscripciones y API |
+| 029 | Envío desde el job |
+| 030 | Service worker |
+| 031 | UI en `/recordatorios` |
+| 032 | Prod y docs |
+
+La 030 puede ir en paralelo con la 028 y la 029.
 
 **Esfuerzo estimado**: 2–3 días.
 
@@ -595,6 +651,12 @@ Si la sesión caduca, la suscripción no se borra. Ese dispositivo sigue recibie
 - **Mensaje desconocido**: enviar a mano un push con `type: 'foo'` → se ve el aviso genérico.
 - **Limpieza**: suscribir, ejecutar `(await (await navigator.serviceWorker.ready).pushManager.getSubscription()).unsubscribe()` en la consola y forzar un tick o "Enviar prueba" → 410 y la fila desaparece. Es más determinista que borrar los datos del sitio.
 - **Suscripción perdida**: con la intención guardada, desuscribir desde la consola y recargar → `usePushSync` resuscribe sola.
+- **Vinculación manual**:
+  - Con la cuenta A vinculada, cerrar sesión **sin** entrar con otra → siguen llegando los avisos de A.
+  - Entrar con B → B ve `off`, y una tarjeta nueva de A ya no llega a este dispositivo.
+  - B activa → recibe los de B.
+  - Volver a entrar con A → el dispositivo vuelve a A (A tenía la intención guardada) y deja de recibir los de B.
+  - Una cuenta que nunca activó los avisos en ese navegador no los recibe nunca.
 - **Paridad del SW**: tras el cambio a `injectManifest`, la app sigue instalándose, abre offline con el shell, y un deploy nuevo se aplica solo (autoUpdate).
 - **Sesión caducada**: tocar una notificación con el JWT caducado → login → aterriza en `/recordatorios?card=<id>` con la tarjeta resaltada.
 - **Móvil**: requiere HTTPS, así que se prueba en prod (o con un túnel). En iPhone:
@@ -609,7 +671,9 @@ Si la sesión caduca, la suscripción no se borra. Ese dispositivo sigue recibie
 ## 7. Fuera de alcance (posibles extensiones)
 
 - **Preferencias por tipo** de aviso (p. ej. sin push de cercanía) y **horas de silencio** propias: requieren una tabla de preferencias por usuario.
-- **Lista de dispositivos** en Ajustes, con la opción de desactivar uno remoto.
+- **Lista de dispositivos** vinculados, con la opción de desactivar uno remoto.
+- **Desvincular al cerrar sesión** (ver §5.7).
+- **Replantear las invalidaciones**: crear un recordatorio "de invalidación" no termina de tener sentido. Cuando se rediseñe esa parte de la spec de recordatorios, revisar si alguna tarjeta resultante debe generar aviso (hoy la invalidación está fuera de `PUSH_TYPES`).
 - **Badge en el icono de la app** (`navigator.setAppBadge`) con el número de tarjetas abiertas: lo admiten iOS 16.4+ y Chrome de escritorio.
 - **Acciones en la notificación** ("Archivar" sin abrir la app): el SW no tiene el JWT, haría falta un token de acción firmado por tarjeta. Además iOS no muestra botones de acción.
 - **Push para otras features** (TODOs con fecha, por ejemplo): `notifyNew` es específico de las tarjetas, pero el cliente, la tabla y la UI de activación sirven tal cual. Si esas tarjetas se crean fuera del job, revisar el invariante de la marca de agua (§3.4).
@@ -621,13 +685,13 @@ Si la sesión caduca, la suscripción no se borra. Ese dispositivo sigue recibie
 ## 8. Valores por defecto revisables
 
 - Umbral de agrupación: **más de 3** mensajes por usuario y tick → resumen, con hasta **3 símbolos**.
-- Prioridad al colapsar: invalidación > toque > deslistado > cercanía > fecha límite.
+- Tipos con aviso: todos menos `price_alert_invalidation`.
+- Prioridad al colapsar: toque > deslistado > cercanía > fecha límite.
 - Antigüedad máxima para avisar: **24 h** desde `created_at`.
 - TTL en el servicio de push: **4 h** para cercanía, **24 h** para el resto.
 - Recorte de `message` y `note_title`: **200** caracteres.
 - Urgencia: **`high`** en todos los tipos.
 - Timeout de cada envío: **10 s**.
-- Timeout del `DELETE` al cerrar sesión: **2 s**.
 - Hosts de la allowlist (§3.7).
 
 ---
@@ -666,6 +730,28 @@ Segunda ronda (mismo día):
 - **Resumen sin cabecera `Topic`**, explícito.
 - **Colapso**: se mantiene cercanía > fecha límite. La revisión proponía lo contrario porque daba por hecho que la alerta deja de estar armada al vencer, pero sigue activa (solo se borra `deadline_at`).
 - **Encontrado de paso**: la fecha límite se evalúa antes de recuperar las velas. Es un bug de la feature de recordatorios, no del push, y está registrado aparte (enlace en §3.3).
+
+Tercera ronda (decisiones del dueño del proyecto, 2026-11-23):
+
+- **Vinculación manual**: los dispositivos se registran solo desde la sección "Avisos en este dispositivo" de `/recordatorios`. Esa sección lee del servidor si este dispositivo está vinculado a la cuenta (endpoint nuevo `POST /subscriptions/status`, estado nuevo `other-account`). La sincronización al abrir la app ya no reasigna dispositivos: solo renueva los que la cuenta vinculó a mano. La intención pasa a guardarse por usuario.
+- **Cerrar sesión no se toca**: el dispositivo sigue recibiendo avisos. Se retira lo de desuscribir y cerrar las notificaciones visibles al hacer logout; queda en §7.
+- **Tabla de los seis tipos de tarjeta** en §1.
+
+Cuarta ronda (decisiones del dueño del proyecto, 2026-11-23):
+
+- **La tesis invalidada no genera push** (filtro `PUSH_TYPES` en §3.3). Las invalidaciones se replantearán más adelante (§7).
+- **Un dispositivo, una cuenta**: un dispositivo nunca recibe avisos de otra cuenta. `status` (ahora `checkIn` en el repository) desvincula el dispositivo de cualquier otra cuenta al abrir la app. Se elimina el estado `other-account`. Cada cuenta activa sus avisos por separado.
+
+Implementación (2026-11-23, tasks 028–031):
+
+- **Probado de punta a punta** con un Chrome headless contra una BD temporal: una tarjeta insertada en `notifications` → `notifyNew` → FCM → SW → notificación con titular, tag, URL y cuerpo correctos, y la campana se refresca. También: vinculación con dos cuentas, desactivar, resuscripción sola, `lost`, `?card=`, `?next=`, `/api` fuera del SW, shell offline, y el paso de un dispositivo con el SW viejo (`generateSW`) al nuevo.
+- **FCM puede responder 410 justo después de suscribir** ("push subscription has unsubscribed or expired") y 201 unos segundos después. Visto con perfiles de Chrome recién creados en headless. Al job no le afecta (envía minutos u horas después de vincular), pero "Enviar prueba" pulsado al momento puede caer en esa ventana: el frontend resuscribe y pide probar de nuevo. Verificarlo en dispositivos reales (§6, task 032).
+- `DELETE /api/push/subscriptions` responde `200` como el resto de la API, no `204`.
+- Variables VAPID: sin cambios en `docker-compose.yml` (dev lee `backend/.env`) y con `.allow('')`.
+- `no-sw` en el build espera al SW activo (§5.2); `lost` tiene también "Desactivar"; estados `loading` y `error`.
+- `useServiceWorkerMessages` se monta también sin sesión (§5.5).
+- El `errorHandler` pasa `details` de cualquier `AppError` (lo necesita `PUSH_REJECTED`).
+- `PushGoneError` conserva el cuerpo de la respuesta del servicio de push para el log.
 
 Puntos de la primera revisión que no aplican al código actual, anotados para que no se reintroduzcan:
   - `expirationTime` no da 400: el middleware valida con `stripUnknown: true`.

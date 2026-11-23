@@ -131,11 +131,12 @@ Migración: `027_migration_todos.sql`.
 | `price_alerts` | Alertas de precio: `symbol` (FK al catálogo), `direction`, `target_price`, `is_invalidation` (salta solo por cierre diario), `near_pct`, `deadline_at`, `price_at_creation`, `status` `active` \| `triggered`, `armed_at`, `near_at`, `triggered_at`. |
 | `date_reminders` | Recordatorios por fecha: `remind_at`, `message`, `status` `pending` \| `sent`. |
 | `notifications` | Bandeja genérica de tarjetas: `type`, `price_alert_id` / `date_reminder_id` (`ON DELETE SET NULL`), `payload` JSONB (foto del momento), `resolved_at` + `resolution` (`dismissed` \| `rearmed` \| `updated`). |
-| `reminder_job_state` | Una sola fila (`id = 1`): `last_run_at`, `catalog_synced_at`, `backoff_until` (429/418 de Binance, sobrevive a reinicios). |
+| `reminder_job_state` | Una sola fila (`id = 1`): `last_run_at`, `catalog_synced_at`, `backoff_until` (429/418 de Binance, sobrevive a reinicios) y `push_notified_id` (marca de agua de los avisos push: id de la última tarjeta de la que ya se intentó avisar; la migración 029 la siembra en `MAX(id)`). |
+| `push_subscriptions` | Dispositivos vinculados para recibir las tarjetas como notificaciones push: `user_id` (`ON DELETE CASCADE`), `endpoint` (`UNIQUE`: un dispositivo, una cuenta), `p256dh` y `auth` (claves del navegador, nunca se devuelven por la API), `user_agent`, `last_seen_at`. Una fila se borra sola cuando el servicio de push responde 404/410. |
 
 Alertas y recordatorios se anclan a un bloque **o** a una nota (`CHECK num_nonnulls(note_id, block_id) = 1`, ambos con `ON DELETE CASCADE`); en los de bloque la nota se deriva por join, así que mover el bloque no desincroniza nada. Las columnas que se comparan con los `openTime` de Binance o con fechas del usuario son `TIMESTAMPTZ`. `pg` devuelve los `NUMERIC` como string: los repositories los convierten a `Number`.
 
-Migración: `028_migration_price_alerts_and_reminders.sql`. Spec: [`features/specs/alertas-de-precio-en-notas.md`](../features/specs/alertas-de-precio-en-notas.md).
+Migraciones: `028_migration_price_alerts_and_reminders.sql` y `029_migration_push_subscriptions.sql` (avisos push). Specs: [`features/specs/alertas-de-precio-en-notas.md`](../features/specs/alertas-de-precio-en-notas.md) y [`features/specs/notificaciones-push-pwa.md`](../features/specs/notificaciones-push-pwa.md).
 
 ### Backtesting
 

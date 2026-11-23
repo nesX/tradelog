@@ -14,7 +14,8 @@ trading-journal/backend/
 │   │   ├── env.js            # variables validadas con Joi → export config
 │   │   └── database.js       # pool pg (max 20), query/getClient/withTransaction/withUserLock
 │   ├── clients/
-│   │   └── binanceFutures.js # API pública de Binance Futures (circuit breaker, peso, timeout)
+│   │   ├── binanceFutures.js # API pública de Binance Futures (circuit breaker, peso, timeout)
+│   │   └── webPush.js        # Web Push con claves VAPID (configuración tolerante, errores tipados)
 │   ├── middleware/
 │   │   ├── auth.js           # authenticate, optionalAuth (JWT)
 │   │   ├── authorize.js      # authorize('admin', 'super_admin')
@@ -66,9 +67,10 @@ Orden de inicialización:
    - `/api/admin` → `adminRoutes`
    - `/api/todos` → `todoRoutes`
    - `/api/market-symbols`, `/api/price-alerts`, `/api/date-reminders`, `/api/notifications` → recordatorios de análisis
+   - `/api/push` → avisos push de este dispositivo (vincular, comprobar, desvincular, prueba)
 6. `GET /api/health` — siempre disponible, sin auth.
 7. `notFoundHandler` + `errorHandler` al final.
-8. `startServer()`: testConnection → mkdir uploads → `initSuperAdmin()` → `startNotePurgeJob()` → `startReminderJob()` → `app.listen(config.port)`.
+8. `startServer()`: testConnection → mkdir uploads → `initSuperAdmin()` → `startNotePurgeJob()` → `startReminderJob()` → comprobación de las claves VAPID (loguea "Web Push activado" o el motivo de que esté desactivado) → `app.listen(config.port)`.
 9. Manejo de `SIGTERM`/`SIGINT` para shutdown limpio. `unhandledRejection` se loguea; `uncaughtException` mata el proceso (sano).
 
 ## Jobs dentro del proceso
@@ -82,9 +84,13 @@ Corren en el mismo proceso (y contenedor) que la API; no hay workers aparte.
   3. Sincroniza el catálogo de perpetuos si tiene más de 24 h (`exchangeInfo`, peso 1).
   4. Por cada símbolo con alertas activas, en serie y con 1 s de pausa, lee las velas de 1h desde su checkpoint, las evalúa (`priceAlertEvaluator.js`, función pura) en una transacción con las alertas bloqueadas y avanza el checkpoint.
 
+  5. Siempre, en un `finally` (también si el tick se cortó por backoff o un error): `push.service.js → notifyNew()` avisa por push de las tarjetas creadas desde la marca de agua `reminder_job_state.push_notified_id`, y la avanza hasta el id más alto leído. Nunca lanza.
+
   Si `x-mbx-used-weight-1m` supera `BINANCE_MAX_USED_WEIGHT`, corta el tick. Un 429/418 persiste el backoff. Spec: [`features/specs/alertas-de-precio-en-notas.md`](../features/specs/alertas-de-precio-en-notas.md).
 
-`src/clients/` es a las APIs externas lo que `repositories/` es a la BD: todo lo que se pide a Binance pasa por `clients/binanceFutures.js`, que no toca la BD (los services persisten el backoff).
+  **Invariante de la marca de agua** (spec [`notificaciones-push-pwa.md`](../features/specs/notificaciones-push-pwa.md) §3.4): cuando corre `notifyNew` no puede quedar ninguna transacción que inserte tarjetas sin terminar, o una tarjeta con un id menor que hiciera commit después se saltaría para siempre. Hoy se cumple porque las tarjetas solo se crean dentro del job, el tick es secuencial y `notifyNew` corre al final con el advisory lock tomado. **No paralelizar el tick ni crear tarjetas fuera del job** sin revisar antes ese mecanismo.
+
+`src/clients/` es a las APIs externas lo que `repositories/` es a la BD: todo lo que se pide a Binance pasa por `clients/binanceFutures.js`, que no toca la BD (los services persisten el backoff). Los envíos push pasan por `clients/webPush.js`: sin claves VAPID válidas queda desactivado sin tumbar el arranque, y traduce las respuestas del servicio de push a `PushGoneError` (404/410: se borra la suscripción) y `PushRejectedError` (400/401/403/413).
 
 ## Capas en detalle
 

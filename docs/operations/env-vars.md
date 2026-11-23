@@ -30,6 +30,9 @@ Validadas por Joi en `src/config/env.js`. Si falta alguna requerida, el server *
 | `REMINDERS_TICK_MINUTES` | int (minutos) | no | `30` | Intervalo del job de recordatorios de análisis (`startReminderJob` en `server.js`). `0` lo desactiva. El primer tick tras arrancar se programa desde el último (`reminder_job_state.last_run_at`), no al arrancar. |
 | `BINANCE_FUTURES_API_URL` | URL | no | `https://fapi.binance.com` | Base URL de datos de mercado de Binance Futures USDⓈ-M (endpoints públicos, sin API key). |
 | `BINANCE_MAX_USED_WEIGHT` | int | no | `1200` | Si `x-mbx-used-weight-1m` (peso usado por la IP en el minuto, compartido con market-tracker) lo supera, el job corta el tick y la caché de precios deja de refrescar. El límite de futuros es 2400/min. Ajustarlo según el peso habitual de market-tracker (spec §4.1). |
+| `VAPID_PUBLIC_KEY` | string (base64url, 87 chars) | no | — | Clave pública VAPID de las notificaciones push. Sin ella (o sin la privada, o con alguna mal formada) el push queda **desactivado** y el resto funciona igual: nunca tumba el arranque, y el motivo sale una vez en el log ("Web Push desactivado: …", `error` en prod). Ver [Claves VAPID](#claves-vapid-notificaciones-push). |
+| `VAPID_PRIVATE_KEY` | string (base64url, 43 chars) | no | — | Clave privada VAPID. **Secreta**: solo en `.env`, como `JWT_SECRET`. |
+| `VAPID_SUBJECT` | `mailto:` o URL `https` | no | `mailto:` + `SUPER_ADMIN_EMAIL` | Contacto para los servicios de push. Sin esta ni `SUPER_ADMIN_EMAIL`, push desactivado. |
 | `ALLOWED_ORIGINS` | string (CSV) | no | `http://localhost:5173` | Lista coma-separada de orígenes permitidos por CORS. Se parsea con `.split(',')`. |
 | `LOG_LEVEL` | enum | no | `info` | `error` \| `warn` \| `info` \| `debug`. |
 | `LOG_DIR` | string | no | `./logs` | Donde Winston escribe JSON. |
@@ -76,6 +79,17 @@ openssl rand -base64 32
 openssl rand -base64 24
 ```
 
+### Claves VAPID (notificaciones push)
+
+```bash
+# Una sola vez por entorno (dev y prod con claves distintas)
+npx web-push generate-vapid-keys
+```
+
+- **No se rotan.** Cada suscripción queda atada a la clave pública con la que se creó: cambiarlas deja inservibles las de todos los dispositivos. La app las renueva sola la próxima vez que se abre en cada uno (spec de push §5.4), pero hasta entonces no reciben avisos.
+- En Joi son strings opcionales sin formato a propósito; las comprueba `clients/webPush.js` (spec [`notificaciones-push-pwa.md`](../features/specs/notificaciones-push-pwa.md) §3.1 y §3.8).
+- Dev: en `backend/.env` (el contenedor monta `./backend` y `dotenv` lo lee; no hace falta tocar `docker-compose.yml`). Prod: en `trading-journal/.env`, que `docker-compose.prod.yml` carga entero con `env_file`.
+
 ## Checklist por entorno
 
 ### Dev local (Docker)
@@ -113,6 +127,8 @@ JWT_EXPIRES_IN=7d
 GOOGLE_CLIENT_ID=...apps.googleusercontent.com
 FRONTEND_URL=https://tradelog.nesx.co
 ALLOWED_ORIGINS=https://tradelog.nesx.co
+VAPID_PUBLIC_KEY=<npx web-push generate-vapid-keys>
+VAPID_PRIVATE_KEY=<secret>
 HOST_UPLOADS_DIR=/home/deploy/tradelog-data/uploads
 HOST_LOGS_DIR=/home/deploy/tradelog-data/logs
 ```
