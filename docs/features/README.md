@@ -23,8 +23,8 @@ Esta carpeta contiene las especificaciones detalladas de cada feature mayor del 
 | [`backtesting-rapido-detalle.md`](specs/backtesting-rapido-detalle.md) | 20 KB | ✅ Implementado | Detalle de implementación del backtesting (originalmente `tasks.md` raíz). |
 | [`sistema-de-gestion-de-usuarios.md`](specs/sistema-de-gestion-de-usuarios.md) | 37 KB | 🟡 Parcial | Super_admin + admin existen + page admin/Users. Spec describe invitaciones, RBAC más fino, no implementados. |
 | [`sistema-de-estrategias.md`](specs/sistema-de-estrategias.md) | 27 KB | 🟡 Parcial | Tablas `systems`, `signals`, `timeframes` existen. Spec describe templates y paneles más elaborados que aún no están. |
-| [`alertas-de-precio-en-notas.md`](specs/alertas-de-precio-en-notas.md) | 53 KB | ✅ Implementado (falta activarlo en prod) | Recordatorios de análisis: alertas de precio sobre perpetuos de Binance Futures (cripto y TradFi, velas 1h), invalidaciones por cierre diario, recordatorios por fecha y bandeja `/recordatorios`. Migración 028. Tasks 016–026. |
-| [`notificaciones-push-pwa.md`](specs/notificaciones-push-pwa.md) | 48 KB | ❌ No implementado | Web Push (VAPID) de las tarjetas de `/recordatorios` a los dispositivos que lo activan (PWA instalada en iOS). Migración 029, SW con `injectManifest`. Depende de la task 026. |
+| [`alertas-de-precio-en-notas.md`](specs/alertas-de-precio-en-notas.md) | 53 KB | ✅ Implementado (en prod) | Recordatorios de análisis: alertas de precio sobre perpetuos de Binance Futures (cripto y TradFi, velas 1h), invalidaciones por cierre diario, recordatorios por fecha y bandeja `/recordatorios`. Migración 028. Tasks 016–026. |
+| [`notificaciones-push-pwa.md`](specs/notificaciones-push-pwa.md) | 48 KB | ❌ No implementado | Web Push (VAPID) de las tarjetas de `/recordatorios` a los dispositivos que lo activan (PWA instalada en iOS). Migración 029, SW con `injectManifest`. |
 
 ## Cómo se infirió el estado
 

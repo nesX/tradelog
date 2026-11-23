@@ -68,3 +68,8 @@ para que TradeLog se aparte con margen cuando market-tracker esté en un pico.
   (pendientes, sin commitear) va antes.
 - Sin las variables, el job arranca con los defaults (30 min, umbral 1200).
 
+
+## Cierre (2026-11-23)
+Confirmado por el dueño del proyecto: los recordatorios funcionan en prod (migración 028 aplicada y job activo).
+Sigue abierto, como opcional, repetir la medición de peso alrededor de un
+cambio de hora.
