@@ -46,6 +46,11 @@ const emptyPriceForm = (symbol) => ({
   message: '',
 });
 
+// Una fecha límite vencida no se precarga: bloquearía el guardado ("debe ser futura").
+// Al re-armar, el backend la quita; si no se re-arma, la evalúa el job con las velas.
+const futureDeadline = (alert) =>
+  alert.deadline_at && new Date(alert.deadline_at) > new Date() ? alert.deadline_at : null;
+
 const priceFormFromAlert = (alert) => ({
   symbol: alert.symbol,
   level: String(alert.target_price),
@@ -54,7 +59,7 @@ const priceFormFromAlert = (alert) => ({
   nearEnabled: alert.near_pct != null,
   nearPct: String(alert.near_pct ?? DEFAULT_NEAR_PCT),
   isInvalidation: alert.is_invalidation,
-  deadline: toLocalInputValue(alert.deadline_at),
+  deadline: toLocalInputValue(futureDeadline(alert)),
   message: alert.message || '',
 });
 
@@ -314,8 +319,9 @@ export default function ReminderModal({
     };
     try {
       if (editingAlert) {
-        // La fecha límite solo se envía si cambió (una ya vencida no pasaría la validación)
-        const deadlineChanged = toMinute(deadlineIso) !== toMinute(editingAlert.deadline_at);
+        // La fecha límite solo se envía si cambió respecto a lo precargado: una vencida
+        // se muestra vacía y, si el campo sigue vacío, no se envía (no se borra sin querer)
+        const deadlineChanged = toMinute(deadlineIso) !== toMinute(futureDeadline(editingAlert));
         await updateAlert.mutateAsync({
           id: editingAlert.id,
           data: { ...data, ...(deadlineChanged ? { deadline_at: deadlineIso } : {}) },

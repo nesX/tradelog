@@ -140,12 +140,16 @@ export const findActiveBySymbolsForUpdate = async (symbols, exec) => {
   return result.rows.map(parseAlert);
 };
 
-/** Fechas límite vencidas de alertas activas con la nota no borrada. */
+/**
+ * Fechas límite vencidas de alertas activas con la nota no borrada, solo de
+ * símbolos deslistados: como sus velas ya no se evalúan, se comparan con NOW().
+ * Las de símbolos válidos se evalúan con las velas (processSymbol del job).
+ */
 export const findDueDeadlinesForUpdate = async (exec) => {
   const result = await exec.query(
     `${ALERT_SELECT}
      WHERE pa.status = 'active' AND pa.deadline_at IS NOT NULL AND pa.deadline_at <= NOW()
-       AND an.deleted_at IS NULL
+       AND an.deleted_at IS NULL AND ms.invalid_at IS NOT NULL
      ORDER BY pa.id
      FOR UPDATE OF pa`
   );

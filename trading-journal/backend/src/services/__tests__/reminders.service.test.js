@@ -172,6 +172,45 @@ describe('updatePriceAlert', () => {
     expect(mockSymbolRepo.setCheckedUntil).toHaveBeenCalled();
   });
 
+  it('re-armar con la fecha límite ya vencida la quita', async () => {
+    mockAlertRepo.findByIdAndUser.mockResolvedValue(
+      storedAlert({ status: 'triggered', deadline_at: new Date(Date.now() - 3_600_000) })
+    );
+
+    await updatePriceAlert(1, 5, { target_price: 58000 });
+
+    expect(mockAlertRepo.update.mock.calls[0][1]).toMatchObject({ status: 'active', deadline_at: null });
+  });
+
+  it('re-armar con la fecha límite futura la conserva', async () => {
+    mockAlertRepo.findByIdAndUser.mockResolvedValue(
+      storedAlert({ status: 'triggered', deadline_at: new Date(Date.now() + 86_400_000) })
+    );
+
+    await updatePriceAlert(1, 5, { target_price: 58000 });
+
+    expect(mockAlertRepo.update.mock.calls[0][1]).not.toHaveProperty('deadline_at');
+  });
+
+  it('re-armar con una fecha límite nueva usa la nueva aunque la anterior estuviera vencida', async () => {
+    const deadline = new Date(Date.now() + 86_400_000);
+    mockAlertRepo.findByIdAndUser.mockResolvedValue(
+      storedAlert({ status: 'triggered', deadline_at: new Date(Date.now() - 3_600_000) })
+    );
+
+    await updatePriceAlert(1, 5, { target_price: 58000, deadline_at: deadline });
+
+    expect(mockAlertRepo.update.mock.calls[0][1].deadline_at).toBe(deadline);
+  });
+
+  it('editar sin re-armar no toca una fecha límite vencida (la evalúa el job con las velas)', async () => {
+    mockAlertRepo.findByIdAndUser.mockResolvedValue(storedAlert({ deadline_at: new Date(Date.now() - 600_000) }));
+
+    await updatePriceAlert(1, 5, { message: 'nuevo' });
+
+    expect(mockAlertRepo.update.mock.calls[0][1]).toEqual({ message: 'nuevo' });
+  });
+
   it('cambiar la fecha límite resuelve solo las de fecha límite como updated', async () => {
     const deadline = new Date('2027-06-30T05:00:00Z');
     await updatePriceAlert(1, 5, { deadline_at: deadline });

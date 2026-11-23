@@ -227,8 +227,8 @@ COMMIT;
 | Nota en papelera | Sus alertas no se evalúan, su fecha límite no se avisa y sus recordatorios no se envían (join con `notes.deleted_at IS NULL`). La purga los borra por CASCADE. |
 | Nota restaurada | Las alertas vuelven a evaluarse desde el checkpoint del símbolo (puede saltar un toque ocurrido mientras estaba en la papelera; se acepta). Lo vencido mientras tanto se avisa en el siguiente tick. |
 | Bloque movido a otra nota | Nada que hacer: la nota se deriva del bloque. |
-| Re-armado | `status='active'`, `armed_at=NOW()`, `near_at=NULL`, `triggered_at=NULL`, nuevos `target_price`/`direction`/`is_invalidation`. Sus tarjetas abiertas se resuelven como `rearmed`. |
-| Fecha límite vencida (alerta activa) | Tarjeta `price_alert_deadline`; `deadline_at = NULL`. La alerta sigue activa. |
+| Re-armado | `status='active'`, `armed_at=NOW()`, `near_at=NULL`, `triggered_at=NULL`, nuevos `target_price`/`direction`/`is_invalidation`. Si la `deadline_at` ya venció y no se envía una nueva, pasa a NULL: si no, el siguiente tick la daría por vencida al momento. Ocurre cuando el toque llegó antes de la fecha pero se evaluó después (paso 8e). El modal no precarga una fecha límite vencida. Sus tarjetas abiertas se resuelven como `rearmed`. |
+| Fecha límite vencida (alerta activa) | Se decide con las velas, cuando cierra la vela que contiene la fecha (paso 8e de §3.2). Sin toque antes de la fecha: tarjeta `price_alert_deadline`; `deadline_at = NULL`. La alerta sigue activa. Con toque antes de la fecha: solo la tarjeta del toque. En símbolos deslistados se compara con `NOW()` (paso 4). |
 | Perpetuo deslistado | `market_symbols.invalid_at = NOW()` y una tarjeta `price_alert_delisted` por alerta activa. Sus alertas dejan de evaluarse; si el símbolo vuelve a `TRADING`, se retoma desde el checkpoint. |
 | Recordatorio por fecha enviado | `status='sent'`, `sent_at=NOW()`. "Re-programar" lo vuelve a `pending` con otra fecha. |
 
@@ -288,9 +288,11 @@ Cada tick (`reminderJob.service.js → runTick()`):
 3. Recordatorios por fecha (sin Binance), en una transacción:
      pendientes con remind_at <= NOW() cuya nota no está borrada, FOR UPDATE
      → status = 'sent', sent_at = NOW() + INSERT tarjeta 'date_reminder_due'.
-4. Fechas límite (sin Binance), en una transacción:
-     alertas activas con deadline_at <= NOW() cuya nota no está borrada, FOR UPDATE
+4. Fechas límite de símbolos deslistados (sin Binance), en una transacción:
+     alertas activas con deadline_at <= NOW() cuya nota no está borrada y cuyo
+     símbolo tiene invalid_at IS NOT NULL, FOR UPDATE
      → INSERT tarjeta 'price_alert_deadline' + deadline_at = NULL.
+   Las fechas límite de símbolos válidos se evalúan con las velas (paso 8e).
 5. Si backoff_until > NOW() → terminar el tick (lo que sigue necesita Binance).
 6. Si catalog_synced_at es NULL o tiene más de 24 h → sync del catálogo (§3.5).
 7. Símbolos a revisar:
@@ -308,6 +310,9 @@ Cada tick (`reminderJob.service.js → runTick()`):
         un PATCH concurrente (re-armado) espera a que termine la transacción, así que
         nunca se dispara una alerta con la evaluación de un objetivo viejo
       - evaluar cada alerta (§3.3) → UPDATE de la alerta + INSERT de la tarjeta
+      - si la alerta tiene deadline_at, evaluar la fecha límite con la hora de las
+        velas, no con NOW() (ver "Fecha límite" más abajo) → INSERT tarjeta
+        'price_alert_deadline' + deadline_at = NULL, antes de la del toque o la cercanía
       - UPDATE market_symbols SET checked_until = openTime de la última vela,
                                   last_price    = close de la última vela,
                                   last_price_at = NOW()
@@ -318,7 +323,22 @@ Cada tick (`reminderJob.service.js → runTick()`):
    - Otro error (red, timeout) → log y seguir con el siguiente símbolo; el checkpoint no se movió.
 ```
 
-Los pasos 3 y 4 van primero porque no dependen de Binance: un backoff no retrasa un recordatorio por fecha.
+El paso 3 va primero porque no depende de Binance: un backoff no retrasa un recordatorio por fecha. El paso 4 también corre antes de Binance, pero solo cubre los símbolos deslistados: sus velas ya no se leen, así que su fecha límite se compara con `NOW()`. El resto de fechas límite espera a que se lean las velas (paso 8e), también durante un backoff.
+
+#### Fecha límite (paso 8e)
+
+La fecha límite se compara con la hora de las velas, no con `NOW()`: hasta evaluar la vela que contiene la fecha no se sabe si el nivel se tocó antes. Si se comparara con `NOW()` antes de leer las velas, un toque anterior a la fecha que todavía no se había evaluado daría una tarjeta de fecha límite falsa ("no se tocó antes del…") junto a la del toque. Pasaba tras una caída o un backoff, y también sin caídas, con un toque en los ~30 min anteriores a la fecha.
+
+Para cada alerta activa con `deadline_at`, después de evaluarla (`checked_until` es el nuevo checkpoint):
+
+| Caso | Tarjetas |
+|---|---|
+| Toque en una vela con `openTime < deadline_at` | Solo la del toque; `deadline_at` no se toca. Con velas de 1 h no se sabe si un toque dentro de la vela de la fecha límite fue antes o después: cuenta como a tiempo. |
+| Toque en una vela con `openTime >= deadline_at` | `price_alert_deadline` (+ `deadline_at = NULL`) y después la del toque. Las dos son ciertas: las velas anteriores ya se evaluaron sin toque. Vale aunque el checkpoint todavía no pase la fecha (fecha límite a las 12:00 en punto y toque en la vela de las 12:00, aún abierta). |
+| Sin toque y `checked_until > deadline_at` (la vela que contiene la fecha ya cerró y se evaluó) | `price_alert_deadline` + `deadline_at = NULL`. La alerta sigue activa. Si en la misma pasada hay cercanía, salen las dos: primero la fecha límite. |
+| Sin toque y `checked_until <= deadline_at` | Ninguna; se vuelve a mirar en el siguiente tick. |
+
+Coste: la tarjeta de fecha límite llega hasta ~1 h más un tick después de la fecha, porque espera a que cierre la vela que la contiene.
 
 #### Ejemplo: tick normal con varias alertas del mismo símbolo
 

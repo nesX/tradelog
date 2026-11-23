@@ -129,6 +129,12 @@ export const updatePriceAlert = async (userId, id, changes) => {
         triggered_at: null,
         price_at_creation: price,
       });
+      // Una fecha límite ya vencida no pasa al nuevo armado: el siguiente tick la
+      // daría por vencida al momento ("no se tocó antes del…"). Queda así cuando el
+      // toque llegó antes de la fecha pero se evaluó después (paso 8e del job).
+      if (changes.deadline_at === undefined && alert.deadline_at && toMs(alert.deadline_at) <= Date.now()) {
+        fields.deadline_at = null;
+      }
       await resetCheckpointIfIdle(alert.symbol, client);
       await notificationRepo.resolveOpenByAlerts([id], 'rearmed', client);
     }

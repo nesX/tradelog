@@ -67,6 +67,23 @@ const candlesFrom = (startMs, count, values = {}) =>
     low: values.low ?? 100,
     close: values.close ?? 100,
   }));
+// Alerta `below` 60,000 sin aviso previo, armada mucho antes de las velas del test
+const priceAlert = (overrides = {}) => ({
+  id: 5,
+  user_id: 1,
+  symbol: 'BTCUSDT',
+  direction: 'below',
+  target_price: 60000,
+  is_invalidation: false,
+  near_pct: null,
+  near_at: null,
+  armed_at: new Date(floorHour(Date.now()) - 48 * HOUR),
+  deadline_at: null,
+  note_id: 10,
+  block_id: 20,
+  ...overrides,
+});
+const cardTypes = () => mockNotificationRepo.insert.mock.calls.map(([n]) => n.type);
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -113,25 +130,30 @@ describe('runTick', () => {
     expect(summary.symbols).toBe(0);
   });
 
-  it('con backoff vigente envía recordatorios y fechas límite, pero no llama a Binance', async () => {
+  it('con backoff vigente envía recordatorios y fechas límite de deslistados, pero no llama a Binance', async () => {
     mockJobStateRepo.get.mockResolvedValue({ backoff_until: new Date(Date.now() + 60_000) });
     mockReminderRepo.findDueForUpdate.mockResolvedValue([
       { id: 1, user_id: 1, remind_at: '2027-03-01T13:00:00Z', note_id: 10, block_id: null },
     ]);
+    // El paso 4 solo devuelve alertas de símbolos deslistados
     mockAlertRepo.findDueDeadlinesForUpdate.mockResolvedValue([
-      { id: 2, user_id: 1, symbol: 'BTCUSDT', direction: 'below', target_price: 60000, note_id: 10, block_id: 20 },
+      priceAlert({ id: 2, symbol: 'OLDUSDT', deadline_at: new Date(Date.now() - HOUR), symbol_invalid_at: new Date() }),
     ]);
+    // La fecha límite vencida de un símbolo válido espera a que se lean sus velas
     mockSymbolRepo.findWatched.mockResolvedValue([symbol('BTCUSDT')]);
+    mockAlertRepo.findActiveBySymbolsForUpdate.mockResolvedValue([
+      priceAlert({ id: 3, deadline_at: new Date(Date.now() - HOUR) }),
+    ]);
 
     const summary = await runTick({ pauseMs: 0 });
 
     expect(summary).toMatchObject({ dateReminders: 1, deadlines: 1 });
     expect(mockReminderRepo.markSent).toHaveBeenCalledWith(1, mockTxClient);
-    expect(mockAlertRepo.clearDeadline).toHaveBeenCalledWith(2, mockTxClient);
-    const types = mockNotificationRepo.insert.mock.calls.map(([n]) => n.type);
-    expect(types).toEqual(['date_reminder_due', 'price_alert_deadline']);
+    expect(mockAlertRepo.clearDeadline.mock.calls).toEqual([[2, mockTxClient]]);
+    expect(cardTypes()).toEqual(['date_reminder_due', 'price_alert_deadline']);
     expect(mockCatalog.syncCatalog).not.toHaveBeenCalled();
     expect(mockSymbolRepo.findWatched).not.toHaveBeenCalled();
+    expect(mockAlertRepo.findActiveBySymbolsForUpdate).not.toHaveBeenCalled();
     expect(mockBinance.getHourlyKlines).not.toHaveBeenCalled();
   });
 
@@ -260,6 +282,139 @@ describe('runTick', () => {
     await runTick({ pauseMs: 0 });
 
     expect(mockSymbolRepo.updateCheckpoint.mock.calls[0][1].checkedUntil).toEqual(new Date(current));
+  });
+});
+
+describe('runTick: fecha límite evaluada con las velas', () => {
+  // `base` hace de las 08:00: ahora son las 12:xx, la vela de las 12:00 está abierta
+  // y el checkpoint se queda atrasado en las 08:00. Velas sin toque de 60,000.
+  let base;
+  const at = (hours) => base + hours * HOUR;
+  const withCandles = (candles) => {
+    mockSymbolRepo.findWatched.mockResolvedValue([symbol('BTCUSDT', new Date(candles[0].openTime))]);
+    mockBinance.getHourlyKlines.mockResolvedValue(candles);
+  };
+  const quietCandles = () => candlesFrom(base, 5, { high: 71000, low: 70000, close: 70500 });
+
+  beforeEach(() => {
+    base = floorHour(Date.now()) - 4 * HOUR;
+  });
+
+  it.each([
+    ['toque en la vela de las 09:00, fecha límite 10:00', 1, 2],
+    ['toque en la vela que contiene la fecha límite (10:30)', 2, 2.5],
+  ])('%s → solo price_alert_hit', async (_name, touchHour, deadlineHour) => {
+    const candles = quietCandles();
+    candles[touchHour].low = 59500;
+    withCandles(candles);
+    mockAlertRepo.findActiveBySymbolsForUpdate.mockResolvedValue([
+      priceAlert({ deadline_at: new Date(at(deadlineHour)) }),
+    ]);
+
+    const summary = await runTick({ pauseMs: 0 });
+
+    expect(cardTypes()).toEqual(['price_alert_hit']);
+    expect(mockAlertRepo.markTriggered).toHaveBeenCalledWith(5, new Date(at(touchHour)), mockTxClient);
+    expect(mockAlertRepo.clearDeadline).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ cards: 1, deadlines: 0 });
+  });
+
+  it('sin toque y con la vela de la fecha límite cerrada → fecha límite y la alerta sigue activa', async () => {
+    withCandles(quietCandles());
+    mockAlertRepo.findActiveBySymbolsForUpdate.mockResolvedValue([priceAlert({ deadline_at: new Date(at(2)) })]);
+
+    const summary = await runTick({ pauseMs: 0 });
+
+    expect(cardTypes()).toEqual(['price_alert_deadline']);
+    const card = mockNotificationRepo.insert.mock.calls[0][0];
+    expect(card).toMatchObject({ priceAlertId: 5, userId: 1 });
+    expect(card.payload).toMatchObject({
+      deadline_at: new Date(at(2)).toISOString(),
+      candle_open_time: null,
+      candle_value: null,
+    });
+    expect(mockAlertRepo.clearDeadline).toHaveBeenCalledWith(5, mockTxClient);
+    expect(mockAlertRepo.markTriggered).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ cards: 0, deadlines: 1 });
+  });
+
+  it('sin toque, con la vela de la fecha límite cerrada y cercanía → fecha límite y cercanía', async () => {
+    const candles = quietCandles();
+    candles[3].low = 61500; // dentro del 3% (61,800)
+    withCandles(candles);
+    mockAlertRepo.findActiveBySymbolsForUpdate.mockResolvedValue([
+      priceAlert({ near_pct: 3, deadline_at: new Date(at(2)) }),
+    ]);
+
+    const summary = await runTick({ pauseMs: 0 });
+
+    expect(cardTypes()).toEqual(['price_alert_deadline', 'price_alert_near']);
+    expect(mockAlertRepo.clearDeadline).toHaveBeenCalledWith(5, mockTxClient);
+    expect(mockAlertRepo.markNear).toHaveBeenCalledWith(5, mockTxClient);
+    expect(mockAlertRepo.markTriggered).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ cards: 1, deadlines: 1 });
+  });
+
+  it('toque en una vela posterior a la fecha límite → fecha límite y después el toque', async () => {
+    const candles = quietCandles();
+    candles[3].low = 59500; // vela de las 11:00
+    withCandles(candles);
+    mockAlertRepo.findActiveBySymbolsForUpdate.mockResolvedValue([priceAlert({ deadline_at: new Date(at(2)) })]);
+
+    const summary = await runTick({ pauseMs: 0 });
+
+    expect(cardTypes()).toEqual(['price_alert_deadline', 'price_alert_hit']);
+    const [[deadlineCard], [hitCard]] = mockNotificationRepo.insert.mock.calls;
+    expect(deadlineCard.payload.deadline_at).toBe(new Date(at(2)).toISOString());
+    expect(hitCard.payload).toMatchObject({ deadline_at: null, candle_open_time: new Date(at(3)).toISOString() });
+    expect(mockAlertRepo.clearDeadline).toHaveBeenCalledWith(5, mockTxClient);
+    expect(mockAlertRepo.markTriggered).toHaveBeenCalledWith(5, new Date(at(3)), mockTxClient);
+    expect(summary).toMatchObject({ cards: 1, deadlines: 1 });
+  });
+
+  it('fecha límite en punto y toque en la vela abierta que empieza en ella → las dos tarjetas', async () => {
+    const candles = quietCandles();
+    candles[4].low = 59500; // vela de las 12:00, todavía abierta
+    withCandles(candles);
+    mockAlertRepo.findActiveBySymbolsForUpdate.mockResolvedValue([priceAlert({ deadline_at: new Date(at(4)) })]);
+
+    await runTick({ pauseMs: 0 });
+
+    // El checkpoint (12:00) no pasa la fecha límite, pero las velas anteriores
+    // ya se evaluaron sin toque: no se tocó antes de las 12:00.
+    expect(mockSymbolRepo.updateCheckpoint.mock.calls[0][1].checkedUntil).toEqual(new Date(at(4)));
+    expect(cardTypes()).toEqual(['price_alert_deadline', 'price_alert_hit']);
+  });
+
+  it('fecha límite dentro de la vela todavía abierta y sin toque → ninguna tarjeta', async () => {
+    withCandles(quietCandles());
+    // Las 12:00: ya pasó según NOW(), pero la vela que la contiene no ha cerrado
+    mockAlertRepo.findActiveBySymbolsForUpdate.mockResolvedValue([priceAlert({ deadline_at: new Date(at(4)) })]);
+
+    const summary = await runTick({ pauseMs: 0 });
+
+    expect(mockNotificationRepo.insert).not.toHaveBeenCalled();
+    expect(mockAlertRepo.clearDeadline).not.toHaveBeenCalled();
+    expect(mockSymbolRepo.updateCheckpoint).toHaveBeenCalledWith(
+      'BTCUSDT',
+      { checkedUntil: new Date(at(4)), lastPrice: 70500 },
+      mockTxClient
+    );
+    expect(summary).toMatchObject({ cards: 0, deadlines: 0 });
+  });
+
+  it('símbolo deslistado con la fecha límite vencida → la emite el paso 4, sin pedir velas', async () => {
+    mockAlertRepo.findDueDeadlinesForUpdate.mockResolvedValue([
+      priceAlert({ id: 7, symbol: 'OLDUSDT', deadline_at: new Date(at(2)), symbol_invalid_at: new Date(at(0)) }),
+    ]);
+
+    const summary = await runTick({ pauseMs: 0 });
+
+    expect(cardTypes()).toEqual(['price_alert_deadline']);
+    expect(mockNotificationRepo.insert.mock.calls[0][0]).toMatchObject({ priceAlertId: 7, userId: 1 });
+    expect(mockAlertRepo.clearDeadline).toHaveBeenCalledWith(7, mockTxClient);
+    expect(mockBinance.getHourlyKlines).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ cards: 0, deadlines: 1 });
   });
 });
 
