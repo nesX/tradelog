@@ -31,7 +31,7 @@ Un análisis de largo plazo (ej. "BTC volverá a la zona de 60k") puede tardar u
 |------|----------|
 | Motor | **Propio en TradeLog**, sin depender de Market Tracker. Reemplaza la decisión anterior de esperar a Market Tracker v2 y recibir los eventos por RabbitMQ: TradeLog es multiusuario y no debe depender de que Market Tracker esté arriba, cubre cualquier perpetuo y una tesis de largo plazo no necesita tiempo real. |
 | Mercado | Solo **Binance Futures USDⓈ-M**: perpetuos cripto (`PERPETUAL`) y TradFi (`TRADIFI_PERPETUAL`: metales, energía, acciones, ETFs). Sin spot. |
-| Canal | Solo **in-app** (bandeja `/recordatorios`). Sin Telegram ni Web Push: la app de notas se usa todo el día. |
+| Canal | **In-app** (bandeja `/recordatorios`). Sin Telegram. Web Push se añadió después como canal adicional que avisa de cada tarjeta nueva: ver [`notificaciones-push-pwa.md`](notificaciones-push-pwa.md). |
 | Granularidad | **Velas de 1h**. Checkpoint por símbolo; nunca se pide historial ya revisado. |
 | Anclaje | Bloque **o** nota (exactamente uno de los dos). Si se borra un bloque, sus alertas y recordatorios pasan a la nota. |
 | Disparo | Por defecto, **toque** (`high`/`low` de la vela). Las alertas marcadas como **invalidación** saltan solo por **cierre diario**. Una vez por armado. |
@@ -720,7 +720,7 @@ A nivel nota: el mismo botón y modal junto al título en `NoteEditor.jsx`; chip
 - Alertas por **zona** (rango de precios) o por **% de variación**.
 - Recordatorios por fecha **recurrentes**.
 - Autocompletar el símbolo leyendo el texto del bloque.
-- Canales externos (Telegram, Web Push, nesX Alerts): serían un envío adicional que lee de `notifications` sin resolver las tarjetas.
+- Canales externos (Telegram, nesX Alerts): serían un envío adicional que lee de `notifications` sin resolver las tarjetas. Web Push ya tiene spec propia: [`notificaciones-push-pwa.md`](notificaciones-push-pwa.md).
 
 ---
 
