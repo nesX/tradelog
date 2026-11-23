@@ -41,7 +41,7 @@ Prefijos opcionales que aparecen: `Fix:`, `Docs:`. Pero el grueso es solo títul
 5. Cambios → probar manualmente en `http://localhost:5173`.
 6. Lint:
    ```bash
-   cd trading-journal/backend && npm run lint:fix && npm run format
+   cd trading-journal/backend && npm run lint:fix   # no `npm run format`: ver coding-standards.md
    cd trading-journal/frontend && npm run lint:fix
    ```
 7. Tests (si los hay para el área tocada):

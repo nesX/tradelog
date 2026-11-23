@@ -40,8 +40,9 @@
 cd trading-journal/backend
 npm run lint        # solo reportar
 npm run lint:fix    # arreglar lo que sea automático
-npm run format      # Prettier sobre src/**/*.js
 ```
+
+`npm run format` existe pero **no se usa**: no hay `.prettierrc`, así que reformatea todo `src/` con los defaults de Prettier (comillas dobles, 80 columnas), y el código nunca se escribió así. Para revisar solo los archivos tocados: `npx prettier --check --single-quote --print-width 120 --trailing-comma es5 <archivos>` (lo más parecido al estilo real; aun así, unos 50 archivos ya difieren).
 
 Configuración: ESLint 9 con flat config (no hay `.eslintrc.json` explícito; viene de las defaults de `eslint init`).
 

@@ -36,7 +36,7 @@ npm start          # production
 npm test           # Jest (ESM mode via --experimental-vm-modules)
 npm run lint       # ESLint
 npm run lint:fix   # ESLint with auto-fix
-npm run format     # Prettier
+npm run format     # Prettier — NO usar: no hay .prettierrc y reformatea todo src/
 
 # Frontend (from trading-journal/frontend/)
 npm run dev        # Vite dev server on http://localhost:5173
@@ -150,7 +150,7 @@ Ver [`docs/roadmap.md`](docs/roadmap.md) para vista unificada. Los 2 históricos
 - **Lógica de negocio en services**, no en controllers. Acceso a BD solo en repositories.
 - **Respuestas HTTP**: usar `sendSuccess` / `sendError` / `sendValidationError` de `utils/response.js`.
 - **Errores**: levantar `AppError` y subclases; el middleware central las captura (`express-async-errors` ayuda).
-- **Lint**: correr `npm run lint:fix` y `npm run format` antes de commitear (no hay hooks).
+- **Lint**: correr `npm run lint:fix` antes de commitear (no hay hooks). **No correr `npm run format`**: el backend no tiene `.prettierrc`, así que reescribe todo `src/` con los defaults de Prettier (comillas dobles, 80 columnas). Seguir el estilo de los archivos vecinos (comillas simples, 120 columnas). Para revisar solo lo tocado: `npx prettier --check --single-quote --print-width 120 --trailing-comma es5 <archivos>`.
 - **Tests**: `npm test` en backend (cobertura baja hoy); frontend no tiene tests configurados.
 - **Cambios de schema**: archivo nuevo `database/0NN_descripcion.sql`, idempotente, sin rollback automático.
 - **Nuevos endpoints**: seguir el patrón de 6 pasos en [`docs/development/workflow.md`](docs/development/workflow.md#cómo-añadir-un-endpoint-nuevo).
