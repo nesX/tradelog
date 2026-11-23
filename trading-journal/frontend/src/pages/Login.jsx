@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TrendingUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { safeNext } from '../utils/safeNext.js';
 
 /**
  * Página de Login con Google Sign-In
@@ -16,8 +17,10 @@ const Login = () => {
   // Redirigir si ya está autenticado
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      const from = location.state?.from?.pathname || '/';
-      navigate(from, { replace: true });
+      // Desde ProtectedRoute (state.from) o desde el interceptor de 401 (?next=)
+      const from = location.state?.from;
+      const next = from ? `${from.pathname}${from.search || ''}` : new URLSearchParams(location.search).get('next');
+      navigate(safeNext(next), { replace: true });
     }
   }, [isAuthenticated, isLoading, navigate, location]);
 

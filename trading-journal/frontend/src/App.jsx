@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { emitToast } from './utils/toastBridge.js';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
-import { AuthProvider } from './contexts/AuthContext.jsx';
+import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { ToastProvider } from './components/common/Toast.jsx';
 import ProtectedRoute from './components/auth/ProtectedRoute.jsx';
 import AdminRoute from './components/auth/AdminRoute.jsx';
@@ -21,6 +21,8 @@ import Review from './pages/Review.jsx';
 import Repaso from './pages/Repaso.jsx';
 import Todo from './pages/Todo.jsx';
 import Reminders from './pages/Reminders.jsx';
+import { usePushSync } from './hooks/usePushSubscription.js';
+import { useServiceWorkerMessages } from './hooks/useServiceWorkerMessages.js';
 
 // Configuración de React Query
 const queryClient = new QueryClient({
@@ -49,6 +51,20 @@ const queryClient = new QueryClient({
 });
 
 /**
+ * Avisos push, una sola vez para toda la app (cada ruta tiene su propio Layout):
+ *   - con sesión, sincroniza este dispositivo con la cuenta (usePushSync);
+ *   - siempre, atiende los mensajes del service worker: tocar una notificación
+ *     con la app abierta navega aunque se esté en /login (ProtectedRoute vuelve
+ *     después del login).
+ */
+function PushBridge() {
+  const { isAuthenticated, user } = useAuth();
+  usePushSync(isAuthenticated ? user?.id : null);
+  useServiceWorkerMessages();
+  return null;
+}
+
+/**
  * Componente principal de la aplicación
  */
 function App() {
@@ -58,6 +74,7 @@ function App() {
         <AuthProvider>
           <ToastProvider>
             <BrowserRouter>
+              <PushBridge />
               <Routes>
                 {/* Ruta pública */}
                 <Route path="/login" element={<Login />} />

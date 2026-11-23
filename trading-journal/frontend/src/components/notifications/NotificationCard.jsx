@@ -2,50 +2,37 @@ import { Link } from 'react-router-dom';
 import { Zap, Bell, Ban, CalendarX, CircleOff, CalendarClock, FileText, MessageSquare, ArrowUpRight } from 'lucide-react';
 import { formatDate } from '../../utils/formatters.js';
 import { formatPrice, distancePct, formatSignedPct, timeAgo, durationBetween } from '../../utils/reminders.js';
-
-const HOUR_MS = 3_600_000;
-
-const pad = (n) => String(n).padStart(2, '0');
-const hourRange = (iso) => {
-  const start = new Date(iso);
-  const end = new Date(start.getTime() + HOUR_MS);
-  return `${pad(start.getHours())}:00–${pad(end.getHours())}:00`;
-};
-// El cierre diario de Binance es el de la vela de 23:00 UTC: su día es el día UTC
-const utcDay = (iso) => {
-  const d = new Date(iso);
-  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
-};
+import { describe, VARIANT_LABELS } from '../../utils/notificationText.js';
 
 const VARIANTS = {
-  price_alert_hit: { Icon: Zap, label: 'Nivel tocado' },
+  price_alert_hit: { Icon: Zap, label: VARIANT_LABELS.price_alert_hit },
   price_alert_near: {
     Icon: Bell,
-    label: 'Cerca del nivel',
+    label: VARIANT_LABELS.price_alert_near,
     accent: 'border-l-amber-400 dark:border-l-amber-400',
     iconClass: 'text-amber-500',
   },
   price_alert_invalidation: {
     Icon: Ban,
-    label: 'Tesis invalidada',
+    label: VARIANT_LABELS.price_alert_invalidation,
     accent: 'border-l-purple-500 dark:border-l-purple-500',
     iconClass: 'text-purple-500',
   },
   price_alert_deadline: {
     Icon: CalendarX,
-    label: 'Fecha límite',
+    label: VARIANT_LABELS.price_alert_deadline,
     accent: 'border-l-blue-500 dark:border-l-blue-500',
     iconClass: 'text-blue-500',
   },
   price_alert_delisted: {
     Icon: CircleOff,
-    label: 'Perpetuo deslistado',
+    label: VARIANT_LABELS.price_alert_delisted,
     accent: 'border-l-gray-400 dark:border-l-gray-400',
     iconClass: 'text-gray-400',
   },
   date_reminder_due: {
     Icon: CalendarClock,
-    label: 'Recordatorio',
+    label: VARIANT_LABELS.date_reminder_due,
     accent: 'border-l-sky-500 dark:border-l-sky-500',
     iconClass: 'text-sky-500',
   },
@@ -53,63 +40,12 @@ const VARIANTS = {
 
 const RESOLUTION_LABEL = { dismissed: 'Archivada', rearmed: 'Re-armada', updated: 'Actualizada' };
 
-/** Titular y detalle de la tarjeta según su tipo (a partir de la foto del payload). */
-const describe = (card) => {
-  const p = card.payload || {};
-  const target = formatPrice(p.target_price);
-  const above = p.direction === 'above';
-
-  switch (card.type) {
-    case 'price_alert_hit':
-      return {
-        headline: `${p.symbol} tocó ${target}`,
-        detail: p.candle_open_time
-          ? `Vela ${formatDate(p.candle_open_time, { includeTime: false })} · ${hourRange(p.candle_open_time)}: ${
-              above ? 'máximo' : 'mínimo'
-            } ${formatPrice(p.candle_value)}`
-          : null,
-      };
-    case 'price_alert_near': {
-      if (p.is_invalidation) {
-        return {
-          headline: `${p.symbol} llegó a ${formatPrice(p.candle_value)}`,
-          detail: `Invalidación en ${target}: salta solo si cierra el día por ${above ? 'encima' : 'debajo'}.`,
-        };
-      }
-      const gap = p.candle_value && p.target_price ? Math.abs(distancePct(p.target_price, p.candle_value)) : null;
-      return {
-        headline: `${p.symbol} a ${gap != null ? `${gap.toFixed(1)}%` : 'poco'} de ${target}`,
-        detail: p.candle_open_time
-          ? `Llegó a ${formatPrice(p.candle_value)} · ${formatDate(p.candle_open_time, { includeTime: false })} ${hourRange(
-              p.candle_open_time
-            )}`
-          : null,
-      };
-    }
-    case 'price_alert_invalidation':
-      return {
-        headline: `${p.symbol} cerró ${above ? 'sobre' : 'bajo'} ${target}`,
-        detail: p.candle_open_time ? `Cierre diario del ${utcDay(p.candle_open_time)}: ${formatPrice(p.candle_value)}` : null,
-      };
-    case 'price_alert_deadline':
-      return {
-        headline: `${p.symbol} ${above ? '↑' : '↓'} ${target} no se tocó antes del ${formatDate(p.deadline_at, {
-          includeTime: false,
-        })}`,
-        detail: '¿Sigue vigente el análisis?',
-      };
-    case 'price_alert_delisted':
-      return {
-        headline: `${p.symbol} dejó de cotizar en Binance Futures`,
-        detail: `La alerta ${above ? '↑' : '↓'} ${target} ya no se vigila.`,
-      };
-    case 'date_reminder_due':
-      return {
-        headline: p.message || 'Revisar este análisis',
-        detail: `Programado para el ${formatDate(p.remind_at)}`,
-      };
-    default:
-      return { headline: card.type, detail: null };
+// Un tipo que esta versión no conoce se muestra crudo
+const describeCard = (card) => {
+  try {
+    return describe(card);
+  } catch {
+    return { headline: card.type, detail: null };
   }
 };
 
@@ -149,7 +85,7 @@ export default function NotificationCard({ card, onResolve, onEditAlert, onEditR
         }
       : base;
   const { Icon } = variant;
-  const { headline, detail } = describe(card);
+  const { headline, detail } = describeCard(card);
 
   const alertAvailable = Boolean(card.price_alert) && card.note_available;
   const reminderAvailable = Boolean(card.date_reminder) && card.note_available;
@@ -245,6 +181,7 @@ export default function NotificationCard({ card, onResolve, onEditAlert, onEditR
 
   return (
     <article
+      id={`card-${card.id}`}
       className={`rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${variant.accent}
                   bg-white dark:bg-gray-800 shadow-sm p-4 space-y-2 ${resolved ? 'opacity-90' : ''}`}
     >

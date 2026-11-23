@@ -49,9 +49,12 @@ apiClient.interceptors.response.use(
     // Si es error 401, limpiar token (sesión expirada)
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      // Redirigir a login si no estamos ya ahí
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      // Redirigir a login si no estamos ya ahí, recordando adónde volver (p. ej.
+      // /recordatorios?card=… al tocar una notificación con la sesión caducada).
+      // Sin llamar a logout(): no hace falta tocar nada más con el token caducado.
+      const { pathname, search } = window.location;
+      if (pathname !== '/login') {
+        window.location.href = `/login?next=${encodeURIComponent(pathname + search)}`;
       }
     }
 

@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { BellRing, Inbox, CalendarClock, History, Pencil, Trash2, ArrowUpRight, Ban, Bell } from 'lucide-react';
 import NotificationCard from '../components/notifications/NotificationCard.jsx';
+import PushToggle from '../components/notifications/PushToggle.jsx';
 import ReminderModal from '../components/notes/ReminderModal.jsx';
 import { alertLabel } from '../components/notes/ReminderChip.jsx';
 import ConfirmDialog from '../components/common/ConfirmDialog.jsx';
@@ -213,6 +214,31 @@ export default function Reminders() {
   const deleteAlert = useDeletePriceAlert();
   const deleteReminder = useDeleteDateReminder();
 
+  // ?card=<id> (al tocar una notificación push): scroll a la tarjeta de Pendientes y
+  // resaltarla; después se quita el parámetro. Si ya no está (se archivó en otro
+  // dispositivo), no se hace nada.
+  const cardParam = searchParams.get('card');
+  useEffect(() => {
+    if (!cardParam || tab !== 'pending' || loadingOpen) return undefined;
+    const raf = requestAnimationFrame(() => {
+      const el = document.getElementById(`card-${cardParam}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('highlight-pulse');
+        setTimeout(() => el.classList.remove('highlight-pulse'), 2500);
+      }
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('card');
+          return next;
+        },
+        { replace: true }
+      );
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [cardParam, tab, loadingOpen, setSearchParams]);
+
   // Modal precargado: { alert, closeOnSave } | { reminder, closeOnSave }
   const [modal, setModal] = useState(null);
   // Confirmación de borrado: { kind: 'alert'|'reminder', item }
@@ -235,6 +261,8 @@ export default function Reminders() {
           <BellRing className="w-5 h-5 text-rose-500" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Recordatorios</h1>
         </div>
+
+        <PushToggle />
 
         <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
           {TABS.map(({ key, label, Icon }) => (

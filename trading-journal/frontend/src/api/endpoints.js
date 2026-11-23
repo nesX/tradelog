@@ -375,3 +375,10 @@ export const deleteDateReminder = (id) => apiClient.delete(`/api/date-reminders/
 export const getNotifications = (params) => apiClient.get('/api/notifications', { params });
 export const getNotificationCount = () => apiClient.get('/api/notifications/count');
 export const resolveNotification = (id, data) => apiClient.post(`/api/notifications/${id}/resolve`, data);
+
+// Avisos push de ESTE dispositivo (sección "Avisos en este dispositivo" de /recordatorios)
+export const getPushConfig = () => apiClient.get('/api/push/config');
+export const linkPushSubscription = (data) => apiClient.post('/api/push/subscriptions', data);
+export const getPushSubscriptionStatus = (data) => apiClient.post('/api/push/subscriptions/status', data);
+export const unlinkPushSubscription = (endpoint) => apiClient.delete('/api/push/subscriptions', { data: { endpoint } });
+export const sendPushTest = (endpoint) => apiClient.post('/api/push/test', { endpoint });
