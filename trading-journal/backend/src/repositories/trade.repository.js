@@ -28,7 +28,7 @@ const SELECT_IMAGE_FIELDS = IMAGE_FIELDS.join(', ');
  */
 export const getTradeImages = async (tradeId) => {
   const result = await query(
-    `SELECT ${SELECT_IMAGE_FIELDS} FROM trade_images WHERE trade_id = $1 ORDER BY created_at`,
+    `SELECT ${SELECT_IMAGE_FIELDS} FROM trade_images WHERE trade_id = $1 ORDER BY created_at, id`,
     [tradeId],
   );
   return result.rows;
@@ -43,7 +43,7 @@ export const getImagesForTrades = async (tradeIds) => {
   if (!tradeIds.length) return {};
 
   const result = await query(
-    `SELECT ${SELECT_IMAGE_FIELDS} FROM trade_images WHERE trade_id = ANY($1) ORDER BY created_at`,
+    `SELECT ${SELECT_IMAGE_FIELDS} FROM trade_images WHERE trade_id = ANY($1) ORDER BY created_at, id`,
     [tradeIds],
   );
 

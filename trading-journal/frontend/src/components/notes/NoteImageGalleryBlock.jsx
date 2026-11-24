@@ -3,6 +3,7 @@ import { X, Upload, ImagePlus } from 'lucide-react';
 import { useAddImage, useDeleteImage, useUpdateBlockMetadata } from '../../hooks/useNotes.js';
 import ImageViewer from '../common/ImageViewer.jsx';
 import { compressImage } from '../../utils/imageCompression.js';
+import { sortByLastModified } from '../../utils/fileOrder.js';
 import { useToast } from '../common/Toast.jsx';
 
 const MAX_SIZE_BEFORE_COMPRESSION = 5 * 1024 * 1024; // 5MB
@@ -44,7 +45,8 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
   };
 
   const handleFileChange = async (e) => {
-    const files = Array.from(e.target.files);
+    // Del más viejo al más reciente: el selector no respeta el orden de los clicks
+    const files = sortByLastModified(e.target.files);
     for (const file of files) {
       if (!file.type.startsWith('image/')) {
         toast.error(`"${file.name}" no es una imagen (JPG, PNG, WebP o GIF).`);

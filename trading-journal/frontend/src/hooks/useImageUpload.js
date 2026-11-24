@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { compressImage } from '../utils/imageCompression.js';
+import { sortByLastModified } from '../utils/fileOrder.js';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -29,7 +30,8 @@ export const useImageUpload = () => {
   const addFiles = useCallback(async (newFiles) => {
     setError(null);
 
-    const filesToAdd = Array.from(newFiles);
+    // Del más viejo al más reciente: el selector no respeta el orden de los clicks
+    const filesToAdd = sortByLastModified(newFiles);
 
     // Verificar límite
     if (files.length + filesToAdd.length > MAX_FILES) {
