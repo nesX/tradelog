@@ -27,3 +27,8 @@ dist/
 build/
 out/
 .next/
+
+# Script de migración de tags de bloque (task 041): los reportes y el mapeo
+# llevan títulos de notas.
+reports/
+block-tags-map*.json
