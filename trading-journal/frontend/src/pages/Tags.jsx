@@ -11,6 +11,7 @@ import {
   useUpdateTagGroup,
   useDeleteTagGroup,
   useMoveTagGroup,
+  useMoveTag,
 } from '../hooks/useNotes.js';
 import NoteTagBadge from '../components/notes/NoteTagBadge.jsx';
 import { FREE_GROUP, groupTags, filterTags, getTagGroup, listTagGroups } from '../utils/tagGroups.js';
@@ -185,8 +186,11 @@ const GroupForm = ({ initialName = '', initialColor, submitLabel, isPending, onS
   );
 };
 
-/** Fila de un tag: badge, ver sus bloques en /buscar, edición inline y borrado. */
-const TagRow = ({ tag, groups }) => {
+/**
+ * Fila de un tag: badge, ver sus bloques en /buscar, subir/bajar dentro del grupo
+ * (`onMove`; sin él no hay flechas), edición inline y borrado.
+ */
+const TagRow = ({ tag, groups, isFirst, isLast, onMove }) => {
   const updateTag = useUpdateTag({ silenceError: true });
   const deleteTag = useDeleteTag({ silenceError: true });
   const [editing, setEditing] = useState(false);
@@ -300,6 +304,28 @@ const TagRow = ({ tag, groups }) => {
                 <Search className="w-3.5 h-3.5" />
                 Ver bloques
               </Link>
+              {onMove && (
+                <>
+                  <button
+                    onClick={() => onMove(tag.id, -1)}
+                    disabled={isFirst}
+                    title="Subir tag"
+                    aria-label="Subir tag"
+                    className={iconButtonClass}
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => onMove(tag.id, 1)}
+                    disabled={isLast}
+                    title="Bajar tag"
+                    aria-label="Bajar tag"
+                    className={iconButtonClass}
+                  >
+                    <ArrowDown className="w-4 h-4" />
+                  </button>
+                </>
+              )}
               <button onClick={startEdit} title="Editar tag" aria-label="Editar tag" className={iconButtonClass}>
                 <Pencil className="w-4 h-4" />
               </button>
@@ -328,9 +354,23 @@ const deleteGroupMessage = (count) => {
 
 /**
  * Tarjeta de un grupo con sus tags. La cabecera lleva las acciones del grupo
- * (renombrar y recolorear, subir/bajar, borrar); la de Libre solo el "+".
+ * (renombrar y recolorear, subir/bajar, borrar); la de Libre solo el "+". Los
+ * tags se suben y bajan dentro de la tarjeta (`onMoveTag`), salvo con el filtro
+ * activo: con tags ocultos, "subir" lo cambiaría por uno que no se ve.
  */
-const GroupCard = ({ group, groups, tags, totalCount, isFirst, isLast, adding, onToggleAdd, onMove, filtering }) => {
+const GroupCard = ({
+  group,
+  groups,
+  tags,
+  totalCount,
+  isFirst,
+  isLast,
+  adding,
+  onToggleAdd,
+  onMove,
+  onMoveTag,
+  filtering,
+}) => {
   const updateGroup = useUpdateTagGroup();
   const deleteGroup = useDeleteTagGroup();
   const [editing, setEditing] = useState(false);
@@ -464,7 +504,16 @@ const GroupCard = ({ group, groups, tags, totalCount, isFirst, isLast, adding, o
 
       <div className="p-1.5">
         {tags.length > 0 ? (
-          tags.map((tag) => <TagRow key={tag.id} tag={tag} groups={groups} />)
+          tags.map((tag, i) => (
+            <TagRow
+              key={tag.id}
+              tag={tag}
+              groups={groups}
+              isFirst={i === 0}
+              isLast={i === tags.length - 1}
+              onMove={!filtering && tags.length > 1 ? onMoveTag : undefined}
+            />
+          ))
         ) : (
           <p className="px-2 py-1.5 text-sm text-gray-500 dark:text-gray-400">
             {filtering ? 'Ningún tag coincide.' : 'Sin tags.'}
@@ -484,6 +533,7 @@ export default function Tags() {
   const { data: groups, isLoading: groupsLoading, error: groupsError } = useTagGroups();
   const createGroup = useCreateTagGroup();
   const { move } = useMoveTagGroup();
+  const { move: moveTag } = useMoveTag();
   const [filterText, setFilterText] = useState('');
   const [addingKey, setAddingKey] = useState(null); // tarjeta con el formulario de tag abierto
   const [creatingGroup, setCreatingGroup] = useState(false);
@@ -607,6 +657,7 @@ export default function Tags() {
                       setAddingKey((current) => (current === groupKey(card) ? null : groupKey(card)))
                     }
                     onMove={move}
+                    onMoveTag={moveTag}
                     filtering={filtering}
                   />
                 );

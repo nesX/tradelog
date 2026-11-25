@@ -106,6 +106,13 @@ export const reorderTagGroupsSchema = Joi.object({
   group_ids: Joi.array().items(Joi.number().integer().positive()).required(),
 });
 
+// Orden de los tags de un grupo (`group_id` null: Libre). El service comprueba
+// que sean exactamente los tags de ese grupo.
+export const reorderTagsSchema = Joi.object({
+  group_id: tagGroupId.required(),
+  tag_ids: Joi.array().items(Joi.number().integer().positive()).required(),
+});
+
 export const assignTagsSchema = Joi.object({
   tag_ids: Joi.array().items(Joi.number().integer().positive()).required(),
 });

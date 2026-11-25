@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { FREE_GROUP, sortTags, groupTags, filterTags, getTagGroup, listTagGroups, moveTagGroup } from './tagGroups.js';
+import {
+  FREE_GROUP,
+  sortTags,
+  groupTags,
+  filterTags,
+  getTagGroup,
+  listTagGroups,
+  moveTagGroup,
+  moveTagInGroup,
+} from './tagGroups.js';
 
 /**
  * Orden canónico y agrupado de los tags de notas con los grupos del usuario.
@@ -38,6 +47,20 @@ test('sortTags sigue el orden de la lista, no el id ni la posición', () => {
     'NQ',
     'swing',
   ]);
+});
+
+test('dentro del grupo, sortTags sigue la posición del tag y desempata por nombre', () => {
+  const at = (id, name, group_id, position) => ({ ...tag(id, name, group_id), position });
+  const input = [
+    at(1, 'alfa', 10, 2),
+    at(2, 'zeta', 10, 0),
+    at(3, 'beta', 10, 2),
+    at(4, 'swing', 11, 0),
+    at(5, 'a', null, 1),
+  ];
+  assert.deepEqual(names(sortTags(input, groups)), ['zeta', 'alfa', 'beta', 'swing', 'a']);
+  // Sin grupos cargados, las posiciones (de cada grupo) no cuentan.
+  assert.deepEqual(names(sortTags(input, undefined)), ['a', 'alfa', 'beta', 'swing', 'zeta']);
 });
 
 test('sortTags compara en español sin distinguir mayúsculas', () => {
@@ -110,6 +133,46 @@ test('moveTagGroup sube y baja un grupo sin salirse de la lista', () => {
   assert.equal(moveTagGroup(groups, 10, -1), groups);
   assert.equal(moveTagGroup(groups, 12, 1), groups);
   assert.equal(moveTagGroup(groups, 99, 1), groups);
+});
+
+test('moveTagInGroup mueve un tag entre los de su grupo y renumera las posiciones', () => {
+  const at = (id, name, group_id, position) => ({ ...tag(id, name, group_id), position });
+  // Desordenados a propósito: lo que vale es la posición, no el orden de la lista.
+  const tags = [at(3, 'c', 10, 2), at(1, 'a', 10, 0), at(9, 'otro', 11, 0), at(2, 'b', 10, 1)];
+
+  const up = moveTagInGroup(tags, 3, -1);
+  assert.equal(up.groupId, 10);
+  assert.deepEqual(
+    up.tags.map((t) => [t.id, t.position]),
+    [
+      [1, 0],
+      [3, 1],
+      [2, 2],
+    ]
+  );
+  assert.equal(up.tags[0], tags[1]); // sin cambio de posición, el mismo objeto
+
+  assert.deepEqual(
+    moveTagInGroup(tags, 1, 1).tags.map((t) => t.id),
+    [2, 1, 3]
+  );
+  assert.equal(moveTagInGroup(tags, 1, -1), null);
+  assert.equal(moveTagInGroup(tags, 3, 1), null);
+  assert.equal(moveTagInGroup(tags, 9, 1), null); // solo en su grupo
+  assert.equal(moveTagInGroup(tags, 99, 1), null);
+});
+
+test('moveTagInGroup en Libre: group_id null o ausente, y el grupo va como null', () => {
+  const tags = [
+    { id: 1, name: 'x', position: 0 },
+    { ...tag(2, 'y', null), position: 1 },
+  ];
+  const result = moveTagInGroup(tags, 2, -1);
+  assert.equal(result.groupId, null);
+  assert.deepEqual(
+    result.tags.map((t) => t.id),
+    [2, 1]
+  );
 });
 
 test('filterTags no distingue mayúsculas ni tildes', () => {

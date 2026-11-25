@@ -20,6 +20,7 @@ import {
   createTagGroupSchema,
   updateTagGroupSchema,
   reorderTagGroupsSchema,
+  reorderTagsSchema,
   assignTagsSchema,
   removeTagsSchema,
   blockTagSchema,
@@ -54,9 +55,10 @@ router.get('/search', validate(noteSearchSchema, 'query'), ctrl.search);
 // Reordenar notas (no tiene :id)
 router.patch('/reorder', validate(reorderNotesSchema), ctrl.reorderNotes);
 
-// Tags — globales
+// Tags — globales. /tags/order (estática) ANTES de /tags/:tagId
 router.get('/tags', ctrl.getTags);
 router.post('/tags', validate(createTagSchema), ctrl.createTag);
+router.put('/tags/order', validate(reorderTagsSchema), ctrl.reorderTags);
 router.patch('/tags/:tagId', validate(updateTagSchema), ctrl.updateTag);
 router.delete('/tags/:tagId', ctrl.deleteTag);
 

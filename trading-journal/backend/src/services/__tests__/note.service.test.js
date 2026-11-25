@@ -38,6 +38,8 @@ const mockNoteRepo = {
   updateTagGroup: jest.fn(),
   deleteTagGroup: jest.fn(),
   reorderTagGroups: jest.fn(),
+  getTagsInGroup: jest.fn(),
+  reorderTags: jest.fn(),
 };
 
 // Cliente ficticio de la transacción: withUserLock ejecuta el callback directo.
@@ -71,6 +73,7 @@ const {
   updateTagGroup,
   deleteTagGroup,
   reorderTagGroups,
+  reorderTags,
 } = await import('../note.service.js');
 const { NotFoundError, ValidationError, ConflictError } = await import('../../middleware/errorHandler.js');
 
@@ -682,5 +685,50 @@ describe('note.service — grupos de tags', () => {
       await expect(reorderTagGroups(1, ids)).rejects.toBeInstanceOf(ValidationError);
       expect(mockNoteRepo.reorderTagGroups).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('note.service — orden de los tags de un grupo', () => {
+  const own = [{ id: 4 }, { id: 5 }, { id: 6 }];
+
+  it('acepta exactamente los tags del grupo y devuelve el grupo en el orden nuevo', async () => {
+    const reordered = [{ id: 6 }, { id: 4 }, { id: 5 }];
+    mockNoteRepo.getTagGroupById.mockResolvedValue({ id: 7 });
+    mockNoteRepo.getTagsInGroup.mockResolvedValueOnce(own).mockResolvedValueOnce(reordered);
+
+    const result = await reorderTags(1, 7, [6, 4, 5]);
+
+    expect(mockNoteRepo.getTagsInGroup).toHaveBeenCalledWith(1, 7);
+    expect(mockNoteRepo.reorderTags).toHaveBeenCalledWith(1, 7, [6, 4, 5]);
+    expect(result).toBe(reordered);
+  });
+
+  it('Libre (group_id null) se ordena sin buscar un grupo', async () => {
+    mockNoteRepo.getTagsInGroup.mockResolvedValue(own);
+
+    await reorderTags(1, null, [5, 6, 4]);
+
+    expect(mockNoteRepo.getTagGroupById).not.toHaveBeenCalled();
+    expect(mockNoteRepo.getTagsInGroup).toHaveBeenCalledWith(1, null);
+    expect(mockNoteRepo.reorderTags).toHaveBeenCalledWith(1, null, [5, 6, 4]);
+  });
+
+  it('grupo ajeno o inexistente → NotFoundError sin escribir', async () => {
+    mockNoteRepo.getTagGroupById.mockResolvedValue(null);
+
+    await expect(reorderTags(1, 99, [4, 5, 6])).rejects.toBeInstanceOf(NotFoundError);
+    expect(mockNoteRepo.reorderTags).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['de menos', [6, 4]],
+    ['de más (de otro grupo)', [6, 4, 5, 9]],
+    ['repetidos', [6, 4, 4]],
+    ['uno cambiado', [6, 4, 9]],
+  ])('ids %s → ValidationError sin escribir', async (_label, ids) => {
+    mockNoteRepo.getTagsInGroup.mockResolvedValue(own);
+
+    await expect(reorderTags(1, null, ids)).rejects.toBeInstanceOf(ValidationError);
+    expect(mockNoteRepo.reorderTags).not.toHaveBeenCalled();
   });
 });

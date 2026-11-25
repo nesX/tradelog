@@ -3,15 +3,22 @@ import { generateKeyBetween } from 'fractional-indexing';
 import { FREE_GROUP_COLOR } from '../constants/tagGroups.js';
 
 // Orden canónico de los tags: por la posición de su grupo, Libre (group_id NULL)
-// al final, y luego por nombre. Va con tagGroupJoin: `tagAlias` es el alias de
-// note_tags y `groupAlias` el de note_tag_groups (literales fijos, nunca datos).
+// al final, luego por la posición del tag dentro del grupo y, para empates, por
+// nombre. Va con tagGroupJoin: `tagAlias` es el alias de note_tags y `groupAlias`
+// el de note_tag_groups (literales fijos, nunca datos).
 const tagGroupJoin = (tagAlias, groupAlias) =>
   `LEFT JOIN note_tag_groups ${groupAlias} ON ${groupAlias}.id = ${tagAlias}.group_id`;
 const tagOrder = (tagAlias, groupAlias) =>
-  `${groupAlias}.position NULLS LAST, ${groupAlias}.id, LOWER(${tagAlias}.name)`;
+  `${groupAlias}.position NULLS LAST, ${groupAlias}.id, ${tagAlias}.position, LOWER(${tagAlias}.name)`;
 
 // Shape de un tag en todas las respuestas.
-const TAG_COLUMNS = 'id, name, color, group_id, created_at';
+const TAG_COLUMNS = 'id, name, color, group_id, position, created_at';
+
+// Siguiente posición libre (el final) entre los tags del usuario `$userParam`
+// con grupo `groupExpr` (Libre si es NULL). Parámetros y expresión: literales fijos.
+const nextTagPosition = (userParam, groupExpr) =>
+  `(SELECT COALESCE(MAX(position) + 1, 0) FROM note_tags
+    WHERE user_id = ${userParam} AND group_id IS NOT DISTINCT FROM ${groupExpr})`;
 
 // ============================================================
 // NOTAS
@@ -29,7 +36,8 @@ export const getTree = async (userId) => {
        WHERE nb.note_id = n.parent_note_id AND nb.linked_note_id = n.id
        ORDER BY nb.position COLLATE "C" ASC LIMIT 1) as parent_block_position,
       COALESCE(
-        (SELECT json_agg(json_build_object('id', nt.id, 'name', nt.name, 'color', nt.color, 'group_id', nt.group_id))
+        (SELECT json_agg(json_build_object(
+          'id', nt.id, 'name', nt.name, 'color', nt.color, 'group_id', nt.group_id, 'position', nt.position))
          FROM note_tag_assignments nta
          JOIN note_tags nt ON nt.id = nta.tag_id
          WHERE nta.note_id = n.id), '[]'
@@ -66,7 +74,7 @@ export const getById = async (userId, noteId) => {
   for (const block of blocksResult.rows) block.tags = blockTags.get(block.id) ?? [];
 
   const tagsResult = await pool.query(
-    `SELECT nt.id, nt.name, nt.color, nt.group_id
+    `SELECT nt.id, nt.name, nt.color, nt.group_id, nt.position
     FROM note_tag_assignments nta
     JOIN note_tags nt ON nt.id = nta.tag_id
     ${tagGroupJoin('nt', 'g')}
@@ -824,10 +832,12 @@ export const getTags = async (userId) => {
   return result.rows;
 };
 
-// `group_id` null o ausente: Libre.
+// `group_id` null o ausente: Libre. El tag nuevo va al final de su grupo.
 export const createTag = async (userId, { name, color, group_id }) => {
   const result = await pool.query(
-    `INSERT INTO note_tags (user_id, name, color, group_id) VALUES ($1, $2, $3, $4) RETURNING ${TAG_COLUMNS}`,
+    `INSERT INTO note_tags (user_id, name, color, group_id, position)
+     VALUES ($1, $2, $3, $4::int, ${nextTagPosition('$1', '$4::int')})
+     RETURNING ${TAG_COLUMNS}`,
     [userId, name, color || FREE_GROUP_COLOR, group_id ?? null]
   );
   return result.rows[0];
@@ -849,18 +859,28 @@ export const getTagById = async (userId, tagId) => {
   return result.rows[0] || null;
 };
 
+// Un tag que cambia de grupo va al final del nuevo; con el mismo grupo (el
+// formulario lo manda siempre) conserva su posición. En el SET, `group_id` y
+// `position` son los valores de antes del UPDATE.
 export const updateTag = async (userId, tagId, { name, color, group_id }) => {
   const fields = [];
-  const values = [];
-  let idx = 1;
+  const values = [userId];
+  let idx = 2;
   if (name !== undefined) { fields.push(`name = $${idx++}`); values.push(name); }
   if (color !== undefined) { fields.push(`color = $${idx++}`); values.push(color); }
-  if (group_id !== undefined) { fields.push(`group_id = $${idx++}`); values.push(group_id); }
+  if (group_id !== undefined) {
+    const param = `$${idx++}::int`;
+    fields.push(`group_id = ${param}`);
+    fields.push(
+      `position = CASE WHEN group_id IS NOT DISTINCT FROM ${param} THEN position ELSE ${nextTagPosition('$1', param)} END`
+    );
+    values.push(group_id);
+  }
   if (fields.length === 0) return await getTagById(userId, tagId);
 
-  values.push(tagId, userId);
+  values.push(tagId);
   const result = await pool.query(
-    `UPDATE note_tags SET ${fields.join(', ')} WHERE id = $${idx++} AND user_id = $${idx} RETURNING ${TAG_COLUMNS}`,
+    `UPDATE note_tags SET ${fields.join(', ')} WHERE id = $${idx} AND user_id = $1 RETURNING ${TAG_COLUMNS}`,
     values
   );
   return result.rows[0] || null;
@@ -980,18 +1000,41 @@ export const updateTagGroup = async (userId, groupId, { name, color }) => {
 };
 
 /**
- * Borra el grupo; sus tags pasan a Libre por el ON DELETE SET NULL de
- * note_tags.group_id, sin tocar sus asignaciones. `moved_tags` los cuenta con el
- * mismo snapshot que el DELETE.
+ * Borra el grupo; sus tags pasan a Libre sin tocar sus asignaciones, al final de
+ * Libre y en el orden que tenían en el grupo. Se mueven a mano antes del DELETE
+ * (el ON DELETE SET NULL de note_tags.group_id les dejaría la posición vieja,
+ * mezclada con las de Libre). `moved_tags` cuenta los que se movieron.
  */
 export const deleteTagGroup = async (userId, groupId) => {
-  const result = await pool.query(
-    `WITH moved AS (SELECT COUNT(*)::int AS n FROM note_tags WHERE group_id = $1 AND user_id = $2)
-     DELETE FROM note_tag_groups WHERE id = $1 AND user_id = $2
-     RETURNING id, (SELECT n FROM moved) AS moved_tags`,
-    [groupId, userId]
-  );
-  return result.rows[0] || null;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const moved = await client.query(
+      `UPDATE note_tags t
+       SET group_id = NULL, position = ${nextTagPosition('$2', 'NULL')} + o.ord
+       FROM (
+         SELECT id, (ROW_NUMBER() OVER (ORDER BY position, LOWER(name), id) - 1)::int AS ord
+         FROM note_tags WHERE group_id = $1 AND user_id = $2
+       ) o
+       WHERE t.id = o.id`,
+      [groupId, userId]
+    );
+    const deleted = await client.query(`DELETE FROM note_tag_groups WHERE id = $1 AND user_id = $2 RETURNING id`, [
+      groupId,
+      userId,
+    ]);
+    if (deleted.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    await client.query('COMMIT');
+    return { id: deleted.rows[0].id, moved_tags: moved.rowCount };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 // `groupIds` ya validado en el service: exactamente los grupos del usuario.
@@ -1002,6 +1045,33 @@ export const reorderTagGroups = async (userId, groupIds) => {
      FROM unnest($2::int[]) WITH ORDINALITY AS o(id, ord)
      WHERE g.id = o.id AND g.user_id = $1`,
     [userId, groupIds]
+  );
+};
+
+// ============================================================
+// ORDEN DE LOS TAGS DENTRO DE SU GRUPO
+// ============================================================
+// `groupId` null es Libre.
+
+/** Tags de un grupo del usuario, en su orden. */
+export const getTagsInGroup = async (userId, groupId) => {
+  const result = await pool.query(
+    `SELECT ${TAG_COLUMNS} FROM note_tags
+     WHERE user_id = $1 AND group_id IS NOT DISTINCT FROM $2::int
+     ORDER BY position, LOWER(name), id`,
+    [userId, groupId]
+  );
+  return result.rows;
+};
+
+// `tagIds` ya validado en el service: exactamente los tags del grupo.
+export const reorderTags = async (userId, groupId, tagIds) => {
+  await pool.query(
+    `UPDATE note_tags t
+     SET position = (o.ord - 1)::int
+     FROM unnest($3::int[]) WITH ORDINALITY AS o(id, ord)
+     WHERE t.id = o.id AND t.user_id = $1 AND t.group_id IS NOT DISTINCT FROM $2::int`,
+    [userId, groupId, tagIds]
   );
 };
 
@@ -1017,13 +1087,13 @@ const DISTINCT_TAG_GROUPS = 'COUNT(DISTINCT COALESCE(t.group_id, 0))';
 
 /**
  * Tags de varios bloques en una sola query, en orden canónico. Devuelve un Map
- * block_id → [{ id, name, color, group_id }]; los bloques sin tags no aparecen.
+ * block_id → [{ id, name, color, group_id, position }]; los bloques sin tags no aparecen.
  */
 export const getBlockTags = async (blockIds, userId, exec = pool) => {
   const map = new Map();
   if (!blockIds || blockIds.length === 0) return map;
   const result = await exec.query(
-    `SELECT a.block_id, t.id, t.name, t.color, t.group_id
+    `SELECT a.block_id, t.id, t.name, t.color, t.group_id, t.position
      FROM note_block_tag_assignments a
      JOIN note_tags t ON t.id = a.tag_id AND t.user_id = $2
      ${tagGroupJoin('t', 'g')}

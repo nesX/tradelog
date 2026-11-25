@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import * as api from '../api/endpoints.js';
 import { applyOptimisticNoteMoveFlat, applyOptimisticBlockMove } from '../utils/treeManipulation.js';
-import { sortTags, moveTagGroup } from '../utils/tagGroups.js';
+import { sortTags, moveTagGroup, moveTagInGroup } from '../utils/tagGroups.js';
 import { revisitKeys } from './useRevisit.js';
 
 export const noteKeys = {
@@ -342,6 +342,46 @@ export const useMoveTagGroup = () => {
     if (!current) return;
     const groups = moveTagGroup(current, groupId, delta);
     if (groups !== current) mutation.mutate({ groups });
+  };
+
+  return { move, isPending: mutation.isPending };
+};
+
+/**
+ * Sube (-1) o baja (+1) un tag dentro de su grupo, como useMoveTagGroup: el
+ * endpoint recibe los tags del grupo enteros, armados desde la caché en el
+ * click (optimistic con las posiciones nuevas); los cambios van en serie, y el
+ * rollback y el refresco de todo, solo cuando no queda ninguno en curso.
+ */
+export const useMoveTag = () => {
+  const qc = useQueryClient();
+  const key = noteKeys.tags();
+  const mutationKey = [...noteKeys.all, 'reorderTags'];
+
+  const mutation = useMutation({
+    mutationKey,
+    scope: { id: 'tags-order' },
+    mutationFn: ({ groupId, tags }) => api.reorderNoteTags(groupId, tags.map((t) => t.id)),
+    onMutate: ({ tags }) => {
+      qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData(key);
+      const moved = new Map(tags.map((t) => [t.id, t]));
+      qc.setQueryData(key, (old) => (old?.data ? { ...old, data: old.data.map((t) => moved.get(t.id) ?? t) } : old));
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (qc.isMutating({ mutationKey }) === 1 && context?.previous) qc.setQueryData(key, context.previous);
+    },
+    onSettled: () => {
+      if (qc.isMutating({ mutationKey }) === 1) invalidateTagViews(qc);
+    },
+  });
+
+  const move = (tagId, delta) => {
+    const current = qc.getQueryData(key)?.data;
+    if (!current) return;
+    const result = moveTagInGroup(current, tagId, delta);
+    if (result) mutation.mutate(result);
   };
 
   return { move, isPending: mutation.isPending };

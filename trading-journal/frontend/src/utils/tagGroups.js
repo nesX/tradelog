@@ -23,16 +23,20 @@ export const getTagGroup = (groups, groupId) => {
 export const listTagGroups = (groups) => [...(groups ?? []).map(toGroup), FREE_GROUP];
 
 const byName = (a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+// Orden dentro del grupo: `position` (la que elige el usuario) y, para empates, nombre.
+const byPosition = (a, b) => (a.position ?? 0) - (b.position ?? 0) || byName(a, b);
 
 /**
- * Copia de `tags` en orden canónico: por el orden de su grupo (Libre al final) y
- * luego por nombre. Sin grupos cargados, solo por nombre.
+ * Copia de `tags` en orden canónico: por el orden de su grupo (Libre al final),
+ * luego por su posición dentro del grupo y, para empates, por nombre. Sin grupos
+ * cargados, solo por nombre (las posiciones son de cada grupo: mezcladas no
+ * significan nada).
  */
 export const sortTags = (tags = [], groups) => {
   if (!groups) return [...tags].sort(byName);
   const index = new Map(groups.map((g, i) => [g.id, i]));
   const at = (tag) => index.get(tag.group_id) ?? groups.length;
-  return [...tags].sort((a, b) => at(a) - at(b) || byName(a, b));
+  return [...tags].sort((a, b) => at(a) - at(b) || byPosition(a, b));
 };
 
 /**
@@ -48,14 +52,34 @@ export const groupTags = (tags = [], groups, { includeEmpty = false } = {}) => {
   return includeEmpty ? result : result.filter((group) => group.tags.length > 0);
 };
 
-/** Lista de grupos con `groupId` una posición más arriba (-1) o más abajo (+1). */
-export const moveTagGroup = (groups, groupId, delta) => {
-  const from = groups.findIndex((g) => g.id === groupId);
+// Copia de `list` con el elemento `id` una posición más arriba (-1) o más abajo
+// (+1); la misma lista si no se puede mover.
+const moveById = (list, id, delta) => {
+  const from = list.findIndex((item) => item.id === id);
   const to = from + delta;
-  if (from < 0 || to < 0 || to >= groups.length) return groups;
-  const result = [...groups];
+  if (from < 0 || to < 0 || to >= list.length) return list;
+  const result = [...list];
   [result[from], result[to]] = [result[to], result[from]];
   return result;
+};
+
+/** Lista de grupos con `groupId` una posición más arriba (-1) o más abajo (+1). */
+export const moveTagGroup = (groups, groupId, delta) => moveById(groups, groupId, delta);
+
+/**
+ * Sube (-1) o baja (+1) `tagId` dentro de su grupo. Devuelve `{ groupId, tags }`:
+ * el grupo (null para Libre, como lo guarda el servidor) y sus tags en el orden
+ * nuevo, con `position` renumerada 0..n-1 (lo que queda en la caché). null si no
+ * se puede mover: tag desconocido, o ya es el primero o el último.
+ */
+export const moveTagInGroup = (tags = [], tagId, delta) => {
+  const tag = tags.find((t) => t.id === tagId);
+  if (!tag) return null;
+  const groupId = tag.group_id ?? null;
+  const siblings = tags.filter((t) => (t.group_id ?? null) === groupId).sort(byPosition);
+  const moved = moveById(siblings, tagId, delta);
+  if (moved === siblings) return null;
+  return { groupId, tags: moved.map((t, i) => (t.position === i ? t : { ...t, position: i })) };
 };
 
 // Minúsculas y sin tildes: "proyeccion" encuentra "proyección".

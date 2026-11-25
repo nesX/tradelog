@@ -790,6 +790,23 @@ export const reorderTagGroups = async (userId, groupIds) => {
   return repo.getTagGroups(userId);
 };
 
+/**
+ * Nuevo orden de los tags de un grupo (`groupId` null: Libre). `tagIds` tiene que
+ * ser exactamente el conjunto de tags del grupo, sin repetidos. Devuelve los tags
+ * del grupo en el orden nuevo.
+ */
+export const reorderTags = async (userId, groupId, tagIds) => {
+  await checkTagGroup(userId, groupId);
+  const current = await repo.getTagsInGroup(userId, groupId);
+  const own = new Set(current.map((t) => t.id));
+  const requested = new Set(tagIds);
+  if (requested.size !== tagIds.length || requested.size !== own.size || tagIds.some((id) => !own.has(id))) {
+    throw new ValidationError('El orden tiene que incluir cada uno de los tags del grupo una sola vez');
+  }
+  await repo.reorderTags(userId, groupId, tagIds);
+  return repo.getTagsInGroup(userId, groupId);
+};
+
 // ============================================================
 // TAGS DE BLOQUE
 // ============================================================

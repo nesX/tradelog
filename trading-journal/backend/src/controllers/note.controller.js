@@ -197,6 +197,11 @@ export const deleteTag = async (req, res) => {
   sendDeleted(res, 'Tag eliminado');
 };
 
+export const reorderTags = async (req, res) => {
+  const data = await noteService.reorderTags(req.user.id, req.body.group_id, req.body.tag_ids);
+  sendSuccess(res, data, 'Orden de los tags actualizado');
+};
+
 export const assignTags = async (req, res) => {
   await noteService.assignTags(req.user.id, parseInt(req.params.noteId), req.body.tag_ids);
   sendSuccess(res, null, 'Tags asignados');

@@ -10,6 +10,7 @@ import {
   createTagGroupSchema,
   updateTagGroupSchema,
   reorderTagGroupsSchema,
+  reorderTagsSchema,
   blockTagSchema,
   blocksByTagsSchema,
 } from '../note.validator.js';
@@ -169,6 +170,21 @@ describe('note.validator', () => {
       expect(reorderTagGroupsSchema.validate({ group_ids: [1, -2] }).error).toBeDefined();
       expect(reorderTagGroupsSchema.validate({ group_ids: ['a'] }).error).toBeDefined();
       expect(reorderTagGroupsSchema.validate({}).error).toBeDefined();
+    });
+  });
+
+  describe('reorderTagsSchema', () => {
+    it('group_id de un grupo o null (Libre), y tag_ids enteros positivos', () => {
+      expect(reorderTagsSchema.validate({ group_id: 7, tag_ids: [3, 1, 2] }).error).toBeUndefined();
+      expect(reorderTagsSchema.validate({ group_id: null, tag_ids: [3, 1] }).error).toBeUndefined();
+      expect(reorderTagsSchema.validate({ group_id: null, tag_ids: [] }).error).toBeUndefined();
+      expect(reorderTagsSchema.validate({ group_id: 7, tag_ids: [1, -2] }).error).toBeDefined();
+      expect(reorderTagsSchema.validate({ group_id: 0, tag_ids: [1] }).error).toBeDefined();
+    });
+
+    it('group_id es obligatorio: sin él no se sabe qué grupo se ordena', () => {
+      expect(reorderTagsSchema.validate({ tag_ids: [1, 2] }).error).toBeDefined();
+      expect(reorderTagsSchema.validate({ group_id: 7 }).error).toBeDefined();
     });
   });
 

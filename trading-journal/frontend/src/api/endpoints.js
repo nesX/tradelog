@@ -246,6 +246,9 @@ export const getNoteTags = () => apiClient.get('/api/notes/tags');
 export const createNoteTag = (data) => apiClient.post('/api/notes/tags', data);
 export const updateNoteTag = (tagId, data) => apiClient.patch(`/api/notes/tags/${tagId}`, data);
 export const deleteNoteTag = (tagId) => apiClient.delete(`/api/notes/tags/${tagId}`);
+// Orden de los tags de un grupo (`groupId` null: Libre).
+export const reorderNoteTags = (groupId, tagIds) =>
+  apiClient.put('/api/notes/tags/order', { group_id: groupId, tag_ids: tagIds });
 export const getTagGroups = () => apiClient.get('/api/notes/tag-groups');
 export const createTagGroup = (data) => apiClient.post('/api/notes/tag-groups', data);
 export const updateTagGroup = (groupId, data) => apiClient.patch(`/api/notes/tag-groups/${groupId}`, data);
