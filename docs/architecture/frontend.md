@@ -151,6 +151,7 @@ useMutation({
 | `/settings` | `Settings` | `ProtectedRoute` |
 | `/notes`, `/notes/:id` | `Notes` | `ProtectedRoute` |
 | `/review` | `Review` | `ProtectedRoute` |
+| `/repaso` | `Repaso` (también embebida en `Notes`; ver abajo) | `ProtectedRoute` |
 | `/backtest` | `Backtest` | `ProtectedRoute` |
 | `/backtest/new`, `/backtest/:id`, `/backtest/:id/continue` | Backtest* | `ProtectedRoute` |
 | `/admin/users` | `Users` | `AdminRoute` (role: admin / super_admin) |
@@ -186,6 +187,25 @@ Cada hook expone consultas y mutaciones del dominio. Ejemplo: `useTrades.js`:
 - `useImportCsvPreview()`, `useImportCsv()`.
 
 Convención: cada `use*` exporta tanto queries como mutaciones del dominio. Mantener factory de keys `<dominio>Keys` para invalidaciones consistentes.
+
+## Tags de notas y bloques
+
+Spec: [`tags-bloques.md`](../features/specs/tags-bloques.md). El bloque es lo que se etiqueta y se repasa; la nota solo propone tags.
+
+- **Grupos**: `constants/tagGroups.js` — `TAG_GROUPS` (Activo, Tipo, Estrategia, Resultado, Libre, con su color inicial), `sortTags` (orden canónico: grupo y luego nombre), `groupTags`, `filterTags` (sin mayúsculas ni tildes). Tiene que coincidir con el backend y el CHECK de la migración 030.
+- **`components/notes/TagPicker.jsx`**: popover para buscar, alternar y crear tags (crear elige grupo y asigna en el mismo flujo; teclado ↑/↓, Enter, Esc). Usa `GroupedTagList.jsx` (tags agrupados, presentacional), que también usa el selector del repaso por tag. Los botones que lo abren llevan `data-tag-picker-toggle` para que el click fuera no lo cierre y reabra.
+- **Tags de la nota** (`NoteEditor`): `useToggleNoteTag(noteId)` arma la lista nueva desde la caché, con optimistic update y `scope` por nota (el endpoint reemplaza la lista entera; en serie no se pierden clicks rápidos). "Aplicar a bloques existentes" usa `useApplyNoteTagsToBlocks`.
+- **Tags de cada bloque**: `components/notes/BlockTags.jsx` (fila de badges bajo el bloque + picker), botón **Tags** en la grilla de acciones de `NoteBlockList` y entrada en `BlockTouchMenu`. Hooks en `hooks/useBlockTags.js`: endpoints delta con `scope` por bloque, optimistic sobre la nota y el bloque suelto (`updateBlockTagsInCache`) y reconciliación con la respuesta solo si no quedan otras en curso. Las referencias no llevan tags.
+- Renombrar, recolorear o borrar un tag invalida `noteKeys.all` y el repaso por tag.
+
+## Repaso y visor de bloques
+
+- **`pages/Repaso.jsx`**: pestañas **Marcados** (bloques con `marked_for_revisit`) y **Por tag** (OR dentro de un grupo, AND entre grupos; `useTagReviewBlocks`). La pestaña, los tags y el orden viven en la URL (`?tab=tags&tags=1,4,7&order=chrono|recent|random`), así un enlace guardado repite la consulta; los ids que ya no existen se descartan antes de consultar. Helpers puros en `utils/tagReview.js`. El aleatorio se baraja una vez por conjunto de resultados, no en cada refetch.
+- Repaso se usa sobre todo embebida en `Notes.jsx` (botón del sidebar, estado local): `Notes` la muestra también cuando la URL trae `tab=tags` y no hay nota abierta, para que recargar o volver con Atrás no caiga en Recientes.
+- **`components/notes/BlockReviewViewer.jsx`**: visor a pantalla completa (portal, `z-40`: tapa el header y deja encima toasts y lightbox) que recorre una lista de ids **congelada** al abrir. Muestra el bloque en solo lectura (`BlockContent` con `readOnly`), y en el pie la nota con "Abrir en la nota", `BlockTags` y la marca de repaso. Precarga el bloque siguiente y el anterior (y la primera imagen si es una galería). Al salir invalida `revisitKeys.all`.
+- **`hooks/useSequenceNavigation.js`**: índice, `next`/`prev` sin dar la vuelta y teclado (←/→, Esc), que se ignora en campos editables o con `enabled = false` (picker o lightbox abiertos; los bloques en solo lectura avisan con `onLightboxChange`). La lógica pura está en `utils/sequenceNavigation.js`. El modal de detalle de trades no lo usa: su navegación cruza páginas del servidor.
+- `components/notes/BlockContent.jsx`: contenido de un bloque por tipo, compartido por `NoteBlockList` y el visor. Los bloques de texto y callout tienen una variante de solo lectura sin autosave.
+- Keys: `noteKeys.block(id)` (un bloque suelto, `useNoteBlock`) y `revisitKeys.tags` / `revisitKeys.byTags(ids)` (cuelgan de `revisitKeys.all`, así `useToggleRevisit` refresca también el repaso por tag).
 
 ## Compresión de imágenes — `utils/imageCompression.js`
 
@@ -225,7 +245,7 @@ Esto **descarga al servidor** de procesar imágenes: ya no necesitamos `sharp` e
 
 - ❌ No hay code splitting / lazy routes.
 - ⚠️ PWA instalable con service worker propio (precache del shell y notificaciones push), pero sin caché de datos de la API ni IndexedDB.
-- ⚠️ Solo tests de utilidades puras (`node --test` en `src/utils/*.test.js`); sin tests de componentes.
+- ⚠️ Solo tests de utilidades puras (`node --test` en `src/utils/*.test.js` y `src/constants/*.test.js`); sin tests de componentes.
 - ❌ Stats page hace 6 fetches en paralelo y no se invalida cuando se crea/edita un trade (ver TODO conocido en CLAUDE.md).
 - ❌ No hay manejo global de errores fuera de toasts puntuales.
 

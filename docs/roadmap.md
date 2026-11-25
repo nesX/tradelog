@@ -79,6 +79,7 @@ Originados en [`analysis/scaling.md` Fase 0](analysis/scaling.md#fase-0--hardeni
 | Progreso DnD | `progreso-draganddrop.md` | 📝 Doc de tracking del DnD (no es feature) |
 | Recordatorios de análisis (alertas de precio y por fecha) + bandeja `/recordatorios` | `alertas-de-precio-en-notas.md` | ✅ Implementado y en prod (migración 028, tasks 016–026 en `tasks/done/`) |
 | Notificaciones push de los recordatorios (Web Push en la PWA) | `notificaciones-push-pwa.md` | 🟡 Implementado (tasks 028–031); falta la puesta en prod (task 032) |
+| Tags por bloque con grupos, repaso por tag y visor de bloques | `tags-bloques.md` | 🟡 Implementado (migración 030, tasks 033–041); falta la puesta en prod y la migración de las notas-categoría reales (task 042) |
 
 ### Mejoras de UX / DX
 

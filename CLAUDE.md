@@ -59,7 +59,7 @@ for f in trading-journal/database/0*.sql; do
 done
 ```
 
-**Manual schema setup** (sin Docker) — los archivos están numerados `001_` a `023_`:
+**Manual schema setup** (sin Docker) — los archivos están numerados `001_` a `030_`:
 ```bash
 createdb trading_journal
 for f in trading-journal/database/0*.sql; do psql -d trading_journal -f "$f"; done
@@ -123,10 +123,10 @@ TanStack Query: `staleTime=30s`, `refetchOnWindowFocus=false`, **NO persistence 
 
 15+ tablas; las principales:
 - `users`, `trades` (+ `trade_images`), `systems`, `signals`, `user_timeframes`, `trade_signals`, `trade_timeframes`
-- `notes` (jerárquico) → `note_blocks` → (`note_block_images`, `note_block_trades`) y `note_tag_assignments` → `note_tags`
+- `notes` (jerárquico) → `note_blocks` → (`note_block_images`, `note_block_trades`, `note_block_tag_assignments` → `note_tags`) y `note_tag_assignments` → `note_tags` (`note_tags.group_key`: grupos fijos; ver [`docs/features/specs/tags-bloques.md`](docs/features/specs/tags-bloques.md))
 - `backtest_sessions` → `backtest_trades`
 
-Columnas generadas en `trades`: `pnl` y `pnl_percentage` (STORED). Soft-delete con `deleted_at` en `trades` y `notes` (el de notas es recursivo: marca la nota y sus descendientes). Drag-and-drop via `fractional-indexing`. Migrations secuenciales (`001_` a `024_`). Detalle: [`docs/architecture/database.md`](docs/architecture/database.md).
+Columnas generadas en `trades`: `pnl` y `pnl_percentage` (STORED). Soft-delete con `deleted_at` en `trades` y `notes` (el de notas es recursivo: marca la nota y sus descendientes). Drag-and-drop via `fractional-indexing`. Migrations secuenciales (`001_` a `030_`). Detalle: [`docs/architecture/database.md`](docs/architecture/database.md).
 
 ## CSV Import
 

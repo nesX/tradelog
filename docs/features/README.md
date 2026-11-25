@@ -25,6 +25,7 @@ Esta carpeta contiene las especificaciones detalladas de cada feature mayor del 
 | [`sistema-de-estrategias.md`](specs/sistema-de-estrategias.md) | 27 KB | 🟡 Parcial | Tablas `systems`, `signals`, `timeframes` existen. Spec describe templates y paneles más elaborados que aún no están. |
 | [`alertas-de-precio-en-notas.md`](specs/alertas-de-precio-en-notas.md) | 53 KB | ✅ Implementado (en prod) | Recordatorios de análisis: alertas de precio sobre perpetuos de Binance Futures (cripto y TradFi, velas 1h), invalidaciones por cierre diario, recordatorios por fecha y bandeja `/recordatorios`. Migración 028. Tasks 016–026. |
 | [`notificaciones-push-pwa.md`](specs/notificaciones-push-pwa.md) | 48 KB | 🟡 Implementado, falta prod | Web Push (VAPID) de las tarjetas de `/recordatorios` a los dispositivos que lo activan (PWA instalada en iOS). Migración 029, SW con `injectManifest`. Tasks 028–031 hechas; la 032 (prod y verificación en dispositivos) pendiente. |
+| [`tags-bloques.md`](specs/tags-bloques.md) | 30 KB | 🟡 Implementado, falta prod | Tags en grupos fijos (Activo, Tipo, Estrategia, Resultado, Libre) asignados a bloques; los tags de la nota son los defaults de sus bloques nuevos. Pestaña "Por tag" en Repaso (OR dentro de un grupo, AND entre grupos) con visor de bloques, export y script de migración de notas-categoría. Migración 030. Tasks 033–041 hechas; la 042 (prod y migración de las notas reales) pendiente. |
 
 ## Cómo se infirió el estado
 

@@ -317,18 +317,20 @@ Timeframes del usuario.
 |--------|------|-------|
 | `GET` | `/api/notes/tree` | Árbol completo de notas del usuario. |
 | `GET` | `/api/notes/search?q=...` | Full-text search sobre títulos y contenido. |
-| `GET` | `/api/notes/export/json` | Export completo. |
-| `GET` | `/api/notes/export/markdown` | Export como markdown. |
+| `GET` | `/api/notes/export/json` | Export completo. El diccionario raíz de tags trae `{ name, color, group }` y cada bloque `tags: [nombres]` (orden canónico, `[]` si no tiene). |
+| `GET` | `/api/notes/export/markdown` | Export como markdown. Tras cada bloque con tags va una línea `> Tags: NQ, proyección`. |
 | `PATCH` | `/api/notes/reorder` | Reordenar nodos (sin cambiar parent). |
 | `GET` | `/api/notes/blocks/review` | Seguimiento pendiente (`requires_follow_up`) + actividad reciente. Query: `hours` (24/48/168), `pendingHours`. |
 | `GET` | `/api/notes/blocks/revisit` | Bloques marcados para repaso (`marked_for_revisit`), ordenados por antigüedad (`updated_at ASC`). Query opcional: `pendingHours` (24/48/168 \| `all`). Devuelve `{ blocks, pendingHours }`. |
+| `GET` | `/api/notes/blocks/by-tags?tag_ids=1,4,7` | Repaso por tag: bloques con al menos un tag de la selección de **cada** grupo presente (OR dentro de un grupo, AND entre grupos). `tag_ids` es un CSV requerido (los repetidos se ignoran; más de 50 → 400; un tag ajeno o borrado → 400). Excluye referencias, notas en la papelera y pendientes. Devuelve `{ items, total, truncated }`: hasta 500 items `{ block_id, note_id, note_title, block_type, preview, created_at, updated_at, marked_for_revisit }`, del más reciente al más antiguo; `preview` (140 caracteres) solo en `text`/`callout`. |
+| `GET` | `/api/notes/blocks/:blockId` | Un bloque suelto, con el mismo shape que cada elemento de `blocks` en `GET /api/notes/:id` (imágenes, trades, recordatorios, `tags`), más `note: { id, title }`. 404 si es ajeno o su nota está en la papelera. Lo usa el visor de repaso. |
 
 ### CRUD de notas
 
 | Método | Ruta | Notas |
 |--------|------|-------|
 | `POST` | `/api/notes` | Crear nota. Body: `{ title?, parent_note_id?, type? }` (`type` ∈ `note` \| `section`). |
-| `GET` | `/api/notes/:id` | Detalle con bloques. Cada bloque trae `price_alerts` y `date_reminders` (con `last_price` del catálogo para la distancia), y la nota los suyos de nivel nota. Ver [Recordatorios de análisis](#recordatorios-de-análisis). |
+| `GET` | `/api/notes/:id` | Detalle con bloques. Cada bloque trae `price_alerts` y `date_reminders` (con `last_price` del catálogo para la distancia), y la nota los suyos de nivel nota. Ver [Recordatorios de análisis](#recordatorios-de-análisis). La nota y cada bloque traen `tags: [{ id, name, color, group_key }]` en orden canónico (`[]` si no tienen). |
 | `PATCH` | `/api/notes/:id/title` | Renombrar. |
 | `DELETE` | `/api/notes/:id` | Soft-delete recursivo (nota + descendientes vía `deleted_at`). Conserva las filas de bloques/imágenes; de disco solo borra archivos de imagen con >24h. |
 | `PATCH` | `/api/notes/:id/move` | Mover (cambia parent). |
@@ -336,13 +338,23 @@ Timeframes del usuario.
 
 ### Tags (globales por usuario)
 
-`GET`/`POST`/`PATCH`/`DELETE` en `/api/notes/tags[/:tagId]`. Asignar/remover a una nota: `POST`/`DELETE /api/notes/:noteId/tags` con `{ tag_ids: [...] }`.
+`GET`/`POST`/`PATCH`/`DELETE` en `/api/notes/tags[/:tagId]`. Cada tag es `{ id, name, color, group_key }`; `group_key` ∈ `activo`, `tipo`, `estrategia`, `resultado`, `libre` (default `libre`). `POST` y `PATCH` aceptan `group_key`. Un nombre repetido (sin distinguir mayúsculas, también con dos creaciones simultáneas) → 400 "Ya existe un tag con ese nombre". `GET` ordena por nombre; el resto de respuestas usan el **orden canónico**: por grupo (en ese orden) y luego por nombre. Spec: [`features/specs/tags-bloques.md`](../features/specs/tags-bloques.md).
+
+Los mismos tags sirven para notas y para bloques:
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| `POST` | `/api/notes/:noteId/tags` | **Reemplaza** los tags de la nota. Body: `{ tag_ids: [...] }` (repetidos ignorados; `[]` limpia). Los tags de la nota son los **tags por defecto** de sus bloques nuevos: no cambian los bloques existentes. |
+| `DELETE` | `/api/notes/:noteId/tags` | Quita tags de la nota. Body: `{ tag_ids: [...] }`. |
+| `POST` | `/api/notes/:noteId/tags/apply-to-blocks` | "Aplicar a bloques existentes": agrega los tags de la nota a sus bloques directos que no son referencias (sin sub-notas). Solo agrega. Devuelve `{ blocks_updated, assignments_created }`. |
+| `POST` | `/api/notes/blocks/:blockId/tags` | Agrega un tag a un bloque. Body: `{ tag_id }`. Idempotente. Devuelve `{ block_id, tags }` (lista completa, orden canónico). Tag ajeno → 404; bloque `reference` → 400. |
+| `DELETE` | `/api/notes/blocks/:blockId/tags/:tagId` | Quita un tag de un bloque. Idempotente. Devuelve `{ block_id, tags }`. |
 
 ### Bloques
 
 | Método | Ruta | Notas |
 |--------|------|-------|
-| `POST` | `/api/notes/:noteId/blocks` | Crear bloque (`block_type` ∈ `text`, `image_gallery`, `image`, `reference`, `callout`, `trade_reference`). |
+| `POST` | `/api/notes/:noteId/blocks` | Crear bloque (`block_type` ∈ `text`, `image_gallery`, `image`, `reference`, `callout`, `trade_reference`). El bloque nace con los tags de su nota (salvo las referencias, que no llevan tags); la respuesta trae `tags`. |
 | `PATCH` | `/api/notes/blocks/:blockId` | Actualizar contenido. |
 | `PATCH` | `/api/notes/blocks/:blockId/metadata` | Actualizar metadata (variante de callout, etc.). |
 | `PATCH` | `/api/notes/blocks/:blockId/move-dnd` | Reordenar bloque dentro de la nota (DnD; para mover a otra nota usar `move-to-note`). |

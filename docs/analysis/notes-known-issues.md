@@ -54,22 +54,18 @@ a todos los hermanos a partir del nº 63. Es decir, requiere **>62 hermanos en u
 
 ---
 
-## C3 — Crear tag: la colisión por carrera sale como 500, no como error amistoso
+## C3 — Crear tag: la colisión por carrera (resuelto, 2026-11-25)
 
-**Qué pasa (TOCTOU).** `services/note.service.js` → `createTag` primero llama a
-`repo.getTagByName` para comprobar que el nombre no exista y, si no existe, hace `INSERT`. Entre
-ese chequeo y el `INSERT` hay una ventana de tiempo. La unicidad **real** la garantiza el índice
-`idx_note_tags_unique_name (user_id, LOWER(name))`. Si llegan dos peticiones casi simultáneas con
-el mismo nombre (doble submit), ambas pasan el pre-chequeo y el segundo `INSERT` viola el índice
-→ Postgres devuelve error `23505` (unique_violation), que el middleware traduce a un **500
-genérico** en lugar del `ValidationError` amistoso ("Ya existe un tag con ese nombre").
+**Qué pasaba (TOCTOU).** `createTag` y `updateTag` comprueban con `repo.getTagByName` que el
+nombre no exista antes del `INSERT`/`UPDATE`. Dos peticiones casi simultáneas con el mismo nombre
+pasaban las dos el pre-chequeo y la segunda violaba el índice `idx_note_tags_unique_name`
+(`23505`). El `errorHandler` lo traducía a un **409 genérico** ("El registro ya existe"), no a un
+500 como decía antes este documento; la integridad nunca se rompió.
 
-**Severidad.** Cosmética: la integridad nunca se rompe (el índice la protege); solo el mensaje en
-una carrera es feo.
-
-**Fix sugerido.** Envolver el `INSERT` y mapear el error `23505` a `ValidationError` ("Ya existe
-un tag con ese nombre"), en `createTag` (y análogamente en `updateTag`, que tiene el mismo
-patrón). El pre-chequeo con `getTagByName` puede quedarse como camino feliz.
+**Fix.** El service captura el `23505` en `createTag` y `updateTag` y lanza
+`ValidationError('Ya existe un tag con ese nombre')` (400), el mismo mensaje del pre-chequeo, que
+se queda como camino feliz. Pesa más desde que el `TagPicker` crea tags desde cualquier bloque
+(task 033, spec [`features/specs/tags-bloques.md`](../features/specs/tags-bloques.md) §6.3).
 
 ---
 

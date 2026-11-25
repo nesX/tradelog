@@ -2,7 +2,7 @@
 
 PostgreSQL 16 (en compose dev). En producción se conecta al postgres compartido del proyecto `market-tracker`.
 
-Migraciones: `trading-journal/database/0NN_*.sql`, secuenciales del `001` al `025`. **No hay framework de migraciones** — se aplican manualmente con `psql`.
+Migraciones: `trading-journal/database/0NN_*.sql`, secuenciales del `001` al `030`. **No hay framework de migraciones** — se aplican manualmente con `psql`.
 
 ## Tablas
 
@@ -89,10 +89,22 @@ Modelo jerárquico tipo Notion con bloques tipados y reordenamiento por `fractio
 | `note_blocks` | Bloques dentro de una nota: `block_type` (`text`, `image_gallery`, `image`, `reference`, `callout`, `trade_reference`), `content` (TEXT), `metadata` (JSONB), `position` (string fractional), `requires_follow_up` (bool, "Revisión"), `marked_for_revisit` (bool, "Repaso"). |
 | `note_block_images` | Imágenes asociadas a un bloque `image_gallery` o `image` (este último guarda como máximo una: subir otra reemplaza la anterior). `position` INTEGER (reorden por índice, no fractional). |
 | `note_block_trades` | Trades referenciados desde un bloque `trade_reference`. M:N entre `note_blocks` y `trades`. |
-| `note_tags` | Tags globales por usuario. |
-| `note_tag_assignments` | M:N entre `notes` y `note_tags`. |
+| `note_tags` | Tags globales por usuario, con `group_key` (`activo` \| `tipo` \| `estrategia` \| `resultado` \| `libre`, default `libre`). Nombre único por usuario sin distinguir mayúsculas (`idx_note_tags_unique_name`). |
+| `note_tag_assignments` | M:N entre `notes` y `note_tags`. Los tags de una nota son los tags por defecto de sus bloques nuevos. |
+| `note_block_tag_assignments` | M:N entre `note_blocks` y `note_tags` (PK `(block_id, tag_id)`). Es lo que filtra el repaso por tag. |
 
-Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_migration_notes_search.sql`, `017_migration_dnd.sql`, `018_migration_fix_positions.sql`, `019_migration_block_follow_up.sql`, `020_migration_note_sections.sql`, `022_migration_references.sql`, `023_migration_trade_reference_block.sql`, `024_migration_block_updated_at_skip_reorder.sql`, `025_migration_block_revisit.sql`.
+Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_migration_notes_search.sql`, `017_migration_dnd.sql`, `018_migration_fix_positions.sql`, `019_migration_block_follow_up.sql`, `020_migration_note_sections.sql`, `022_migration_references.sql`, `023_migration_trade_reference_block.sql`, `024_migration_block_updated_at_skip_reorder.sql`, `025_migration_block_revisit.sql`, `026_migration_image_block.sql`, `030_migration_block_tags.sql`.
+
+#### Tags por bloque (migración 030)
+
+`030_migration_block_tags.sql` (spec [`features/specs/tags-bloques.md`](../features/specs/tags-bloques.md)):
+
+- `note_tags.group_key VARCHAR(20) NOT NULL DEFAULT 'libre'` con el CHECK `note_tags_group_key_check`. Los tags existentes quedan en `libre`. La lista de grupos tiene que coincidir con `TAG_GROUPS` del backend y del frontend (`constants/tagGroups.js`): agregar un grupo es una migración nueva más esas dos constantes.
+- `note_block_tag_assignments (block_id, tag_id)`, PK compuesta (ninguna asignación se direcciona por id) e índice `idx_note_block_tag_assignments_tag (tag_id, block_id)` para el filtro del repaso por tag.
+- Cascadas: borrar un bloque o un tag borra sus asignaciones; la purga de notas (`hardDeleteNotes`) llega por nota → bloques → asignaciones. El soft delete de notas no las toca.
+- Idempotente. El CHECK se recrea con `DROP CONSTRAINT IF EXISTS` + `ADD`: declarado junto al `ADD COLUMN IF NOT EXISTS`, Postgres rechaza el nombre repetido en la segunda corrida.
+
+`note_blocks` no tiene `user_id`: el dueño de un bloque se comprueba siempre por su nota (`JOIN notes n ON n.id = b.note_id AND n.user_id = $N`). Las referencias (`block_type = 'reference'`) no llevan tags.
 
 #### Repaso de bloques (migración 025)
 
@@ -168,12 +180,14 @@ users.id ──┐  ON DELETE CASCADE (en la mayoría de los hijos):
            │   ├── notes.parent_note_id         (self, CASCADE)
            │   ├── note_blocks.note_id          (CASCADE)
            │   │   ├── note_block_images.block_id   (CASCADE)
+           │   │   ├── note_block_tag_assignments.block_id   (CASCADE)
            │   │   └── note_block_trades.block_id   (CASCADE)
            │   │       └── note_block_trades.trade_id → trades.id (CASCADE)
            │   └── note_tag_assignments.note_id     (CASCADE)
            │
            ├── note_tags.user_id
-           │   └── note_tag_assignments.tag_id      (CASCADE)
+           │   ├── note_tag_assignments.tag_id      (CASCADE)
+           │   └── note_block_tag_assignments.tag_id      (CASCADE)
            │
            ├── price_alerts.user_id / date_reminders.user_id
            │   ├── .note_id  → notes.id         (CASCADE)
