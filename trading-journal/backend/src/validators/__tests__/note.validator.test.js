@@ -5,6 +5,10 @@ import {
   createBlockSchema,
   toggleRevisitSchema,
   noteRevisitSchema,
+  createTagSchema,
+  updateTagSchema,
+  blockTagSchema,
+  blocksByTagsSchema,
 } from '../note.validator.js';
 
 describe('note.validator', () => {
@@ -113,6 +117,57 @@ describe('note.validator', () => {
 
     it('rechaza pendingHours numérico no permitido', () => {
       expect(noteRevisitSchema.validate({ pendingHours: 12 }).error).toBeDefined();
+    });
+  });
+
+  describe('createTagSchema / updateTagSchema — group_key', () => {
+    it('acepta un group_key válido al crear y al editar', () => {
+      expect(createTagSchema.validate({ name: 'NQ', group_key: 'activo' }).error).toBeUndefined();
+      expect(updateTagSchema.validate({ group_key: 'resultado' }).error).toBeUndefined();
+    });
+
+    it('rechaza un group_key fuera de los grupos fijos', () => {
+      expect(createTagSchema.validate({ name: 'NQ', group_key: 'foo' }).error).toBeDefined();
+      expect(updateTagSchema.validate({ group_key: 'foo' }).error).toBeDefined();
+    });
+
+    it('group_key es opcional (el default libre lo pone el repositorio)', () => {
+      const { error, value } = createTagSchema.validate({ name: 'NQ' });
+      expect(error).toBeUndefined();
+      expect(value.group_key).toBeUndefined();
+      expect(updateTagSchema.validate({ name: 'otro' }).error).toBeUndefined();
+    });
+  });
+
+  describe('blockTagSchema', () => {
+    it('acepta un tag_id entero positivo', () => {
+      expect(blockTagSchema.validate({ tag_id: 4 }).error).toBeUndefined();
+    });
+
+    it.each([
+      ['ausente', {}],
+      ['0', { tag_id: 0 }],
+      ['negativo', { tag_id: -3 }],
+      ['no numérico', { tag_id: 'abc' }],
+      ['decimal', { tag_id: 1.5 }],
+    ])('rechaza tag_id %s', (_label, body) => {
+      expect(blockTagSchema.validate(body).error).toBeDefined();
+    });
+  });
+
+  describe('blocksByTagsSchema', () => {
+    it('acepta un CSV de ids', () => {
+      expect(blocksByTagsSchema.validate({ tag_ids: '1,4,7' }).error).toBeUndefined();
+      expect(blocksByTagsSchema.validate({ tag_ids: '12' }).error).toBeUndefined();
+    });
+
+    it.each([
+      ['vacío', { tag_ids: '' }],
+      ['con letras', { tag_ids: '1,a' }],
+      ['con coma final', { tag_ids: '1,4,' }],
+      ['ausente', {}],
+    ])('rechaza tag_ids %s', (_label, query) => {
+      expect(blocksByTagsSchema.validate(query).error).toBeDefined();
     });
   });
 });

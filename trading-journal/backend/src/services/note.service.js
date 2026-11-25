@@ -6,6 +6,7 @@ import { NotFoundError, ValidationError, ConflictError } from '../middleware/err
 import { deleteFileIfExists } from '../utils/fileUtils.js';
 import * as repo from '../repositories/note.repository.js';
 import * as tradeRepo from '../repositories/trade.repository.js';
+import { TAG_REVIEW_MAX_ITEMS, TAG_REVIEW_MAX_TAGS } from '../constants/tagGroups.js';
 
 const uploadsDir = () => path.resolve(config.upload.dir);
 
@@ -385,7 +386,8 @@ export const search = async (userId, { q, tagIds, limit }) => {
 // ============================================================
 
 export const createBlock = async (userId, noteId, data) => {
-  const note = await repo.getById(userId, noteId);
+  // Verificación liviana: solo hace falta el dueño y el tipo, no los bloques.
+  const note = await repo.findNoteByIdAndUser(noteId, userId);
   if (!note) throw new NotFoundError('Nota no encontrada');
   if (note.type === 'section') throw new ValidationError('Las secciones no pueden tener bloques');
   if (note.type === 'todo' && !TODO_BLOCK_TYPES.includes(data.block_type)) {
@@ -398,14 +400,22 @@ export const createBlock = async (userId, noteId, data) => {
     if (data.block_type !== 'reference') {
       throw new ValidationError('linked_note_id solo es válido en bloques de tipo reference');
     }
-    const linkedNote = await repo.getById(userId, data.linked_note_id);
+    const linkedNote = await repo.findNoteByIdAndUser(data.linked_note_id, userId);
     if (!linkedNote) throw new NotFoundError('Nota vinculada no encontrada');
   }
 
   await assertReferenceTargetsOwned(userId, data.metadata);
 
   // Bajo advisory lock: cálculo de posición + INSERT atómicos (sin claves duplicadas).
-  return withUserLock(userId, (client) => repo.createBlock(noteId, data, client));
+  // El bloque nace con los tags de su nota (tags por defecto, sin herencia en vivo);
+  // las referencias no llevan tags.
+  return withUserLock(userId, async (client) => {
+    const block = await repo.createBlock(noteId, data, client);
+    if (block.block_type === 'reference') return { ...block, tags: [] };
+    await repo.copyNoteTagsToBlock(block.id, noteId, userId, client);
+    const tags = await repo.getBlockTags([block.id], userId, client);
+    return { ...block, tags: tags.get(block.id) ?? [] };
+  });
 };
 
 // Valida existencia + ownership de los targets de una referencia (esquema nuevo, migración 022).
@@ -415,7 +425,7 @@ const assertReferenceTargetsOwned = async (userId, metadata) => {
   const { target_note_id: targetNoteId, target_block_id: targetBlockId } = metadata;
 
   if (targetNoteId != null) {
-    const targetNote = await repo.getById(userId, targetNoteId);
+    const targetNote = await repo.findNoteByIdAndUser(targetNoteId, userId);
     if (!targetNote) throw new NotFoundError('Nota referenciada no encontrada');
   }
   if (targetBlockId != null) {
@@ -591,10 +601,20 @@ export const getTags = async (userId) => {
   return repo.getTags(userId);
 };
 
-export const createTag = async (userId, { name, color }) => {
+const DUPLICATE_TAG_MESSAGE = 'Ya existe un tag con ese nombre';
+
+// El pre-check con getTagByName no cubre dos creaciones (o renombres) simultáneas
+// del mismo nombre: la segunda choca con el índice único idx_note_tags_unique_name
+// (23505). Se traduce al mismo mensaje en vez del 409 genérico del errorHandler.
+const rethrowDuplicateTag = (err) => {
+  if (err?.code === '23505') throw new ValidationError(DUPLICATE_TAG_MESSAGE);
+  throw err;
+};
+
+export const createTag = async (userId, { name, color, group_key }) => {
   const existing = await repo.getTagByName(userId, name);
-  if (existing) throw new ValidationError('Ya existe un tag con ese nombre');
-  return repo.createTag(userId, { name, color });
+  if (existing) throw new ValidationError(DUPLICATE_TAG_MESSAGE);
+  return repo.createTag(userId, { name, color, group_key }).catch(rethrowDuplicateTag);
 };
 
 export const updateTag = async (userId, tagId, data) => {
@@ -604,11 +624,11 @@ export const updateTag = async (userId, tagId, data) => {
   if (data.name) {
     const existing = await repo.getTagByName(userId, data.name);
     if (existing && existing.id !== tagId) {
-      throw new ValidationError('Ya existe un tag con ese nombre');
+      throw new ValidationError(DUPLICATE_TAG_MESSAGE);
     }
   }
 
-  return repo.updateTag(userId, tagId, data);
+  return repo.updateTag(userId, tagId, data).catch(rethrowDuplicateTag);
 };
 
 export const deleteTag = async (userId, tagId) => {
@@ -618,23 +638,108 @@ export const deleteTag = async (userId, tagId) => {
 };
 
 export const assignTags = async (userId, noteId, tagIds) => {
-  const note = await repo.getById(userId, noteId);
+  const note = await repo.findNoteByIdAndUser(noteId, userId);
   if (!note) throw new NotFoundError('Nota no encontrada');
 
-  if (tagIds.length > 0) {
-    const foundTags = await repo.getTagsByIds(userId, tagIds);
-    if (foundTags.length !== tagIds.length) {
+  // Deduplicar antes de comparar: con un id repetido el conteo no cuadraba y
+  // respondía "Algunos tags no existen".
+  const ids = [...new Set(tagIds)];
+  if (ids.length > 0) {
+    const foundTags = await repo.getTagsByIds(userId, ids);
+    if (foundTags.length !== ids.length) {
       throw new ValidationError('Algunos tags no existen o no te pertenecen');
     }
   }
 
-  await repo.assignTags(noteId, tagIds);
+  await repo.assignTags(noteId, ids);
 };
 
 export const removeTags = async (userId, noteId, tagIds) => {
-  const note = await repo.getById(userId, noteId);
+  const note = await repo.findNoteByIdAndUser(noteId, userId);
   if (!note) throw new NotFoundError('Nota no encontrada');
   await repo.removeTags(noteId, tagIds);
+};
+
+/**
+ * "Aplicar a bloques existentes": agrega los tags de la nota a sus bloques
+ * directos que no son referencias (sin sub-notas). Solo agrega.
+ */
+export const applyNoteTagsToBlocks = async (userId, noteId) => {
+  const note = await repo.findNoteByIdAndUser(noteId, userId);
+  if (!note) throw new NotFoundError('Nota no encontrada');
+
+  const blockIds = await repo.applyNoteTagsToBlocks(noteId, userId);
+  return { blocks_updated: new Set(blockIds).size, assignments_created: blockIds.length };
+};
+
+// ============================================================
+// TAGS DE BLOQUE
+// ============================================================
+
+// Bloque del usuario (con nota no borrada) que admite tags: las referencias no
+// llevan tags (D6 del spec).
+const findTaggableBlock = async (userId, blockId) => {
+  const block = await repo.findBlockByIdAndUser(blockId, userId);
+  if (!block) throw new NotFoundError('Bloque no encontrado');
+  if (block.block_type === 'reference') {
+    throw new ValidationError('Los bloques de referencia no llevan tags');
+  }
+  return block;
+};
+
+const blockTagsResponse = async (userId, blockId) => {
+  const tags = await repo.getBlockTags([blockId], userId);
+  return { block_id: blockId, tags: tags.get(blockId) ?? [] };
+};
+
+// Idempotentes: agregar un tag que ya está, o quitar uno que no está, devuelve la
+// lista actual. La respuesta trae siempre la lista completa en orden canónico.
+export const addBlockTag = async (userId, blockId, tagId) => {
+  await findTaggableBlock(userId, blockId);
+  const tag = await repo.getTagById(userId, tagId);
+  if (!tag) throw new NotFoundError('Tag no encontrado');
+
+  await repo.addBlockTag(blockId, tagId, userId);
+  return blockTagsResponse(userId, blockId);
+};
+
+export const removeBlockTag = async (userId, blockId, tagId) => {
+  await findTaggableBlock(userId, blockId);
+  await repo.removeBlockTag(blockId, tagId, userId);
+  return blockTagsResponse(userId, blockId);
+};
+
+// ============================================================
+// REPASO POR TAG Y BLOQUE SUELTO
+// ============================================================
+
+/**
+ * Bloques que cumplen una combinación de tags: OR dentro de un grupo, AND entre
+ * grupos. Devuelve hasta TAG_REVIEW_MAX_ITEMS, más recientes primero; el orden de
+ * presentación lo decide el cliente.
+ */
+export const getBlocksByTags = async (userId, tagIds) => {
+  const ids = [...new Set(tagIds)];
+  if (ids.length > TAG_REVIEW_MAX_TAGS) {
+    throw new ValidationError(`Se pueden elegir como máximo ${TAG_REVIEW_MAX_TAGS} tags`);
+  }
+
+  const tags = await repo.getTagsByIds(userId, ids);
+  if (tags.length !== ids.length) {
+    throw new ValidationError('Algunos tags no existen o no te pertenecen');
+  }
+  const groupCount = new Set(tags.map((t) => t.group_key)).size;
+
+  const rows = await repo.findBlocksByTags(userId, ids, groupCount, TAG_REVIEW_MAX_ITEMS);
+  const total = rows[0]?.total ?? 0;
+  const items = rows.map(({ total: _total, ...item }) => item);
+  return { items, total, truncated: total > items.length };
+};
+
+export const getBlock = async (userId, blockId) => {
+  const block = await repo.getBlockDetail(userId, blockId);
+  if (!block) throw new NotFoundError('Bloque no encontrado');
+  return block;
 };
 
 // ============================================================
@@ -653,6 +758,31 @@ const groupNotesByParent = (notes) => {
   return map;
 };
 
+// Contenido de un bloque en el export JSON (sin los tags, que agrega el llamador).
+const exportBlock = (b) => {
+  if (b.block_type === 'text') {
+    return { type: 'text', content: b.content };
+  }
+  if (b.block_type === 'callout') {
+    return { type: 'callout', content: b.content, metadata: b.metadata || {} };
+  }
+  if (b.block_type === 'image_gallery') {
+    return { type: 'image_gallery', images: b.images || [] };
+  }
+  if (b.block_type === 'image') {
+    return { type: 'image', image: (b.images || [])[0] || null };
+  }
+  if (b.block_type === 'trade_reference') {
+    return { type: 'trade_reference', trades: b.trades || [] };
+  }
+  return {
+    type: 'reference',
+    label: b.linked_note_title || b.metadata?.label || 'Referencia',
+    target_note_id: b.metadata?.target_note_id ?? b.linked_note_id ?? null,
+    target_block_id: b.metadata?.target_block_id ?? null,
+  };
+};
+
 const buildNoteTree = (childrenByParent, blocksMap, parentId = null) => {
   return (childrenByParent.get(parentId ?? null) || [])
     .map((n) => ({
@@ -660,29 +790,7 @@ const buildNoteTree = (childrenByParent, blocksMap, parentId = null) => {
       title: n.title,
       tags: n.tag_names || [],
       created_at: n.created_at,
-      blocks: (blocksMap[n.id] || []).map((b) => {
-        if (b.block_type === 'text') {
-          return { type: 'text', content: b.content };
-        }
-        if (b.block_type === 'callout') {
-          return { type: 'callout', content: b.content, metadata: b.metadata || {} };
-        }
-        if (b.block_type === 'image_gallery') {
-          return { type: 'image_gallery', images: b.images || [] };
-        }
-        if (b.block_type === 'image') {
-          return { type: 'image', image: (b.images || [])[0] || null };
-        }
-        if (b.block_type === 'trade_reference') {
-          return { type: 'trade_reference', trades: b.trades || [] };
-        }
-        return {
-          type: 'reference',
-          label: b.linked_note_title || b.metadata?.label || 'Referencia',
-          target_note_id: b.metadata?.target_note_id ?? b.linked_note_id ?? null,
-          target_block_id: b.metadata?.target_block_id ?? null,
-        };
-      }),
+      blocks: (blocksMap[n.id] || []).map((b) => ({ ...exportBlock(b), tags: b.tag_names || [] })),
       children: buildNoteTree(childrenByParent, blocksMap, n.id),
     }));
 };
@@ -700,6 +808,7 @@ const renderMarkdownTree = (childrenByParent, blocksMap, parentId = null, depth 
     lines.push('');
 
     for (const block of blocksMap[note.id] || []) {
+      const blockStart = lines.length;
       if (block.block_type === 'text' && block.content) {
         lines.push(block.content);
         lines.push('');
@@ -732,6 +841,14 @@ const renderMarkdownTree = (childrenByParent, blocksMap, parentId = null, depth 
           lines.push('');
         }
       }
+
+      // Tags del bloque, solo si emitió contenido. Cada rama ya cierra con una
+      // línea en blanco: sin ella la línea de tags quedaría dentro de un callout.
+      const emitted = lines.slice(blockStart).some((line) => line !== '');
+      if (emitted && block.tag_names?.length > 0) {
+        lines.push(`> Tags: ${block.tag_names.join(', ')}`);
+        lines.push('');
+      }
     }
 
     const childContent = renderMarkdownTree(childrenByParent, blocksMap, note.id, depth + 1);
@@ -755,7 +872,7 @@ export const exportAsJSON = async (userId) => {
     version: '1.0',
     total_notes: notes.length,
     total_tags: tags.length,
-    tags: tags.map((t) => ({ name: t.name, color: t.color })),
+    tags: tags.map((t) => ({ name: t.name, color: t.color, group: t.group_key })),
     notes: buildNoteTree(groupNotesByParent(notes), blocksMap, null),
   };
 };

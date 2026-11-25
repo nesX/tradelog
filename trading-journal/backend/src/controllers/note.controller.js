@@ -207,6 +207,28 @@ export const removeTags = async (req, res) => {
   sendSuccess(res, null, 'Tags removidos');
 };
 
+export const applyNoteTagsToBlocks = async (req, res) => {
+  const data = await noteService.applyNoteTagsToBlocks(req.user.id, parseInt(req.params.noteId, 10));
+  sendSuccess(res, data, 'Tags aplicados a los bloques');
+};
+
+// ============================================================
+// TAGS DE BLOQUE
+// ============================================================
+
+export const addBlockTag = async (req, res) => {
+  const blockId = parseInt(req.params.blockId, 10);
+  const data = await noteService.addBlockTag(req.user.id, blockId, req.body.tag_id);
+  sendSuccess(res, data, 'Tag agregado al bloque');
+};
+
+export const removeBlockTag = async (req, res) => {
+  const blockId = parseInt(req.params.blockId, 10);
+  const tagId = parseInt(req.params.tagId, 10);
+  const data = await noteService.removeBlockTag(req.user.id, blockId, tagId);
+  sendSuccess(res, data, 'Tag quitado del bloque');
+};
+
 // ============================================================
 // EXPORTACIÓN
 // ============================================================
@@ -250,6 +272,22 @@ export const toggleRevisit = async (req, res) => {
   const blockId = parseInt(req.params.blockId, 10);
   const block = await noteService.toggleRevisit(blockId, req.user.id, Boolean(req.body.marked_for_revisit));
   sendSuccess(res, block, 'Estado de repaso actualizado');
+};
+
+// ============================================================
+// REPASO POR TAG Y BLOQUE SUELTO
+// ============================================================
+
+export const getBlocksByTags = async (req, res) => {
+  // tag_ids ya validado como CSV de enteros por blocksByTagsSchema.
+  const tagIds = req.query.tag_ids.split(',').map(Number);
+  const data = await noteService.getBlocksByTags(req.user.id, tagIds);
+  sendSuccess(res, data);
+};
+
+export const getBlock = async (req, res) => {
+  const data = await noteService.getBlock(req.user.id, parseInt(req.params.blockId, 10));
+  sendSuccess(res, data);
 };
 
 export const getRevisit = async (req, res) => {

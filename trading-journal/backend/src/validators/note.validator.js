@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { TAG_GROUPS } from '../constants/tagGroups.js';
 
 export const createNoteSchema = Joi.object({
   title: Joi.string().max(500).optional().default('Sin título'),
@@ -76,11 +77,13 @@ export const reorderBlocksSchema = Joi.object({
 export const createTagSchema = Joi.object({
   name: Joi.string().max(100).trim().required(),
   color: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).optional(),
+  group_key: Joi.string().valid(...TAG_GROUPS).optional(),
 });
 
 export const updateTagSchema = Joi.object({
   name: Joi.string().max(100).trim().optional(),
   color: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).optional(),
+  group_key: Joi.string().valid(...TAG_GROUPS).optional(),
 });
 
 export const assignTagsSchema = Joi.object({
@@ -89,6 +92,15 @@ export const assignTagsSchema = Joi.object({
 
 export const removeTagsSchema = Joi.object({
   tag_ids: Joi.array().items(Joi.number().integer().positive()).min(1).required(),
+});
+
+export const blockTagSchema = Joi.object({
+  tag_id: Joi.number().integer().positive().required(),
+});
+
+// Repaso por tag: CSV de ids, como el tag_ids de la búsqueda pero requerido.
+export const blocksByTagsSchema = Joi.object({
+  tag_ids: Joi.string().pattern(/^\d+(,\d+)*$/).required(),
 });
 
 export const noteSearchSchema = Joi.object({

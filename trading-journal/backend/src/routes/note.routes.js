@@ -19,6 +19,8 @@ import {
   updateTagSchema,
   assignTagsSchema,
   removeTagsSchema,
+  blockTagSchema,
+  blocksByTagsSchema,
   updateImageCaptionSchema,
   reorderImagesSchema,
   noteSearchSchema,
@@ -56,9 +58,12 @@ router.patch('/tags/:tagId', validate(updateTagSchema), ctrl.updateTag);
 router.delete('/tags/:tagId', ctrl.deleteTag);
 
 // Bloques (rutas sin noteId param)
-// Rutas estáticas /blocks/review y /blocks/revisit ANTES de /blocks/:blockId para evitar conflictos
+// Rutas estáticas /blocks/review, /blocks/revisit y /blocks/by-tags ANTES de /blocks/:blockId
+// para evitar conflictos
 router.get('/blocks/review', validate(noteReviewSchema, 'query'), ctrl.getReview);
 router.get('/blocks/revisit', validate(noteRevisitSchema, 'query'), ctrl.getRevisit);
+router.get('/blocks/by-tags', validate(blocksByTagsSchema, 'query'), ctrl.getBlocksByTags);
+router.get('/blocks/:blockId', ctrl.getBlock);
 router.patch('/blocks/:blockId', validate(updateBlockSchema), ctrl.updateBlock);
 router.patch('/blocks/:blockId/metadata', validate(updateBlockMetadataSchema), ctrl.updateBlockMetadata);
 router.patch('/blocks/:blockId/move-dnd', validate(moveBlockDndSchema), ctrl.moveBlockDnd);
@@ -82,6 +87,10 @@ router.delete('/images/:imageId', ctrl.deleteImage);
 router.post('/blocks/:blockId/trades', validate(addTradeToBlockSchema), ctrl.addTradeToBlock);
 router.delete('/blocks/:blockId/trades/:tradeId', ctrl.removeTradeFromBlock);
 
+// Tags de un bloque (de a uno, idempotentes)
+router.post('/blocks/:blockId/tags', validate(blockTagSchema), ctrl.addBlockTag);
+router.delete('/blocks/:blockId/tags/:tagId', ctrl.removeBlockTag);
+
 // ---------------------------------------------------------------
 // CRUD de notas
 // ---------------------------------------------------------------
@@ -97,6 +106,7 @@ router.patch('/:id/move-dnd', validate(moveDndNoteSchema), ctrl.moveDndNote);
 // Tags asignados a una nota
 router.post('/:noteId/tags', validate(assignTagsSchema), ctrl.assignTags);
 router.delete('/:noteId/tags', validate(removeTagsSchema), ctrl.removeTags);
+router.post('/:noteId/tags/apply-to-blocks', ctrl.applyNoteTagsToBlocks);
 
 // Bloques dentro de una nota
 router.post('/:noteId/blocks', validate(createBlockSchema), ctrl.createBlock);

@@ -1,5 +1,11 @@
 import { pool } from '../config/database.js';
 import { generateKeyBetween } from 'fractional-indexing';
+import { TAG_GROUPS, DEFAULT_TAG_GROUP } from '../constants/tagGroups.js';
+
+// Orden canónico de los tags: por grupo según TAG_GROUPS (que va como parámetro
+// `groupsParam`, nunca concatenado) y luego por nombre. `alias` es el de note_tags.
+const tagOrder = (alias, groupsParam) =>
+  `array_position(${groupsParam}::text[], ${alias}.group_key::text), LOWER(${alias}.name)`;
 
 // ============================================================
 // NOTAS
@@ -38,47 +44,28 @@ export const getById = async (userId, noteId) => {
   if (noteResult.rows.length === 0) return null;
 
   const blocksResult = await pool.query(
-    `SELECT nb.*,
-      COALESCE(
-        (SELECT json_agg(
-          json_build_object('id', nbi.id, 'image_path', nbi.image_path, 'caption', nbi.caption, 'position', nbi.position, 'created_at', nbi.created_at)
-          ORDER BY nbi.position ASC
-        )
-        FROM note_block_images nbi WHERE nbi.block_id = nb.id), '[]'
-      ) as images,
-      COALESCE(
-        (SELECT json_agg(
-          json_build_object(
-            'id', t.id,
-            'symbol', t.symbol,
-            'side', t.trade_type,
-            'status', t.status,
-            'pnl', t.pnl,
-            'pnl_percentage', t.pnl_percentage,
-            'entry_date', t.entry_date,
-            'first_image', (SELECT ti.filename FROM trade_images ti
-                            WHERE ti.trade_id = t.id ORDER BY ti.id ASC LIMIT 1)
-          ) ORDER BY nbt.position ASC
-        )
-        FROM note_block_trades nbt
-        LEFT JOIN trades t ON t.id = nbt.trade_id AND t.deleted_at IS NULL
-        WHERE nbt.block_id = nb.id), '[]'
-      ) as trades,
-      ${blockReminderColumns('nb.id', 'block_id')},
-      ln.title as linked_note_title
+    `SELECT ${BLOCK_DETAIL_COLUMNS}
     FROM note_blocks nb
-    LEFT JOIN notes ln ON ln.id = nb.linked_note_id AND ln.deleted_at IS NULL AND ln.user_id = $2
+    ${LINKED_NOTE_JOIN}
     WHERE nb.note_id = $1
     ORDER BY nb.position COLLATE "C" ASC`,
     [noteId, userId]
   );
 
+  // Tags de todos los bloques en una sola query (nunca una por bloque).
+  const blockTags = await getBlockTags(
+    blocksResult.rows.map((b) => b.id),
+    userId
+  );
+  for (const block of blocksResult.rows) block.tags = blockTags.get(block.id) ?? [];
+
   const tagsResult = await pool.query(
-    `SELECT nt.id, nt.name, nt.color
+    `SELECT nt.id, nt.name, nt.color, nt.group_key
     FROM note_tag_assignments nta
     JOIN note_tags nt ON nt.id = nta.tag_id
-    WHERE nta.note_id = $1`,
-    [noteId]
+    WHERE nta.note_id = $1
+    ORDER BY ${tagOrder('nt', '$2')}`,
+    [noteId, TAG_GROUPS]
   );
 
   // Alertas y recordatorios de nivel nota (los de bloque van en cada bloque)
@@ -128,6 +115,64 @@ const blockReminderColumns = (anchorExpr, anchorColumn) => `
         FROM date_reminders dr
         WHERE dr.${anchorColumn} = ${anchorExpr}), '[]'
       ) as date_reminders`;
+
+// Columnas de un bloque tal como las ve el editor: la fila, sus imágenes, trades,
+// recordatorios y el título de la sub-nota enlazada. Las comparten getById (todos
+// los bloques de una nota) y getBlockDetail (un bloque suelto, para el visor), así
+// los dos devuelven el mismo shape. Van con LINKED_NOTE_JOIN, que usa $2 = user_id.
+const BLOCK_DETAIL_COLUMNS = `nb.*,
+      COALESCE(
+        (SELECT json_agg(
+          json_build_object('id', nbi.id, 'image_path', nbi.image_path, 'caption', nbi.caption, 'position', nbi.position, 'created_at', nbi.created_at)
+          ORDER BY nbi.position ASC
+        )
+        FROM note_block_images nbi WHERE nbi.block_id = nb.id), '[]'
+      ) as images,
+      COALESCE(
+        (SELECT json_agg(
+          json_build_object(
+            'id', t.id,
+            'symbol', t.symbol,
+            'side', t.trade_type,
+            'status', t.status,
+            'pnl', t.pnl,
+            'pnl_percentage', t.pnl_percentage,
+            'entry_date', t.entry_date,
+            'first_image', (SELECT ti.filename FROM trade_images ti
+                            WHERE ti.trade_id = t.id ORDER BY ti.id ASC LIMIT 1)
+          ) ORDER BY nbt.position ASC
+        )
+        FROM note_block_trades nbt
+        LEFT JOIN trades t ON t.id = nbt.trade_id AND t.deleted_at IS NULL
+        WHERE nbt.block_id = nb.id), '[]'
+      ) as trades,
+      ${blockReminderColumns('nb.id', 'block_id')},
+      ln.title as linked_note_title`;
+
+const LINKED_NOTE_JOIN = `LEFT JOIN notes ln ON ln.id = nb.linked_note_id AND ln.deleted_at IS NULL AND ln.user_id = $2`;
+
+/**
+ * Un bloque suelto con el mismo shape que cada elemento de `blocks` en getById,
+ * más `tags` y `note: { id, title }`. null si el bloque no es del usuario o su
+ * nota está en la papelera.
+ */
+export const getBlockDetail = async (userId, blockId) => {
+  const result = await pool.query(
+    `SELECT ${BLOCK_DETAIL_COLUMNS}, n.title AS note_title
+    FROM note_blocks nb
+    JOIN notes n ON n.id = nb.note_id AND n.user_id = $2 AND n.deleted_at IS NULL
+    ${LINKED_NOTE_JOIN}
+    WHERE nb.id = $1`,
+    [blockId, userId]
+  );
+  if (result.rows.length === 0) return null;
+
+  const { note_title: noteTitle, ...block } = result.rows[0];
+  const blockTags = await getBlockTags([block.id], userId);
+  block.tags = blockTags.get(block.id) ?? [];
+  block.note = { id: block.note_id, title: noteTitle };
+  return block;
+};
 
 export const create = async (userId, { title = 'Sin título', parent_note_id = null, type = 'note' }, exec = pool) => {
 
@@ -764,17 +809,18 @@ export const removeTradeFromBlock = async (blockId, tradeId) => {
 // ============================================================
 
 export const getTags = async (userId) => {
+  // Orden por nombre (no el canónico): el frontend agrupa por group_key.
   const result = await pool.query(
-    `SELECT id, name, color, created_at FROM note_tags WHERE user_id = $1 ORDER BY name ASC`,
+    `SELECT id, name, color, group_key, created_at FROM note_tags WHERE user_id = $1 ORDER BY name ASC`,
     [userId]
   );
   return result.rows;
 };
 
-export const createTag = async (userId, { name, color }) => {
+export const createTag = async (userId, { name, color, group_key }) => {
   const result = await pool.query(
-    `INSERT INTO note_tags (user_id, name, color) VALUES ($1, $2, $3) RETURNING *`,
-    [userId, name, color || '#6B7280']
+    `INSERT INTO note_tags (user_id, name, color, group_key) VALUES ($1, $2, $3, $4) RETURNING *`,
+    [userId, name, color || '#6B7280', group_key || DEFAULT_TAG_GROUP]
   );
   return result.rows[0];
 };
@@ -795,12 +841,13 @@ export const getTagById = async (userId, tagId) => {
   return result.rows[0] || null;
 };
 
-export const updateTag = async (userId, tagId, { name, color }) => {
+export const updateTag = async (userId, tagId, { name, color, group_key }) => {
   const fields = [];
   const values = [];
   let idx = 1;
   if (name !== undefined) { fields.push(`name = $${idx++}`); values.push(name); }
   if (color !== undefined) { fields.push(`color = $${idx++}`); values.push(color); }
+  if (group_key !== undefined) { fields.push(`group_key = $${idx++}`); values.push(group_key); }
   if (fields.length === 0) return await getTagById(userId, tagId);
 
   values.push(tagId, userId);
@@ -852,8 +899,126 @@ export const removeTags = async (noteId, tagIds) => {
 
 export const getTagsByIds = async (userId, tagIds) => {
   const result = await pool.query(
-    `SELECT id FROM note_tags WHERE id = ANY($1) AND user_id = $2`,
+    `SELECT id, group_key FROM note_tags WHERE id = ANY($1) AND user_id = $2`,
     [tagIds, userId]
+  );
+  return result.rows;
+};
+
+// ============================================================
+// TAGS DE BLOQUE
+// ============================================================
+// note_blocks no tiene user_id: el dueño se comprueba por su nota.
+
+/**
+ * Tags de varios bloques en una sola query, en orden canónico. Devuelve un Map
+ * block_id → [{ id, name, color, group_key }]; los bloques sin tags no aparecen.
+ */
+export const getBlockTags = async (blockIds, userId, exec = pool) => {
+  const map = new Map();
+  if (!blockIds || blockIds.length === 0) return map;
+  const result = await exec.query(
+    `SELECT a.block_id, t.id, t.name, t.color, t.group_key
+     FROM note_block_tag_assignments a
+     JOIN note_tags t ON t.id = a.tag_id AND t.user_id = $2
+     WHERE a.block_id = ANY($1::int[])
+     ORDER BY ${tagOrder('t', '$3')}`,
+    [blockIds, userId, TAG_GROUPS]
+  );
+  for (const { block_id: blockId, ...tag } of result.rows) {
+    if (!map.has(blockId)) map.set(blockId, []);
+    map.get(blockId).push(tag);
+  }
+  return map;
+};
+
+// Idempotente: si el tag ya estaba, no inserta nada.
+export const addBlockTag = async (blockId, tagId, userId) => {
+  await pool.query(
+    `INSERT INTO note_block_tag_assignments (block_id, tag_id)
+     SELECT b.id, t.id
+     FROM note_blocks b
+     JOIN notes n ON n.id = b.note_id AND n.user_id = $3 AND n.deleted_at IS NULL
+     JOIN note_tags t ON t.id = $2 AND t.user_id = $3
+     WHERE b.id = $1
+     ON CONFLICT DO NOTHING`,
+    [blockId, tagId, userId]
+  );
+};
+
+export const removeBlockTag = async (blockId, tagId, userId) => {
+  await pool.query(
+    `DELETE FROM note_block_tag_assignments a
+     USING note_blocks b, notes n
+     WHERE a.block_id = b.id AND b.note_id = n.id
+       AND b.id = $1 AND a.tag_id = $2 AND n.user_id = $3`,
+    [blockId, tagId, userId]
+  );
+};
+
+// Tags por defecto de un bloque nuevo: copia los de su nota (§4.4 del spec).
+export const copyNoteTagsToBlock = async (blockId, noteId, userId, exec = pool) => {
+  await exec.query(
+    `INSERT INTO note_block_tag_assignments (block_id, tag_id)
+     SELECT $1::int, nta.tag_id
+     FROM note_tag_assignments nta
+     JOIN note_tags t ON t.id = nta.tag_id AND t.user_id = $3
+     WHERE nta.note_id = $2
+     ON CONFLICT DO NOTHING`,
+    [blockId, noteId, userId]
+  );
+};
+
+/**
+ * Agrega los tags de la nota a sus bloques directos que no son referencias. Solo
+ * agrega, nunca quita. Devuelve el block_id de cada asignación creada (un bloque
+ * aparece una vez por tag nuevo).
+ */
+export const applyNoteTagsToBlocks = async (noteId, userId) => {
+  const result = await pool.query(
+    `INSERT INTO note_block_tag_assignments (block_id, tag_id)
+     SELECT b.id, nta.tag_id
+     FROM note_blocks b
+     JOIN notes n ON n.id = b.note_id AND n.user_id = $2 AND n.deleted_at IS NULL
+     JOIN note_tag_assignments nta ON nta.note_id = b.note_id
+     JOIN note_tags t ON t.id = nta.tag_id AND t.user_id = $2
+     WHERE b.note_id = $1 AND b.block_type <> 'reference'
+     ON CONFLICT DO NOTHING
+     RETURNING block_id`,
+    [noteId, userId]
+  );
+  return result.rows.map((r) => r.block_id);
+};
+
+/**
+ * Repaso por tag: bloques con al menos un tag seleccionado de CADA grupo presente
+ * en la selección (OR dentro de un grupo, AND entre grupos). `groupCount` es el
+ * número de grupos distintos entre `tagIds`. Excluye referencias, notas en la
+ * papelera y las notas ocultas de los pendientes. Cada fila lleva `total` (todas
+ * las que cumplen, antes del LIMIT).
+ */
+export const findBlocksByTags = async (userId, tagIds, groupCount, limit) => {
+  const result = await pool.query(
+    `WITH matched AS (
+       SELECT a.block_id
+       FROM note_block_tag_assignments a
+       JOIN note_tags t ON t.id = a.tag_id AND t.user_id = $1
+       WHERE a.tag_id = ANY($2::int[])
+       GROUP BY a.block_id
+       HAVING COUNT(DISTINCT t.group_key) = $3
+     )
+     SELECT b.id AS block_id, b.note_id, n.title AS note_title, b.block_type,
+            CASE WHEN b.block_type IN ('text', 'callout') THEN LEFT(b.content, 140) END AS preview,
+            b.created_at, b.updated_at, b.marked_for_revisit,
+            (COUNT(*) OVER ())::int AS total
+     FROM matched m
+     JOIN note_blocks b ON b.id = m.block_id
+     JOIN notes n ON n.id = b.note_id AND n.user_id = $1
+                 AND n.deleted_at IS NULL AND n.type = 'note'
+     WHERE b.block_type <> 'reference'
+     ORDER BY b.created_at DESC, b.id DESC
+     LIMIT $4`,
+    [userId, tagIds, groupCount, limit]
   );
   return result.rows;
 };
@@ -862,8 +1027,13 @@ export const getTagsByIds = async (userId, tagIds) => {
 // BÚSQUEDA
 // ============================================================
 
-const TAGS_AGG = `COALESCE(
-    (SELECT json_agg(json_build_object('id', nt.id, 'name', nt.name, 'color', nt.color))
+// Tags de cada nota en orden canónico. `groupsParam` es el placeholder de
+// TAG_GROUPS, distinto en cada query que lo usa.
+const tagsAgg = (groupsParam) => `COALESCE(
+    (SELECT json_agg(
+       json_build_object('id', nt.id, 'name', nt.name, 'color', nt.color, 'group_key', nt.group_key)
+       ORDER BY ${tagOrder('nt', groupsParam)}
+     )
      FROM note_tag_assignments nta
      JOIN note_tags nt ON nt.id = nta.tag_id
      WHERE nta.note_id = n.id), '[]'
@@ -906,7 +1076,7 @@ const FTS_QUERY = `
       'MaxWords=8, MinWords=3, MaxFragments=1') AS title_headline,
     COALESCE(ts_headline('spanish', COALESCE(nb.content_agg, ''), websearch_to_tsquery('spanish', $1),
       'MaxWords=20, MinWords=5, MaxFragments=2, FragmentDelimiter=" … "'), '') AS content_snippet,
-    ${TAGS_AGG} AS tags
+    ${tagsAgg('$5')} AS tags
   FROM notes n
   LEFT JOIN LATERAL (
     SELECT
@@ -934,7 +1104,7 @@ const TAG_ONLY_QUERY = `
     0 AS rank,
     n.title AS title_headline,
     '' AS content_snippet,
-    ${TAGS_AGG} AS tags
+    ${tagsAgg('$4')} AS tags
   FROM notes n
   WHERE
     n.user_id = $1
@@ -947,10 +1117,10 @@ const TAG_ONLY_QUERY = `
 
 export const search = async (userId, { q = '', tagIds = [], limit = 30 }) => {
   if (q) {
-    const result = await pool.query(FTS_QUERY, [q, userId, tagIds, limit]);
+    const result = await pool.query(FTS_QUERY, [q, userId, tagIds, limit, TAG_GROUPS]);
     return result.rows;
   }
-  const result = await pool.query(TAG_ONLY_QUERY, [userId, tagIds, limit]);
+  const result = await pool.query(TAG_ONLY_QUERY, [userId, tagIds, limit, TAG_GROUPS]);
   return result.rows;
 };
 
@@ -962,7 +1132,7 @@ export const getFullTree = async (userId) => {
   const notesResult = await pool.query(
     `SELECT n.id, n.parent_note_id, n.title, n.position, n.created_at,
       COALESCE(
-        (SELECT json_agg(nt.name ORDER BY nt.name)
+        (SELECT json_agg(nt.name ORDER BY ${tagOrder('nt', '$2')})
          FROM note_tag_assignments nta
          JOIN note_tags nt ON nt.id = nta.tag_id
          WHERE nta.note_id = n.id), '[]'
@@ -970,11 +1140,11 @@ export const getFullTree = async (userId) => {
     FROM notes n
     WHERE n.user_id = $1 AND n.deleted_at IS NULL AND n.type = 'note'
     ORDER BY n.position COLLATE "C" ASC, n.created_at ASC`,
-    [userId]
+    [userId, TAG_GROUPS]
   );
 
   const blocksResult = await pool.query(
-    `SELECT nb.id, nb.note_id, nb.block_type, nb.content, nb.linked_note_id, nb.position,
+    `SELECT nb.id, nb.note_id, nb.block_type, nb.content, nb.metadata, nb.linked_note_id, nb.position,
       ln.title as linked_note_title,
       COALESCE(
         (SELECT json_agg(
@@ -1001,9 +1171,25 @@ export const getFullTree = async (userId) => {
   );
 
   const tagsResult = await pool.query(
-    `SELECT id, name, color FROM note_tags WHERE user_id = $1 ORDER BY name ASC`,
+    `SELECT id, name, color, group_key FROM note_tags WHERE user_id = $1 ORDER BY name ASC`,
     [userId]
   );
+
+  // Todas las asignaciones de bloques del usuario en una sola query, en orden
+  // canónico dentro de cada bloque: cada bloque recibe `tag_names`.
+  const blockTagsResult = await pool.query(
+    `SELECT a.block_id, t.name
+     FROM note_block_tag_assignments a
+     JOIN note_tags t ON t.id = a.tag_id AND t.user_id = $1
+     ORDER BY a.block_id, ${tagOrder('t', '$2')}`,
+    [userId, TAG_GROUPS]
+  );
+  const tagNamesByBlock = new Map();
+  for (const { block_id: blockId, name } of blockTagsResult.rows) {
+    if (!tagNamesByBlock.has(blockId)) tagNamesByBlock.set(blockId, []);
+    tagNamesByBlock.get(blockId).push(name);
+  }
+  for (const block of blocksResult.rows) block.tag_names = tagNamesByBlock.get(block.id) ?? [];
 
   return {
     notes: notesResult.rows,
