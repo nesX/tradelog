@@ -5,6 +5,7 @@ import ImageViewer from '../common/ImageViewer.jsx';
 import { compressImage } from '../../utils/imageCompression.js';
 import { sortByLastModified } from '../../utils/fileOrder.js';
 import { useToast } from '../common/Toast.jsx';
+import { useReportOpen } from '../../hooks/useReportOpen.js';
 
 const MAX_SIZE_BEFORE_COMPRESSION = 5 * 1024 * 1024; // 5MB
 
@@ -19,7 +20,15 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString('es', { day: '2-digit', month: 'short' });
 };
 
-const NoteImageGalleryBlock = ({ block, noteId }) => {
+const formatAnalysisDate = (dateStr) =>
+  new Date(dateStr).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
+
+/**
+ * Galería de imágenes con fecha de análisis y símbolos. En `readOnly` (visor de
+ * repaso) las imágenes se ven grandes, una debajo de otra, sin subir, borrar ni
+ * editar; `onLightboxChange(open)` avisa cuando se abre o cierra el visor.
+ */
+const NoteImageGalleryBlock = ({ block, noteId, readOnly = false, onLightboxChange }) => {
   const addImage = useAddImage();
   const deleteImage = useDeleteImage();
   const updateMetadata = useUpdateBlockMetadata();
@@ -28,6 +37,7 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
 
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerStartIndex, setViewerStartIndex] = useState(0);
+  useReportOpen(viewerOpen, onLightboxChange);
 
   // Estado local del footer de metadatos
   const meta = block.metadata || {};
@@ -96,6 +106,59 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
   const removeSymbol = (sym) => setSymbols((prev) => prev.filter((s) => s !== sym));
 
   const hasMetadata = meta.analysis_date || (meta.symbols && meta.symbols.length > 0);
+
+  const viewer = viewerImages.length > 0 && (
+    <ImageViewer
+      images={viewerImages}
+      alt="Imagen de nota"
+      thumbnailSize="hidden"
+      className="hidden"
+      externalOpen={viewerOpen}
+      onExternalOpenChange={setViewerOpen}
+      startIndex={viewerStartIndex}
+    />
+  );
+
+  if (readOnly) {
+    return (
+      <div className="py-2 px-4 space-y-3">
+        {images.length === 0 ? (
+          <p className="py-6 text-center text-sm italic text-gray-400 dark:text-gray-500">Sin imágenes</p>
+        ) : (
+          images.map((img, idx) => (
+            <button
+              key={img.id}
+              onClick={() => openViewer(idx)}
+              className="block w-full rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-400"
+              title="Ver en grande"
+            >
+              <img
+                src={`${API_BASE}/api/images/${img.image_path}`}
+                alt={`Imagen ${idx + 1}`}
+                className="block mx-auto max-w-full max-h-[75vh] object-contain"
+              />
+            </button>
+          ))
+        )}
+        {hasMetadata && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {meta.analysis_date && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">{formatAnalysisDate(meta.analysis_date)}</span>
+            )}
+            {meta.symbols?.map((s) => (
+              <span
+                key={s}
+                className="text-xs px-1.5 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-mono"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        )}
+        {viewer}
+      </div>
+    );
+  }
 
   return (
     <div className="py-2 px-4">
@@ -264,7 +327,7 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
             <>
               {meta.analysis_date && (
                 <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                  {new Date(meta.analysis_date).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {formatAnalysisDate(meta.analysis_date)}
                 </span>
               )}
               {meta.symbols?.map((s) => (
@@ -293,17 +356,7 @@ const NoteImageGalleryBlock = ({ block, noteId }) => {
         onChange={handleFileChange}
       />
 
-      {viewerImages.length > 0 && (
-        <ImageViewer
-          images={viewerImages}
-          alt="Imagen de nota"
-          thumbnailSize="hidden"
-          className="hidden"
-          externalOpen={viewerOpen}
-          onExternalOpenChange={setViewerOpen}
-          startIndex={viewerStartIndex}
-        />
-      )}
+      {viewer}
     </div>
   );
 };

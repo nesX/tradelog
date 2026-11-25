@@ -7,6 +7,7 @@ import {
   Flag,
   BookMarked,
   BellRing,
+  Tag,
   Link2,
   FileOutput,
   Trash2,
@@ -31,8 +32,9 @@ import { hasArmedReminders } from '../../utils/reminders.js';
  * Solo visible en dispositivos sin hover (variante `touch:`); en desktop
  * siguen los controles flotantes de siempre.
  *
- * `noteActions` = false oculta seguimiento, repaso, recordatorios, copiar
+ * `noteActions` = false oculta seguimiento, repaso, recordatorios, tags, copiar
  * referencia y mover (el contenido de un pendiente no participa de esas vistas).
+ * `onOpenTags` es null en los bloques que no llevan tags (referencias).
  */
 const BlockTouchMenu = ({
   block,
@@ -40,6 +42,7 @@ const BlockTouchMenu = ({
   position,
   onOpenMove,
   onOpenReminder,
+  onOpenTags = null,
   onDelete,
   dragListeners,
   topClass = 'top-1/2',
@@ -181,6 +184,21 @@ const BlockTouchMenu = ({
                     />
                     Recordatorio
                   </button>
+                  {onOpenTags && (
+                    <button
+                      onClick={() => {
+                        closeMenu();
+                        onOpenTags();
+                      }}
+                      className={itemClass}
+                    >
+                      <Tag
+                        className="w-4 h-4 text-teal-600"
+                        fill={(block.tags || []).length > 0 ? 'currentColor' : 'none'}
+                      />
+                      Tags
+                    </button>
+                  )}
                   {block.block_type !== 'reference' && (
                     <button onClick={handleCopyReference} className={itemClass}>
                       <Link2 className="w-4 h-4 text-blue-500" />

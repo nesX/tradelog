@@ -36,7 +36,44 @@ const DOT_COLORS = {
   note:    'bg-gray-500',
 };
 
-const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => {
+// Markdown del destacado: lo comparten la vista previa del editor y la solo lectura.
+const CalloutMarkdown = ({ value }) => (
+  <div
+    className="prose prose-sm dark:prose-invert max-w-none
+               text-gray-800 dark:text-gray-200
+               prose-headings:font-semibold prose-headings:text-gray-900 dark:prose-headings:text-white
+               prose-code:bg-white/60 dark:prose-code:bg-black/20
+               prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+               prose-code:text-sm prose-code:font-mono"
+  >
+    <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS} components={MARKDOWN_COMPONENTS}>
+      {normalizeDirectiveNesting(value)}
+    </ReactMarkdown>
+  </div>
+);
+
+// Solo lectura (visor de repaso): sin selector de estilo, sin edición ni autosave.
+const ReadOnlyCalloutBlock = ({ block }) => {
+  const metadata = block.metadata || {};
+  const { bg, border, label } = CALLOUT_STYLES[metadata.style] || CALLOUT_STYLES.info;
+  return (
+    <div className={`border-l-4 rounded-r-xl ${bg} ${border} px-4 pt-3 pb-3`}>
+      <div className="flex items-center gap-2 mb-2">
+        {metadata.icon && <span className="text-base leading-none">{metadata.icon}</span>}
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+          {label}
+        </span>
+      </div>
+      {block.content ? (
+        <CalloutMarkdown value={block.content} />
+      ) : (
+        <p className="text-sm leading-6 text-gray-400 dark:text-gray-500 italic">Sin contenido</p>
+      )}
+    </div>
+  );
+};
+
+const EditableCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => {
   const { value, editing, startEditing, textareaRef, handleChange, handleBlur } =
     useAutosaveTextarea({ block, onUpdate });
   // Con contenido, doble click para editar; vacío, basta un click.
@@ -102,18 +139,7 @@ const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => 
           className="cursor-text touch-manipulation min-h-[32px]"
         >
           {value ? (
-            <div
-              className="prose prose-sm dark:prose-invert max-w-none
-                         text-gray-800 dark:text-gray-200
-                         prose-headings:font-semibold prose-headings:text-gray-900 dark:prose-headings:text-white
-                         prose-code:bg-white/60 dark:prose-code:bg-black/20
-                         prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-                         prose-code:text-sm prose-code:font-mono"
-            >
-              <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS} components={MARKDOWN_COMPONENTS}>
-                {normalizeDirectiveNesting(value)}
-              </ReactMarkdown>
-            </div>
+            <CalloutMarkdown value={value} />
           ) : (
             <p className="text-sm leading-6 text-gray-400 dark:text-gray-500 italic select-none">
               Haz click para escribir...
@@ -127,5 +153,8 @@ const NoteCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus }) => 
     </div>
   );
 };
+
+const NoteCalloutBlock = ({ readOnly = false, ...props }) =>
+  readOnly ? <ReadOnlyCalloutBlock block={props.block} /> : <EditableCalloutBlock {...props} />;
 
 export default NoteCalloutBlock;

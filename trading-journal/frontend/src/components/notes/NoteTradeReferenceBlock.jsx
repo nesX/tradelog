@@ -9,6 +9,7 @@ import { useTrade } from '../../hooks/useTrades.js';
 import ImageViewer from '../common/ImageViewer.jsx';
 import { useToast } from '../common/Toast.jsx';
 import { formatPercentage } from '../../utils/formatters.js';
+import { useReportOpen } from '../../hooks/useReportOpen.js';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -25,9 +26,10 @@ const sideBadgeClass = (side) =>
     : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
 
 // ---------------------------------------------------------------
-// Card: muestra una tarjeta compacta del trade. Click → modal.
+// Card: muestra una tarjeta compacta del trade. Click → modal. Sin `onRemove`
+// (solo lectura) no muestra el botón de quitar.
 // ---------------------------------------------------------------
-const TradeCard = ({ trade, onOpen, onRemove }) => {
+const TradeCard = ({ trade, onOpen, onRemove = null }) => {
   // LEFT JOIN puede devolver null si el trade fue borrado (soft delete)
   if (!trade || !trade.id) {
     return (
@@ -89,16 +91,18 @@ const TradeCard = ({ trade, onOpen, onRemove }) => {
         </div>
       </button>
 
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove();
-        }}
-        className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-        title="Remover trade del bloque"
-      >
-        <X className="w-3 h-3" />
-      </button>
+      {onRemove && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+          title="Remover trade del bloque"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
     </div>
   );
 };
@@ -126,14 +130,17 @@ const TradeDetailModal = ({ tradeId, isOpen, onClose }) => {
 };
 
 // ---------------------------------------------------------------
-// Bloque principal: galería horizontal de trades + input "+"
+// Bloque principal: galería horizontal de trades + input "+". En `readOnly`
+// (visor de repaso) solo se abren los trades; `onLightboxChange(open)` avisa
+// cuando se abre o cierra el detalle de un trade.
 // ---------------------------------------------------------------
-const NoteTradeReferenceBlock = ({ block, noteId }) => {
+const NoteTradeReferenceBlock = ({ block, noteId, readOnly = false, onLightboxChange }) => {
   const trades = block.trades || [];
   const [urlInput, setUrlInput] = useState('');
   const [parseError, setParseError] = useState(null);
   const [openTradeId, setOpenTradeId] = useState(null);
   const [showInput, setShowInput] = useState(trades.length === 0);
+  useReportOpen(openTradeId != null, onLightboxChange);
 
   const addTrade = useAddTradeToBlock();
   const removeTrade = useRemoveTradeFromBlock();
@@ -180,12 +187,16 @@ const NoteTradeReferenceBlock = ({ block, noteId }) => {
             key={trade?.id ?? `null-${idx}`}
             trade={trade}
             onOpen={() => trade?.id && setOpenTradeId(trade.id)}
-            onRemove={() => trade?.id && handleRemove(trade.id)}
+            onRemove={readOnly ? null : () => trade?.id && handleRemove(trade.id)}
           />
         ))}
 
+        {readOnly && trades.length === 0 && (
+          <p className="py-4 text-sm italic text-gray-400 dark:text-gray-500">Sin trades</p>
+        )}
+
         {/* Tile "+" / input para pegar URL */}
-        {showInput ? (
+        {readOnly ? null : showInput ? (
           <div className="flex-shrink-0 w-[180px] flex flex-col gap-1">
             <input
               type="text"

@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Trash2, GripVertical, FileOutput } from 'lucide-react';
+import { Trash2, GripVertical, FileOutput, Tag } from 'lucide-react';
 import { BlockFollowUpToggle } from './BlockFollowUpToggle.jsx';
 import { BlockRevisitToggle } from './BlockRevisitToggle.jsx';
 import { BlockReminderToggle } from './BlockReminderToggle.jsx';
 import { ReminderChips } from './ReminderChip.jsx';
 import ReminderModal from './ReminderModal.jsx';
+import BlockTags from './BlockTags.jsx';
 import {
   DndContext,
   DragOverlay,
@@ -22,12 +23,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import NoteTextBlock from './NoteTextBlock.jsx';
-import NoteCalloutBlock from './NoteCalloutBlock.jsx';
-import NoteImageGalleryBlock from './NoteImageGalleryBlock.jsx';
-import NoteImageBlock from './NoteImageBlock.jsx';
-import NoteReferenceBlock from './NoteReferenceBlock.jsx';
-import NoteTradeReferenceBlock from './NoteTradeReferenceBlock.jsx';
+import BlockContent from './BlockContent.jsx';
 import CopyReferenceButton from './CopyReferenceButton.jsx';
 import NoteBlockInsert from './NoteBlockInsert.jsx';
 import NoteBlockAddButton from './NoteBlockAddButton.jsx';
@@ -38,52 +34,6 @@ import { useDeleteBlock, useUpdateBlock, useUpdateBlockMetadata, useMoveBlockDnd
 import { BLOCK_OPTIONS } from '../../hooks/useBlockInserter.js';
 import { subtreeIds } from '../../utils/notesGrouping.js';
 
-function BlockContent({ block, noteId, onUpdate, onUpdateMetadata, saveStatus }) {
-  // Inset horizontal uniforme (16px por lado) para todos los tipos: el borde
-  // visible de cada bloque queda alineado con el contenido del bloque de texto
-  // (que ya lleva px-4 propio, por eso es el único sin padding del wrapper).
-  return (
-    <div
-      className={`rounded-xl overflow-hidden${block.block_type === 'callout' ? ' my-3 px-4' : ''}`}
-    >
-      {block.block_type === 'text' && (
-        <NoteTextBlock
-          block={block}
-          onUpdate={(content) => onUpdate(block.id, content)}
-          saveStatus={saveStatus}
-        />
-      )}
-      {block.block_type === 'callout' && (
-        <NoteCalloutBlock
-          block={block}
-          onUpdate={(content) => onUpdate(block.id, content)}
-          onUpdateMetadata={(metadata) => onUpdateMetadata(block.id, metadata)}
-          saveStatus={saveStatus}
-        />
-      )}
-      {block.block_type === 'image_gallery' && (
-        <NoteImageGalleryBlock block={block} noteId={noteId} />
-      )}
-      {block.block_type === 'image' && (
-        <NoteImageBlock block={block} noteId={noteId} />
-      )}
-      {block.block_type === 'reference' && (
-        <div className="px-4 py-1.5">
-          <NoteReferenceBlock
-            block={block}
-            onUpdateMetadata={(metadata) => onUpdateMetadata(block.id, metadata)}
-          />
-        </div>
-      )}
-      {block.block_type === 'trade_reference' && (
-        <div className="px-4 py-1.5">
-          <NoteTradeReferenceBlock block={block} noteId={noteId} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 function SortableBlockItem({
   block,
   noteId,
@@ -93,10 +43,15 @@ function SortableBlockItem({
   onUpdateMetadata,
   onOpenMove,
   onOpenReminder,
+  tagsOpen,
+  onOpenTags,
   saveStatus,
   blockOptions,
   noteActions,
 }) {
+  // Los bloques de referencia no llevan tags (ni botón ni fila).
+  const taggable = noteActions && block.block_type !== 'reference';
+  const hasTags = (block.tags || []).length > 0;
   const { attributes, isDragging, listeners, setNodeRef, setActivatorNodeRef, transform, transition } = useSortable({ id: block.id });
 
   const style = {
@@ -142,6 +97,7 @@ function SortableBlockItem({
           position={idx + 1}
           onOpenMove={onOpenMove}
           onOpenReminder={onOpenReminder}
+          onOpenTags={taggable ? () => onOpenTags(block.id) : null}
           onDelete={onDelete}
           dragListeners={listeners}
           topClass={actionTop}
@@ -149,7 +105,7 @@ function SortableBlockItem({
           noteActions={noteActions}
         />
 
-        {/* Floating actions (grid 2x2), solo desktop (hover). Flotan en el
+        {/* Floating actions (grid de 2 columnas), solo desktop (hover). Flotan en el
             margen derecho (`-right-14`), fuera de la columna de contenido; en
             < md ese margen queda fuera de pantalla, así que se anclan dentro
             del bloque (esquina superior derecha). */}
@@ -185,6 +141,26 @@ function SortableBlockItem({
 
               {/* Recordatorios del bloque (alertas de precio y por fecha) */}
               <BlockReminderToggle block={block} onOpen={onOpenReminder} />
+
+              {/* Tags del bloque: siempre visible (relleno si tiene tags) para que
+                  la grilla no cambie de forma */}
+              {taggable && (
+                <button
+                  type="button"
+                  data-tag-picker-toggle
+                  onClick={(e) => { e.stopPropagation(); onOpenTags(tagsOpen ? null : block.id); }}
+                  className={`w-6 h-6 flex items-center justify-center rounded
+                             bg-white dark:bg-gray-800 border shadow-sm transition-colors
+                             ${hasTags
+                               ? 'border-teal-500 dark:border-teal-600 text-teal-600 hover:text-teal-700'
+                               : 'border-gray-200 dark:border-gray-700 text-gray-400 hover:text-teal-600 hover:border-teal-300 dark:hover:border-teal-700'
+                             }`}
+                  title="Tags del bloque"
+                  aria-expanded={tagsOpen}
+                >
+                  <Tag className="w-3.5 h-3.5" fill={hasTags ? 'currentColor' : 'none'} />
+                </button>
+              )}
 
               {/* Copiar referencia al bloque (no aplica a bloques que ya son referencias) */}
               {block.block_type !== 'reference' && (
@@ -232,8 +208,17 @@ function SortableBlockItem({
         />
       </div>
 
-      {/* Chips de recordatorios: fuera del contenedor del bloque para no mover
-          sus controles flotantes (centrados en vertical). */}
+      {/* Tags y chips de recordatorios: fuera del contenedor del bloque para no
+          mover sus controles flotantes (centrados en vertical). */}
+      {taggable && (
+        <BlockTags
+          block={block}
+          noteId={noteId}
+          open={tagsOpen}
+          onOpenChange={(open) => onOpenTags(open ? block.id : null)}
+          className="px-4 pb-1.5 -mt-0.5"
+        />
+      )}
       {noteActions && (
         <ReminderChips
           alerts={block.price_alerts}
@@ -292,6 +277,8 @@ const NoteBlockList = ({
   // toggle, el menú táctil o un chip, que lo abre editando ese elemento)
   const [reminderTarget, setReminderTarget] = useState(null);
   const openReminder = useCallback((blockId, item = {}) => setReminderTarget({ blockId, ...item }), []);
+  // Bloque con el TagPicker abierto (uno a la vez); null = ninguno.
+  const [tagsBlockId, setTagsBlockId] = useState(null);
   const [pendingDeleteBlock, setPendingDeleteBlock] = useState(null);
   // Timers de limpieza del label "Guardado ✓"; se cancelan al desmontar.
   const statusTimersRef = useRef([]);
@@ -409,6 +396,8 @@ const NoteBlockList = ({
                 onUpdateMetadata={handleUpdateMetadata}
                 onOpenMove={setMoveBlockId}
                 onOpenReminder={openReminder}
+                tagsOpen={tagsBlockId === block.id}
+                onOpenTags={setTagsBlockId}
                 saveStatus={saveStatus[block.id]}
                 blockOptions={blockOptions}
                 noteActions={noteActions}

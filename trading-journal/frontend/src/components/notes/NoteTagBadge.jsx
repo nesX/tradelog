@@ -1,11 +1,16 @@
 import { X } from 'lucide-react';
 
-const NoteTagBadge = ({ tag, onRemove }) => {
+const SIZES = {
+  md: 'gap-1 px-2 py-0.5 text-xs',
+  sm: 'gap-0.5 px-1.5 py-px text-[11px] leading-4',
+};
+
+const NoteTagBadge = ({ tag, onRemove, size = 'md' }) => {
   const bg = tag.color || '#6B7280';
 
   return (
     <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
+      className={`inline-flex items-center rounded-full font-medium text-white ${SIZES[size] || SIZES.md}`}
       style={{ backgroundColor: bg }}
     >
       {tag.name}

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, BookMarked, Folder, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useRestoreNote, useMoveNote, useUpdateNoteTitle, noteKeys } from '../hooks/useNotes.js';
@@ -44,6 +44,10 @@ const Notes = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const selectedId = id ? parseInt(id) : null;
+  // Repaso guarda su pestaña "Por tag" en la URL (?tab=tags&tags=…): recargar o
+  // volver con Atrás a /notes?tab=tags tiene que mostrar Repaso, no Recientes.
+  const [urlParams] = useSearchParams();
+  const repasoFromUrl = !selectedId && urlParams.get('tab') === 'tags';
 
   const queryClient = useQueryClient();
   const { data: treeData, isLoading } = useNoteTree();
@@ -88,6 +92,15 @@ const Notes = () => {
       setIsRepasoActive(false);
     }
   }, [selectedId]);
+
+  // Entrar a Repaso por la URL lo deja activo: pasar luego a la pestaña Marcados
+  // (que quita tab=tags) no tiene que volver a Recientes.
+  useEffect(() => {
+    if (repasoFromUrl) {
+      setIsRepasoActive(true);
+      setIsReviewActive(false);
+    }
+  }, [repasoFromUrl]);
 
   useEffect(() => {
     localStorage.setItem('notes-sidebar-collapsed', sidebarCollapsed ? '1' : '0');
@@ -444,11 +457,11 @@ const Notes = () => {
         )}
 
         {/* Contenido */}
-        {isReviewActive ? (
+        {isReviewActive && !repasoFromUrl ? (
           <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
             <Review />
           </div>
-        ) : isRepasoActive ? (
+        ) : isRepasoActive || repasoFromUrl ? (
           <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
             <Repaso />
           </div>

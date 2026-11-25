@@ -23,7 +23,37 @@ const MARKDOWN_PLUGINS = [
 ];
 const MARKDOWN_COMPONENTS = { more: MoreBlock };
 
-const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
+// Markdown del bloque: lo comparten la vista previa del editor y la solo lectura.
+const TextMarkdown = ({ value }) => (
+  <div
+    className="prose prose-sm dark:prose-invert max-w-none
+               text-gray-800 dark:text-gray-200
+               prose-headings:font-semibold prose-headings:text-gray-900 dark:prose-headings:text-white
+               prose-code:bg-gray-100 dark:prose-code:bg-gray-700
+               prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+               prose-code:text-sm prose-code:font-mono
+               prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800
+               prose-a:text-blue-600 dark:prose-a:text-blue-400"
+  >
+    <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS} components={MARKDOWN_COMPONENTS}>
+      {preserveBlankLines(normalizeDirectiveNesting(value))}
+    </ReactMarkdown>
+  </div>
+);
+
+// Solo lectura (visor de repaso): sin edición ni autosave. El autosave no puede
+// montarse aquí: al montar re-guarda los borradores huérfanos.
+const ReadOnlyTextBlock = ({ block }) => (
+  <div className="rounded-xl px-4 py-3">
+    {block.content ? (
+      <TextMarkdown value={block.content} />
+    ) : (
+      <p className="text-sm leading-6 text-gray-400 dark:text-gray-500 italic">Sin contenido</p>
+    )}
+  </div>
+);
+
+const EditableTextBlock = ({ block, onUpdate, saveStatus }) => {
   const { value, editing, startEditing, textareaRef, handleChange, handleBlur } =
     useAutosaveTextarea({ block, onUpdate });
   // Con contenido, doble click para editar: el click simple no hace nada
@@ -70,20 +100,7 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
                  transition-colors min-h-[44px]"
     >
       {value ? (
-        <div
-          className="prose prose-sm dark:prose-invert max-w-none
-                     text-gray-800 dark:text-gray-200
-                     prose-headings:font-semibold prose-headings:text-gray-900 dark:prose-headings:text-white
-                     prose-code:bg-gray-100 dark:prose-code:bg-gray-700
-                     prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-                     prose-code:text-sm prose-code:font-mono
-                     prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800
-                     prose-a:text-blue-600 dark:prose-a:text-blue-400"
-        >
-          <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS} components={MARKDOWN_COMPONENTS}>
-            {preserveBlankLines(normalizeDirectiveNesting(value))}
-          </ReactMarkdown>
-        </div>
+        <TextMarkdown value={value} />
       ) : (
         <p className="text-sm leading-6 text-gray-300 dark:text-gray-600 italic select-none">
           Haz click para escribir...
@@ -99,5 +116,8 @@ const NoteTextBlock = ({ block, onUpdate, saveStatus }) => {
     </div>
   );
 };
+
+const NoteTextBlock = ({ readOnly = false, ...props }) =>
+  readOnly ? <ReadOnlyTextBlock block={props.block} /> : <EditableTextBlock {...props} />;
 
 export default NoteTextBlock;

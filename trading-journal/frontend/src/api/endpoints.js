@@ -247,6 +247,12 @@ export const createNoteTag = (data) => apiClient.post('/api/notes/tags', data);
 export const updateNoteTag = (tagId, data) => apiClient.patch(`/api/notes/tags/${tagId}`, data);
 export const deleteNoteTag = (tagId) => apiClient.delete(`/api/notes/tags/${tagId}`);
 export const assignNoteTags = (noteId, tag_ids) => apiClient.post(`/api/notes/${noteId}/tags`, { tag_ids });
+export const applyNoteTagsToBlocks = (noteId) => apiClient.post(`/api/notes/${noteId}/tags/apply-to-blocks`);
+export const addBlockTag = (blockId, tagId) => apiClient.post(`/api/notes/blocks/${blockId}/tags`, { tag_id: tagId });
+export const removeBlockTag = (blockId, tagId) => apiClient.delete(`/api/notes/blocks/${blockId}/tags/${tagId}`);
+export const getNoteBlock = (blockId) => apiClient.get(`/api/notes/blocks/${blockId}`);
+export const getTagReviewBlocks = (tagIds) =>
+  apiClient.get('/api/notes/blocks/by-tags', { params: { tag_ids: tagIds.join(',') } });
 
 export const exportNotesJSON = () => apiClient.get('/api/notes/export/json');
 export const exportNotesMarkdown = () => apiClient.get('/api/notes/export/markdown', { responseType: 'text' });

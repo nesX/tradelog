@@ -4,6 +4,7 @@ import { useAddImage, useDeleteImage } from '../../hooks/useNotes.js';
 import ImageViewer from '../common/ImageViewer.jsx';
 import { compressImage } from '../../utils/imageCompression.js';
 import { useToast } from '../common/Toast.jsx';
+import { useReportOpen } from '../../hooks/useReportOpen.js';
 
 const MAX_SIZE_BEFORE_COMPRESSION = 5 * 1024 * 1024; // 5MB
 
@@ -12,13 +13,17 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 /**
  * Bloque de una sola imagen a ancho completo. Subir otra imagen la reemplaza
  * (el backend borra la anterior); click abre el visor.
+ *
+ * `readOnly` (visor de repaso): sin cambiar ni borrar; `onLightboxChange(open)`
+ * avisa cuando se abre o cierra el visor de la imagen.
  */
-const NoteImageBlock = ({ block, noteId }) => {
+const NoteImageBlock = ({ block, noteId, readOnly = false, onLightboxChange }) => {
   const addImage = useAddImage();
   const deleteImage = useDeleteImage();
   const fileInputRef = useRef(null);
   const toast = useToast();
   const [viewerOpen, setViewerOpen] = useState(false);
+  useReportOpen(viewerOpen, onLightboxChange);
 
   const image = (block.images || [])[0] || null;
 
@@ -70,30 +75,34 @@ const NoteImageBlock = ({ block, noteId }) => {
 
           {/* Abajo a la derecha: arriba chocaría con los controles flotantes del
               bloque, que en < md se anclan a la esquina superior derecha. */}
-          <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/img:opacity-100
-                          touch:opacity-100 transition-opacity">
-            <button
-              onClick={pickFile}
-              disabled={addImage.isPending}
-              className="w-7 h-7 flex items-center justify-center rounded-md
-                         bg-black/60 hover:bg-black/80 text-white shadow-sm
-                         disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Cambiar imagen"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => deleteImage.mutate({ imageId: image.id, noteId })}
-              disabled={deleteImage.isPending}
-              className="w-7 h-7 flex items-center justify-center rounded-md
-                         bg-red-500/90 hover:bg-red-600 text-white shadow-sm
-                         disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Eliminar imagen"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {!readOnly && (
+            <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/img:opacity-100
+                            touch:opacity-100 transition-opacity">
+              <button
+                onClick={pickFile}
+                disabled={addImage.isPending}
+                className="w-7 h-7 flex items-center justify-center rounded-md
+                           bg-black/60 hover:bg-black/80 text-white shadow-sm
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Cambiar imagen"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => deleteImage.mutate({ imageId: image.id, noteId })}
+                disabled={deleteImage.isPending}
+                className="w-7 h-7 flex items-center justify-center rounded-md
+                           bg-red-500/90 hover:bg-red-600 text-white shadow-sm
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Eliminar imagen"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
+      ) : readOnly ? (
+        <p className="py-6 text-center text-sm italic text-gray-400 dark:text-gray-500">Sin imagen</p>
       ) : (
         <button
           onClick={pickFile}

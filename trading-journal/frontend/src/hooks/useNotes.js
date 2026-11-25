@@ -1,12 +1,16 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import * as api from '../api/endpoints.js';
 import { applyOptimisticNoteMoveFlat, applyOptimisticBlockMove } from '../utils/treeManipulation.js';
+import { sortTags } from '../constants/tagGroups.js';
+import { revisitKeys } from './useRevisit.js';
 
 export const noteKeys = {
   all: ['notes'],
   tree: () => [...noteKeys.all, 'tree'],
   detail: (id) => [...noteKeys.all, 'detail', id],
   tags: () => [...noteKeys.all, 'tags'],
+  // Un bloque suelto (visor de repaso), con el mismo shape que en detail.
+  block: (id) => [...noteKeys.all, 'block', id],
 };
 
 // Construye árbol a partir del array plano
@@ -43,6 +47,21 @@ export const useNote = (id) =>
     queryKey: noteKeys.detail(id),
     queryFn: () => api.getNote(id),
     enabled: !!id,
+    select: (response) => response.data,
+  });
+
+// Un bloque suelto con `tags` y `note: { id, title }`. Sin reintentos: un 404
+// ("Este bloque ya no existe") tiene que verse enseguida.
+export const noteBlockQuery = (blockId) => ({
+  queryKey: noteKeys.block(blockId),
+  queryFn: () => api.getNoteBlock(blockId),
+  retry: (failureCount, error) => error?.status !== 404 && failureCount < 1,
+});
+
+export const useNoteBlock = (blockId) =>
+  useQuery({
+    ...noteBlockQuery(blockId),
+    enabled: !!blockId,
     select: (response) => response.data,
   });
 
@@ -185,8 +204,27 @@ export const useCreateTag = () => {
   return useMutation({
     mutationKey: [...noteKeys.all, 'createTag'],
     mutationFn: (data) => api.createNoteTag(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.tags() }),
+    onSuccess: (res) => {
+      // El tag nuevo entra a la caché con la respuesta: el TagPicker lo asigna en
+      // el mismo flujo y tiene que verse ya en la lista.
+      const created = res?.data;
+      if (created) {
+        qc.setQueryData(noteKeys.tags(), (old) =>
+          old?.data && !old.data.some((t) => t.id === created.id)
+            ? { ...old, data: [...old.data, created].sort((a, b) => a.name.localeCompare(b.name, 'es')) }
+            : old
+        );
+      }
+      qc.invalidateQueries({ queryKey: noteKeys.tags() });
+    },
   });
+};
+
+// Renombrar, recolorear, cambiar de grupo o borrar un tag se ve en el editor, en
+// cada bloque, en el visor y en el repaso por tag: se refresca todo lo de notas.
+const invalidateTagViews = (qc) => {
+  qc.invalidateQueries({ queryKey: noteKeys.all });
+  qc.invalidateQueries({ queryKey: revisitKeys.tags });
 };
 
 export const useUpdateTag = () => {
@@ -194,10 +232,7 @@ export const useUpdateTag = () => {
   return useMutation({
     mutationKey: [...noteKeys.all, 'updateTag'],
     mutationFn: ({ tagId, data }) => api.updateNoteTag(tagId, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: noteKeys.tags() });
-      qc.invalidateQueries({ queryKey: noteKeys.tree() });
-    },
+    onSuccess: () => invalidateTagViews(qc),
   });
 };
 
@@ -206,21 +241,74 @@ export const useDeleteTag = () => {
   return useMutation({
     mutationKey: [...noteKeys.all, 'deleteTag'],
     mutationFn: (tagId) => api.deleteNoteTag(tagId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: noteKeys.tags() });
-      qc.invalidateQueries({ queryKey: noteKeys.tree() });
-    },
+    onSuccess: () => invalidateTagViews(qc),
   });
 };
 
-export const useAssignTags = () => {
+/**
+ * Alterna un tag de la nota. El endpoint reemplaza la lista entera, así que:
+ *  - la lista nueva se arma desde la caché en el momento del toggle (no desde lo
+ *    renderizado), con optimistic update y rollback;
+ *  - las asignaciones de una misma nota van en serie (`scope`): en paralelo podían
+ *    confirmarse en otro orden y perder el último tag;
+ *  - el detalle se refresca solo cuando no queda ninguna en curso, para que el
+ *    refetch de la primera no pise el optimistic de la segunda.
+ *
+ * Devuelve `toggle(tag)`, que recibe el objeto tag completo (para pintarlo antes
+ * de que responda el servidor).
+ */
+export const useToggleNoteTag = (noteId) => {
+  const qc = useQueryClient();
+  const detailKey = noteKeys.detail(noteId);
+  const mutationKey = [...noteKeys.all, 'assignTags', noteId];
+
+  const mutation = useMutation({
+    mutationKey,
+    scope: { id: `note-tags-${noteId}` },
+    mutationFn: ({ tags }) => api.assignNoteTags(noteId, tags.map((t) => t.id)),
+    // Síncrono a propósito: corre dentro del click, así el siguiente toggle ya
+    // lee la caché con este cambio.
+    onMutate: ({ tags }) => {
+      qc.cancelQueries({ queryKey: detailKey });
+      const previous = qc.getQueryData(detailKey);
+      qc.setQueryData(detailKey, (old) => (old?.data ? { ...old, data: { ...old.data, tags } } : old));
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      // Con otras en curso no se restaura: su lista ya incluye este cambio y el
+      // refetch final deja la nota como quedó en el servidor.
+      if (qc.isMutating({ mutationKey }) === 1 && context?.previous) {
+        qc.setQueryData(detailKey, context.previous);
+      }
+    },
+    onSettled: () => {
+      if (qc.isMutating({ mutationKey }) === 1) {
+        qc.invalidateQueries({ queryKey: detailKey });
+        qc.invalidateQueries({ queryKey: noteKeys.tree() });
+      }
+    },
+  });
+
+  const toggle = (tag) => {
+    const current = qc.getQueryData(detailKey)?.data?.tags ?? [];
+    const tags = current.some((t) => t.id === tag.id)
+      ? current.filter((t) => t.id !== tag.id)
+      : sortTags([...current, tag]);
+    mutation.mutate({ tags });
+  };
+
+  return { toggle, isPending: mutation.isPending };
+};
+
+// "Aplicar a bloques existentes": agrega los tags de la nota a sus bloques.
+export const useApplyNoteTagsToBlocks = (noteId) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationKey: [...noteKeys.all, 'assignTags'],
-    mutationFn: ({ noteId, tag_ids }) => api.assignNoteTags(noteId, tag_ids),
-    onSuccess: (_, { noteId }) => {
+    mutationKey: [...noteKeys.all, 'applyNoteTags', noteId],
+    mutationFn: () => api.applyNoteTagsToBlocks(noteId),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: noteKeys.detail(noteId) });
-      qc.invalidateQueries({ queryKey: noteKeys.tree() });
+      qc.invalidateQueries({ queryKey: revisitKeys.tags });
     },
   });
 };

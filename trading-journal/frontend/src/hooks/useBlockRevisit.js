@@ -8,6 +8,19 @@ export function useToggleRevisit() {
   return useMutation({
     mutationKey: [...noteKeys.all, 'toggleRevisit'],
     mutationFn: ({ blockId, markedForRevisit }) => toggleBlockRevisit(blockId, markedForRevisit),
+    // Optimistic solo sobre el bloque suelto (visor de repaso), si está en caché;
+    // el resto de vistas se refresca al terminar, como antes.
+    onMutate: ({ blockId, markedForRevisit }) => {
+      const key = noteKeys.block(blockId);
+      const previous = qc.getQueryData(key);
+      if (previous?.data) {
+        qc.setQueryData(key, { ...previous, data: { ...previous.data, marked_for_revisit: markedForRevisit } });
+      }
+      return { previous };
+    },
+    onError: (_err, { blockId }, context) => {
+      if (context?.previous) qc.setQueryData(noteKeys.block(blockId), context.previous);
+    },
     onSuccess: (response) => {
       const block = response.data;
       qc.invalidateQueries({ queryKey: noteKeys.detail(block.note_id) });

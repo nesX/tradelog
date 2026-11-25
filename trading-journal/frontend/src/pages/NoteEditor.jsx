@@ -1,16 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { Tag, X, Plus, Check, Pencil, BellRing } from 'lucide-react';
+import { Tag, Plus, Check, Pencil, BellRing } from 'lucide-react';
 import {
   useNote,
   useNoteTree,
   useUpdateNoteTitle,
-  useAssignTags,
-  useNoteTags,
+  useToggleNoteTag,
+  useApplyNoteTagsToBlocks,
 } from '../hooks/useNotes.js';
 import NoteBlockList from '../components/notes/NoteBlockList.jsx';
 import NoteBreadcrumb from '../components/notes/NoteBreadcrumb.jsx';
 import NoteTagBadge from '../components/notes/NoteTagBadge.jsx';
+import TagPicker from '../components/notes/TagPicker.jsx';
+import { useToast } from '../components/common/Toast.jsx';
 import NoteSaveIndicator from '../components/notes/NoteSaveIndicator.jsx';
 import CopyReferenceButton from '../components/notes/CopyReferenceButton.jsx';
 import ReminderModal from '../components/notes/ReminderModal.jsx';
@@ -26,13 +28,15 @@ const NoteEditor = ({ embeddedId }) => {
   const { data: note, isLoading, error } = useNote(noteId);
   const { data: treeData } = useNoteTree();
   const updateTitle = useUpdateNoteTitle();
-  const assignTags = useAssignTags();
-  const { data: allTags = [] } = useNoteTags();
+  const { toggle: toggleTag } = useToggleNoteTag(noteId);
+  const applyTags = useApplyNoteTagsToBlocks(noteId);
+  const toast = useToast();
 
   const [editTitle, setEditTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
-  const tagPickerRef = useRef(null);
+  const [confirmApply, setConfirmApply] = useState(false);
+  const tagButtonRef = useRef(null);
   const titleInputRef = useRef(null);
   const skipBlurRef = useRef(false);
   const scrolledBlockRef = useRef(null);
@@ -55,16 +59,11 @@ const NoteEditor = ({ embeddedId }) => {
     }
   }, [editTitle]);
 
-  // Cerrar tag picker al click fuera
+  // Al cambiar de nota se cierran el picker y la confirmación de "Aplicar".
   useEffect(() => {
-    const handler = (e) => {
-      if (tagPickerRef.current && !tagPickerRef.current.contains(e.target)) {
-        setTagPickerOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+    setTagPickerOpen(false);
+    setConfirmApply(false);
+  }, [noteId]);
 
   // Scroll y resaltar bloque al navegar desde la vista de Revisión (?highlight=blockId)
   // o desde una referencia con hash (#block-{id}).
@@ -117,7 +116,11 @@ const NoteEditor = ({ embeddedId }) => {
   }
 
   const flat = treeData?.flat || [];
-  const currentTagIds = (note.tags || []).map((t) => t.id);
+  const noteTags = note.tags || [];
+  const currentTagIds = noteTags.map((t) => t.id);
+  // "Aplicar a bloques existentes": solo los bloques que no son referencias llevan tags.
+  const taggableBlockCount = (note.blocks || []).filter((b) => b.block_type !== 'reference').length;
+  const canApplyTags = noteTags.length > 0 && taggableBlockCount > 0;
 
   /* ---------- handlers ---------- */
 
@@ -157,11 +160,23 @@ const NoteEditor = ({ embeddedId }) => {
     }
   };
 
-  const toggleTag = (tagId) => {
-    const newIds = currentTagIds.includes(tagId)
-      ? currentTagIds.filter((id) => id !== tagId)
-      : [...currentTagIds, tagId];
-    assignTags.mutate({ noteId, tag_ids: newIds });
+  const removeTag = (tagId) => {
+    const tag = noteTags.find((t) => t.id === tagId);
+    if (tag) toggleTag(tag);
+  };
+
+  const handleApplyTags = () => {
+    applyTags.mutate(undefined, {
+      onSuccess: (res) => {
+        const updated = res?.data?.blocks_updated ?? 0;
+        toast.success(
+          updated === 0
+            ? 'Los bloques ya tenían estos tags'
+            : `Tags aplicados a ${updated} bloque${updated !== 1 ? 's' : ''}`
+        );
+      },
+      onSettled: () => setConfirmApply(false),
+    });
   };
 
   /* ---------- render ---------- */
@@ -256,73 +271,72 @@ const NoteEditor = ({ embeddedId }) => {
           className="mb-3"
         />
 
-        {/* Tags */}
-        <div className="flex items-center gap-1.5 flex-wrap pb-3 relative" ref={tagPickerRef}>
-          {(note.tags || []).map((tag) => (
-            <NoteTagBadge
-              key={tag.id}
-              tag={tag}
-              onRemove={toggleTag}
-            />
-          ))}
+        {/* Tags de la nota: proponen los tags de sus bloques nuevos */}
+        <div className="pb-3">
+          <div className="flex items-center gap-1.5 flex-wrap relative">
+            {noteTags.map((tag) => (
+              <NoteTagBadge key={tag.id} tag={tag} onRemove={removeTag} />
+            ))}
 
-          {/* Botón agregar tag */}
-          <button
-            onClick={() => setTagPickerOpen((v) => !v)}
-            className="flex items-center gap-1 px-2 py-0.5 text-xs rounded-full
-                       border border-dashed border-gray-300 dark:border-gray-600
-                       text-gray-400 hover:border-blue-400 hover:text-blue-500
-                       dark:hover:border-blue-500 dark:hover:text-blue-400
-                       transition-colors"
-          >
-            <Tag className="w-3 h-3" />
-            {(note.tags || []).length === 0 ? 'Agregar tag' : <Plus className="w-3 h-3" />}
-          </button>
+            {/* Botón agregar tag */}
+            <button
+              ref={tagButtonRef}
+              onClick={() => setTagPickerOpen((v) => !v)}
+              className="flex items-center gap-1 px-2 py-0.5 text-xs rounded-full
+                         border border-dashed border-gray-300 dark:border-gray-600
+                         text-gray-400 hover:border-blue-400 hover:text-blue-500
+                         dark:hover:border-blue-500 dark:hover:text-blue-400
+                         transition-colors"
+              aria-expanded={tagPickerOpen}
+            >
+              <Tag className="w-3 h-3" />
+              {noteTags.length === 0 ? 'Agregar tag' : <Plus className="w-3 h-3" />}
+            </button>
 
-          {/* Dropdown picker de tags */}
-          {tagPickerOpen && (
-            <div className="absolute top-full left-0 mt-1 z-30
-                            bg-white dark:bg-gray-800
-                            border border-gray-200 dark:border-gray-700
-                            rounded-xl shadow-lg py-1.5 min-w-[180px] max-h-64 overflow-y-auto">
-              <div className="flex items-center justify-between px-3 pb-1.5 mb-0.5
-                              border-b border-gray-100 dark:border-gray-700">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Tags</span>
-                <button
-                  onClick={() => setTagPickerOpen(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            <span className="text-[11px] text-gray-400 dark:text-gray-500">
+              Se agregan a los bloques nuevos de esta nota
+            </span>
 
-              {allTags.length === 0 ? (
-                <p className="text-xs text-gray-400 px-3 py-2">
-                  No hay tags. Créalos con el ícono <span className="font-medium">Tags</span> en el sidebar.
-                </p>
-              ) : (
-                allTags.map((tag) => {
-                  const active = currentTagIds.includes(tag.id);
-                  return (
-                    <button
-                      key={tag.id}
-                      onClick={() => toggleTag(tag.id)}
-                      className={`flex items-center gap-2.5 w-full px-3 py-1.5 text-sm transition-colors
-                        ${active
-                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                          : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60'
-                        }`}
-                    >
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: tag.color }}
-                      />
-                      <span className="flex-1 text-left">{tag.name}</span>
-                      {active && <Check className="w-3 h-3 flex-shrink-0" />}
-                    </button>
-                  );
-                })
-              )}
+            {canApplyTags && !confirmApply && (
+              <button
+                onClick={() => setConfirmApply(true)}
+                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Aplicar a bloques existentes
+              </button>
+            )}
+
+            {tagPickerOpen && (
+              <TagPicker
+                selectedIds={currentTagIds}
+                onToggle={toggleTag}
+                onClose={() => setTagPickerOpen(false)}
+                anchorRef={tagButtonRef}
+              />
+            )}
+          </div>
+
+          {/* Confirmación inline (mismo patrón que el borrado en el gestor de tags) */}
+          {confirmApply && canApplyTags && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-gray-600 dark:text-gray-300">
+                Se agregarán los tags de la nota a sus {taggableBlockCount} bloque{taggableBlockCount !== 1 ? 's' : ''}.
+                Los tags que ya tengan se mantienen.
+              </span>
+              <button
+                onClick={handleApplyTags}
+                disabled={applyTags.isPending}
+                className="px-2 py-0.5 bg-blue-600 text-white rounded disabled:opacity-50"
+              >
+                {applyTags.isPending ? 'Aplicando…' : 'Aplicar'}
+              </button>
+              <button
+                onClick={() => setConfirmApply(false)}
+                disabled={applyTags.isPending}
+                className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded"
+              >
+                Cancelar
+              </button>
             </div>
           )}
         </div>
