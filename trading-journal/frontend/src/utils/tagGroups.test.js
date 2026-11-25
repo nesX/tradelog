@@ -126,39 +126,42 @@ test('listTagGroups agrega Libre al final', () => {
   assert.deepEqual(listTagGroups(undefined), [FREE_GROUP]);
 });
 
-test('moveTagGroup sube y baja un grupo sin salirse de la lista', () => {
+test('moveTagGroup deja el grupo arrastrado en el lugar del grupo sobre el que se suelta', () => {
   const ids = (list) => list.map((g) => g.id);
-  assert.deepEqual(ids(moveTagGroup(groups, 11, -1)), [11, 10, 12]);
-  assert.deepEqual(ids(moveTagGroup(groups, 11, 1)), [10, 12, 11]);
-  assert.equal(moveTagGroup(groups, 10, -1), groups);
-  assert.equal(moveTagGroup(groups, 12, 1), groups);
-  assert.equal(moveTagGroup(groups, 99, 1), groups);
+  assert.deepEqual(ids(moveTagGroup(groups, 12, 10)), [12, 10, 11]);
+  assert.deepEqual(ids(moveTagGroup(groups, 10, 12)), [11, 12, 10]);
+  assert.deepEqual(ids(moveTagGroup(groups, 10, 11)), [11, 10, 12]);
+  assert.equal(moveTagGroup(groups, 11, 11), groups);
+  assert.equal(moveTagGroup(groups, 99, 10), groups);
+  assert.equal(moveTagGroup(groups, 10, 99), groups);
 });
 
 test('moveTagInGroup mueve un tag entre los de su grupo y renumera las posiciones', () => {
   const at = (id, name, group_id, position) => ({ ...tag(id, name, group_id), position });
   // Desordenados a propósito: lo que vale es la posición, no el orden de la lista.
-  const tags = [at(3, 'c', 10, 2), at(1, 'a', 10, 0), at(9, 'otro', 11, 0), at(2, 'b', 10, 1)];
+  const tags = [at(3, 'c', 10, 2), at(1, 'a', 10, 0), at(9, 'otro', 11, 0), at(2, 'b', 10, 1), at(4, 'd', 10, 3)];
 
-  const up = moveTagInGroup(tags, 3, -1);
-  assert.equal(up.groupId, 10);
+  const toTop = moveTagInGroup(tags, 4, 1);
+  assert.equal(toTop.groupId, 10);
   assert.deepEqual(
-    up.tags.map((t) => [t.id, t.position]),
+    toTop.tags.map((t) => [t.id, t.position]),
     [
-      [1, 0],
-      [3, 1],
+      [4, 0],
+      [1, 1],
       [2, 2],
+      [3, 3],
     ]
   );
-  assert.equal(up.tags[0], tags[1]); // sin cambio de posición, el mismo objeto
 
+  const down = moveTagInGroup(tags, 1, 3);
   assert.deepEqual(
-    moveTagInGroup(tags, 1, 1).tags.map((t) => t.id),
-    [2, 1, 3]
+    down.tags.map((t) => t.id),
+    [2, 3, 1, 4]
   );
-  assert.equal(moveTagInGroup(tags, 1, -1), null);
-  assert.equal(moveTagInGroup(tags, 3, 1), null);
-  assert.equal(moveTagInGroup(tags, 9, 1), null); // solo en su grupo
+  assert.equal(down.tags[3], tags[4]); // sin cambio de posición, el mismo objeto
+
+  assert.equal(moveTagInGroup(tags, 1, 1), null);
+  assert.equal(moveTagInGroup(tags, 1, 9), null); // solo dentro de su grupo
   assert.equal(moveTagInGroup(tags, 99, 1), null);
 });
 
@@ -167,7 +170,7 @@ test('moveTagInGroup en Libre: group_id null o ausente, y el grupo va como null'
     { id: 1, name: 'x', position: 0 },
     { ...tag(2, 'y', null), position: 1 },
   ];
-  const result = moveTagInGroup(tags, 2, -1);
+  const result = moveTagInGroup(tags, 2, 1);
   assert.equal(result.groupId, null);
   assert.deepEqual(
     result.tags.map((t) => t.id),

@@ -306,8 +306,8 @@ export const useDeleteTagGroup = () => {
 };
 
 /**
- * Sube (-1) o baja (+1) un grupo. El endpoint recibe la lista entera, así que,
- * como en useToggleNoteTag:
+ * Reordena los grupos al soltar uno arrastrado: `move(activeId, overId)`. El
+ * endpoint recibe la lista entera, así que, como en useToggleNoteTag:
  *  - la lista nueva se arma desde la caché en el click, con optimistic update;
  *  - los cambios van en serie (`scope`): en paralelo podían confirmarse en otro
  *    orden y dejar en el servidor un orden distinto del de la pantalla;
@@ -337,10 +337,10 @@ export const useMoveTagGroup = () => {
     },
   });
 
-  const move = (groupId, delta) => {
+  const move = (activeId, overId) => {
     const current = getCachedTagGroups(qc);
     if (!current) return;
-    const groups = moveTagGroup(current, groupId, delta);
+    const groups = moveTagGroup(current, activeId, overId);
     if (groups !== current) mutation.mutate({ groups });
   };
 
@@ -348,10 +348,11 @@ export const useMoveTagGroup = () => {
 };
 
 /**
- * Sube (-1) o baja (+1) un tag dentro de su grupo, como useMoveTagGroup: el
- * endpoint recibe los tags del grupo enteros, armados desde la caché en el
- * click (optimistic con las posiciones nuevas); los cambios van en serie, y el
- * rollback y el refresco de todo, solo cuando no queda ninguno en curso.
+ * Reordena un tag dentro de su grupo al soltarlo sobre otro: `move(activeId,
+ * overId)`. Como useMoveTagGroup: el endpoint recibe los tags del grupo enteros,
+ * armados desde la caché al soltar (optimistic con las posiciones nuevas); los
+ * cambios van en serie, y el rollback y el refresco de todo, solo cuando no queda
+ * ninguno en curso.
  */
 export const useMoveTag = () => {
   const qc = useQueryClient();
@@ -377,10 +378,10 @@ export const useMoveTag = () => {
     },
   });
 
-  const move = (tagId, delta) => {
+  const move = (activeId, overId) => {
     const current = qc.getQueryData(key)?.data;
     if (!current) return;
-    const result = moveTagInGroup(current, tagId, delta);
+    const result = moveTagInGroup(current, activeId, overId);
     if (result) mutation.mutate(result);
   };
 
