@@ -37,6 +37,8 @@ trading-journal/frontend/
 │   │   ├── Login.jsx             # Google OAuth button
 │   │   ├── Notes.jsx + NoteEditor.jsx
 │   │   ├── Review.jsx            # bloques marcados como follow-up
+│   │   ├── Search.jsx            # /buscar: texto + tags de bloque
+│   │   ├── Tags.jsx              # /tags: tags y grupos de tags
 │   │   ├── Backtest.jsx + BacktestNew.jsx + BacktestSession.jsx
 │   │   └── admin/Users.jsx
 │   ├── components/
@@ -52,6 +54,7 @@ trading-journal/frontend/
 │   │   ├── formatters.js
 │   │   ├── referenceLinks.js
 │   │   ├── notesGrouping.js
+│   │   ├── tagGroups.js          # orden y agrupado de tags con los grupos del usuario
 │   │   └── treeManipulation.js   # optimistic updates para DnD de notas
 │   ├── constants/
 │   │   ├── imageConfig.js
@@ -152,6 +155,8 @@ useMutation({
 | `/notes`, `/notes/:id` | `Notes` | `ProtectedRoute` |
 | `/review` | `Review` | `ProtectedRoute` |
 | `/repaso` | `Repaso` (también embebida en `Notes`; ver abajo) | `ProtectedRoute` |
+| `/buscar` | `Search` (`?q=…&tags=1,4,7`) | `ProtectedRoute` |
+| `/tags` | `Tags` | `ProtectedRoute` |
 | `/backtest` | `Backtest` | `ProtectedRoute` |
 | `/backtest/new`, `/backtest/:id`, `/backtest/:id/continue` | Backtest* | `ProtectedRoute` |
 | `/admin/users` | `Users` | `AdminRoute` (role: admin / super_admin) |
@@ -192,11 +197,26 @@ Convención: cada `use*` exporta tanto queries como mutaciones del dominio. Mant
 
 Spec: [`tags-bloques.md`](../features/specs/tags-bloques.md). El bloque es lo que se etiqueta y se repasa; la nota solo propone tags.
 
-- **Grupos**: `constants/tagGroups.js` — `TAG_GROUPS` (Activo, Tipo, Estrategia, Resultado, Libre, con su color inicial), `sortTags` (orden canónico: grupo y luego nombre), `groupTags`, `filterTags` (sin mayúsculas ni tildes). Tiene que coincidir con el backend y el CHECK de la migración 030.
-- **`components/notes/TagPicker.jsx`**: popover para buscar, alternar y crear tags (crear elige grupo y asigna en el mismo flujo; teclado ↑/↓, Enter, Esc). Usa `GroupedTagList.jsx` (tags agrupados, presentacional), que también usa el selector del repaso por tag. Los botones que lo abren llevan `data-tag-picker-toggle` para que el click fuera no lo cierre y reabra.
+- **Grupos**: cada usuario tiene los suyos (`useTagGroups()`, key `noteKeys.tagGroups()`, ya en orden). Un tag apunta a su grupo por `group_id`; `null` (o un id desconocido) es **Libre**, que no es un grupo: va siempre al final y no se puede renombrar ni borrar. Helpers puros en `utils/tagGroups.js`, que reciben la lista de grupos: `sortTags(tags, groups)` (orden canónico: el del grupo y luego el nombre), `groupTags(tags, groups, { includeEmpty })` → `[{ id, label, color, tags }]`, `getTagGroup`, `listTagGroups` (grupos + Libre, para los selectores), `moveTagGroup`, `filterTags` (sin mayúsculas ni tildes) y `FREE_GROUP`. Con `groups` sin cargar, los tags van en una sola lista por nombre, sin encabezado (nunca todos bajo Libre). Los optimistic de tags leen los grupos del caché (`getCachedTagGroups`).
+- **`pages/Tags.jsx`** (`/tags`, icono en el header): una tarjeta por grupo en orden, incluidos los vacíos, y Libre al final. Formulario **Nuevo tag** (nombre, grupo y el color que propone el grupo) y un "+" por tarjeta; filtro por nombre; cada tag con edición inline (nombre, color, grupo), borrado con confirmación y **Ver bloques** (`/buscar?tags=:id`). Gestión de grupos: **Nuevo grupo** (nombre y color; al crearlo se abre su formulario de tag), renombrar y recolorear inline, subir/bajar con ↑/↓ (`useMoveTagGroup`: lista entera desde la caché, optimistic, en serie con `scope`) y borrar ("Sus N tags pasarán a Libre"). Los errores del servidor van en línea (las mutaciones de la página silencian el toast global). Reemplaza al modal `NoteTagManager` del sidebar, que ya no existe.
+- **`components/notes/TagPicker.jsx`**: popover para buscar, alternar y crear tags (crear ofrece los grupos del usuario más Libre, el de por defecto, y asigna en el mismo flujo; teclado ↑/↓, Enter, Esc). Usa `GroupedTagList.jsx` (tags agrupados con los grupos del usuario), que también usan el repaso por tag y `/buscar`. Los botones que lo abren llevan `data-tag-picker-toggle` para que el click fuera no lo cierre y reabra.
 - **Tags de la nota** (`NoteEditor`): `useToggleNoteTag(noteId)` arma la lista nueva desde la caché, con optimistic update y `scope` por nota (el endpoint reemplaza la lista entera; en serie no se pierden clicks rápidos). "Aplicar a bloques existentes" usa `useApplyNoteTagsToBlocks`.
 - **Tags de cada bloque**: `components/notes/BlockTags.jsx` (fila de badges bajo el bloque + picker), botón **Tags** en la grilla de acciones de `NoteBlockList` y entrada en `BlockTouchMenu`. Hooks en `hooks/useBlockTags.js`: endpoints delta con `scope` por bloque, optimistic sobre la nota y el bloque suelto (`updateBlockTagsInCache`) y reconciliación con la respuesta solo si no quedan otras en curso. Las referencias no llevan tags.
-- Renombrar, recolorear o borrar un tag invalida `noteKeys.all` y el repaso por tag.
+- Renombrar, recolorear o borrar un tag, borrar un grupo o reordenarlos invalida `noteKeys.all` y el repaso por tag. Crear, renombrar o recolorear un grupo solo invalida `noteKeys.tagGroups()`: los nombres y colores de grupo salen de ahí.
+
+## Búsqueda — `pages/Search.jsx`
+
+`/buscar`, con la lupa del header. Busca por texto (títulos y contenido, con prefijo mientras se escribe) y por tags de bloque (OR dentro de un grupo, AND entre grupos), y muestra los bloques agrupados por nota (API en [`api/reference.md`](../api/reference.md#búsqueda)).
+
+- La consulta vive en la URL (`?q=…&tags=1,4,7`, con `replace`): Atrás desde una nota vuelve a la misma búsqueda y un enlace guardado la repite. El input tiene estado local y llega a la URL con 400 ms de debounce (Enter no espera).
+- Tags con `GroupedTagList` en una columna a la derecha en lg+, desplegable por debajo. Los ids de la URL que no existen se descartan cuando cargan los tags.
+- Cada resultado lleva el snippet resaltado (`sanitizeHighlight`) y los tags del bloque; un click abre `/notes/:id?highlight=:blockId`. **Repasar** abre `BlockReviewViewer` con todos los `block_ids`.
+- `useNoteSearch` cuelga de `noteKeys.search()`, que se invalida al cambiar tags de un bloque. Helpers puros en `utils/noteSearch.js`.
+- Reemplaza al buscador del sidebar de Notas: ya no existen `NoteSearch` ni `NoteSearchResults`.
+
+## Header del área de notas
+
+En `/notes`, `/repaso`, `/review`, `/todo`, `/recordatorios`, `/buscar` y `/tags` el header se reduce a Trades, Notas y TODO más tres iconos de página (`HeaderIconLink`, resaltado en su ruta): lupa (`/buscar`), tags (`/tags`) y campana (`/recordatorios`, con el número de tarjetas abiertas). A 375 px entran los siete iconos y la hamburguesa.
 
 ## Repaso y visor de bloques
 

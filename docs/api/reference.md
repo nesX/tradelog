@@ -316,21 +316,56 @@ Timeframes del usuario.
 | Método | Ruta | Notas |
 |--------|------|-------|
 | `GET` | `/api/notes/tree` | Árbol completo de notas del usuario. |
-| `GET` | `/api/notes/search?q=...` | Full-text search sobre títulos y contenido. |
-| `GET` | `/api/notes/export/json` | Export completo. El diccionario raíz de tags trae `{ name, color, group }` y cada bloque `tags: [nombres]` (orden canónico, `[]` si no tiene). |
+| `GET` | `/api/notes/search?q=...&tag_ids=1,4` | Búsqueda de bloques por texto y tags, agrupados por nota. Ver [Búsqueda](#búsqueda). |
+| `GET` | `/api/notes/export/json` | Export completo. El diccionario raíz de tags trae `{ name, color, group }` (`group`: nombre del grupo, o `"Libre"`) y cada bloque `tags: [nombres]` (orden canónico, `[]` si no tiene). |
 | `GET` | `/api/notes/export/markdown` | Export como markdown. Tras cada bloque con tags va una línea `> Tags: NQ, proyección`. |
 | `PATCH` | `/api/notes/reorder` | Reordenar nodos (sin cambiar parent). |
 | `GET` | `/api/notes/blocks/review` | Seguimiento pendiente (`requires_follow_up`) + actividad reciente. Query: `hours` (24/48/168), `pendingHours`. |
 | `GET` | `/api/notes/blocks/revisit` | Bloques marcados para repaso (`marked_for_revisit`), ordenados por antigüedad (`updated_at ASC`). Query opcional: `pendingHours` (24/48/168 \| `all`). Devuelve `{ blocks, pendingHours }`. |
-| `GET` | `/api/notes/blocks/by-tags?tag_ids=1,4,7` | Repaso por tag: bloques con al menos un tag de la selección de **cada** grupo presente (OR dentro de un grupo, AND entre grupos). `tag_ids` es un CSV requerido (los repetidos se ignoran; más de 50 → 400; un tag ajeno o borrado → 400). Excluye referencias, notas en la papelera y pendientes. Devuelve `{ items, total, truncated }`: hasta 500 items `{ block_id, note_id, note_title, block_type, preview, created_at, updated_at, marked_for_revisit }`, del más reciente al más antiguo; `preview` (140 caracteres) solo en `text`/`callout`. |
+| `GET` | `/api/notes/blocks/by-tags?tag_ids=1,4,7` | Repaso por tag: bloques con al menos un tag de la selección de **cada** grupo presente (OR dentro de un grupo, AND entre grupos; Libre cuenta como un grupo más). `tag_ids` es un CSV requerido (los repetidos se ignoran; más de 50 → 400; un tag ajeno o borrado → 400). Excluye referencias, notas en la papelera y pendientes. Devuelve `{ items, total, truncated }`: hasta 500 items `{ block_id, note_id, note_title, block_type, preview, created_at, updated_at, marked_for_revisit }`, del más reciente al más antiguo; `preview` (140 caracteres) solo en `text`/`callout`. |
 | `GET` | `/api/notes/blocks/:blockId` | Un bloque suelto, con el mismo shape que cada elemento de `blocks` en `GET /api/notes/:id` (imágenes, trades, recordatorios, `tags`), más `note: { id, title }`. 404 si es ajeno o su nota está en la papelera. Lo usa el visor de repaso. |
+
+### Búsqueda
+
+`GET /api/notes/search` — la usa la página `/buscar`. Query: `q` (hasta 500 caracteres), `tag_ids` (CSV) y `limit` (notas, 1–100, default 30).
+
+| Entrada | Resultado |
+|---|---|
+| Solo `q` | Notas cuyo título hace match, y bloques `text`/`callout` cuyo contenido hace match, agrupados por nota. |
+| Solo `tag_ids` | Bloques con esos tags: OR dentro de un grupo, AND entre grupos (la misma regla que `/blocks/by-tags`). |
+| `q` + `tag_ids` | Bloques que cumplen los tags **y** cuyo contenido o el título de su nota hace match. |
+| Nada (o `q` sin letras ni dígitos) | 400 "Escribe algo o elige un tag". |
+
+- **Texto:** sin operadores, cada palabra es un AND y la última se busca como prefijo (`proyec` encuentra "proyección" mientras se escribe). Con comillas, `or` como palabra o `-` al inicio de una palabra se usa la sintaxis de `websearch_to_tsquery` (`"frase exacta"`, `-excluir`, `a or b`). Los caracteres especiales nunca dan 500. Diccionario `spanish`, sin `unaccent`: "operacion" no encuentra "operación".
+- Nunca devuelve bloques de referencia, notas en la papelera ni contenido de otro usuario. Un tag ajeno o borrado → 400, como en el repaso por tag.
+
+```json
+{
+  "notes": [
+    {
+      "id": 12, "title": "NQ", "parent_note_id": 3, "updated_at": "…",
+      "title_headline": "<b>NQ</b>", "title_match": true, "block_count": 7,
+      "blocks": [
+        { "block_id": 81, "block_type": "text", "snippet": "… <b>proyección</b> …",
+          "tags": [{ "id": 4, "name": "NQ", "color": "#3B82F6", "group_id": 2 }], "created_at": "…" }
+      ],
+      "block_ids": [81, 84, 90]
+    }
+  ],
+  "total_notes": 14, "total_blocks": 52, "truncated": false
+}
+```
+
+- `blocks`: hasta 3 por nota, con snippet (`ts_headline`, o los primeros 140 caracteres; `null` fuera de `text`/`callout`). Con texto, los de mejor rank; solo con tags, los más recientes.
+- `block_ids`: todos los bloques de la nota que hicieron match, en el orden de la nota (para "Repasar"). En total hasta 500; si se corta, `truncated: true`.
+- Orden de las notas: con texto, por rank (título ×2 + mejor bloque) y `updated_at`; solo con tags, por el bloque más reciente.
 
 ### CRUD de notas
 
 | Método | Ruta | Notas |
 |--------|------|-------|
 | `POST` | `/api/notes` | Crear nota. Body: `{ title?, parent_note_id?, type? }` (`type` ∈ `note` \| `section`). |
-| `GET` | `/api/notes/:id` | Detalle con bloques. Cada bloque trae `price_alerts` y `date_reminders` (con `last_price` del catálogo para la distancia), y la nota los suyos de nivel nota. Ver [Recordatorios de análisis](#recordatorios-de-análisis). La nota y cada bloque traen `tags: [{ id, name, color, group_key }]` en orden canónico (`[]` si no tienen). |
+| `GET` | `/api/notes/:id` | Detalle con bloques. Cada bloque trae `price_alerts` y `date_reminders` (con `last_price` del catálogo para la distancia), y la nota los suyos de nivel nota. Ver [Recordatorios de análisis](#recordatorios-de-análisis). La nota y cada bloque traen `tags: [{ id, name, color, group_id }]` en orden canónico (`[]` si no tienen). |
 | `PATCH` | `/api/notes/:id/title` | Renombrar. |
 | `DELETE` | `/api/notes/:id` | Soft-delete recursivo (nota + descendientes vía `deleted_at`). Conserva las filas de bloques/imágenes; de disco solo borra archivos de imagen con >24h. |
 | `PATCH` | `/api/notes/:id/move` | Mover (cambia parent). |
@@ -338,7 +373,24 @@ Timeframes del usuario.
 
 ### Tags (globales por usuario)
 
-`GET`/`POST`/`PATCH`/`DELETE` en `/api/notes/tags[/:tagId]`. Cada tag es `{ id, name, color, group_key }`; `group_key` ∈ `activo`, `tipo`, `estrategia`, `resultado`, `libre` (default `libre`). `POST` y `PATCH` aceptan `group_key`. Un nombre repetido (sin distinguir mayúsculas, también con dos creaciones simultáneas) → 400 "Ya existe un tag con ese nombre". `GET` ordena por nombre; el resto de respuestas usan el **orden canónico**: por grupo (en ese orden) y luego por nombre. Spec: [`features/specs/tags-bloques.md`](../features/specs/tags-bloques.md).
+`GET`/`POST`/`PATCH`/`DELETE` en `/api/notes/tags[/:tagId]`. Cada tag es `{ id, name, color, group_id }` en todas las respuestas (el CRUD agrega `created_at`). `group_id` es un grupo del usuario, o `null` para **Libre**. `POST` y `PATCH` aceptan `group_id` (entero positivo o `null`; sin él, Libre); un grupo ajeno o inexistente → 404 "Grupo no encontrado". Un nombre repetido (sin distinguir mayúsculas, también con dos creaciones simultáneas) → 400 "Ya existe un tag con ese nombre". `GET` ordena por nombre; el resto de respuestas usan el **orden canónico**: por la posición de su grupo, Libre al final, y luego por nombre. Spec: [`features/specs/tags-bloques.md`](../features/specs/tags-bloques.md).
+
+#### Grupos de tags
+
+Cada usuario tiene sus grupos (`note_tag_groups`). **Libre no es un grupo**: son los tags con `group_id = null`; va siempre al final y su nombre está reservado. Un grupo es `{ id, name, color, position, tag_count }`; `color` es el que se propone a los tags nuevos del grupo.
+
+| Método | Ruta | Body | Respuesta |
+|---|---|---|---|
+| `GET` | `/api/notes/tag-groups` | — | Lista por `position, id`. |
+| `POST` | `/api/notes/tag-groups` | `{ name, color? }` | 201 con el grupo, al final. |
+| `PATCH` | `/api/notes/tag-groups/:groupId` | `{ name?, color? }` | El grupo. |
+| `DELETE` | `/api/notes/tag-groups/:groupId` | — | `{ id, moved_tags }`: sus tags pasan a Libre y siguen asignados a sus notas y bloques. |
+| `PUT` | `/api/notes/tag-groups/order` | `{ group_ids }` | La lista ordenada. Reordenar cambia el orden de los tags en todas las respuestas. |
+
+- `name`: de 1 a 50 caracteres, con trim. Repetido (sin mayúsculas) → 409 "Ya existe un grupo con ese nombre". "Libre" → 400 `"Libre" es el grupo de los tags sin grupo`.
+- Como máximo 20 grupos por usuario → 400.
+- Grupo ajeno o inexistente → 404 "Grupo no encontrado".
+- `group_ids` tiene que ser exactamente el conjunto de grupos del usuario, sin repetidos → si no, 400.
 
 Los mismos tags sirven para notas y para bloques:
 

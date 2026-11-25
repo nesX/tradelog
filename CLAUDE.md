@@ -59,7 +59,7 @@ for f in trading-journal/database/0*.sql; do
 done
 ```
 
-**Manual schema setup** (sin Docker) — los archivos están numerados `001_` a `030_`:
+**Manual schema setup** (sin Docker) — los archivos están numerados `001_` a `032_`:
 ```bash
 createdb trading_journal
 for f in trading-journal/database/0*.sql; do psql -d trading_journal -f "$f"; done
@@ -112,9 +112,9 @@ Mount points (in `server.js`):
 - `api/endpoints.js` — 76+ endpoint functions
 - `hooks/` — TanStack Query hooks. Query keys via factory pattern (`tradeKeys`).
 - `contexts/` — `AuthContext`, `ThemeContext`
-- `pages/` — Home, CreateTrade, Stats, Settings, Login, Notes, NoteEditor, Review, Backtest×3, Todo, Reminders (`/recordatorios`), admin/Users
+- `pages/` — Home, CreateTrade, Stats, Settings, Login, Notes, NoteEditor, Review, Backtest×3, Todo, Reminders (`/recordatorios`), Search (`/buscar`), Tags (`/tags`), admin/Users
 - `components/` — common, layout, auth, admin, trades, notes (18 archivos), backtest
-- `utils/` — `imageCompression.js`, `treeManipulation.js`, `formatters.js`, `referenceLinks.js`, `notesGrouping.js`
+- `utils/` — `imageCompression.js`, `treeManipulation.js`, `formatters.js`, `referenceLinks.js`, `notesGrouping.js`, `tagGroups.js` (orden y agrupado de tags con los grupos del usuario)
 - `sw.js` — service worker propio (`vite-plugin-pwa` con `injectManifest`): precache del shell + notificaciones push. **Nada de lo que importa puede tocar `window`/`document`/`localStorage` al cargarse** (lo prueban los `node --test` de `utils/`). Solo existe en el build (`npm run build && npm run preview`).
 
 TanStack Query: `staleTime=30s`, `refetchOnWindowFocus=false`, **NO persistence between sessions** (gap planeado — ver `docs/analysis/offline-strategy.md`).
@@ -123,10 +123,10 @@ TanStack Query: `staleTime=30s`, `refetchOnWindowFocus=false`, **NO persistence 
 
 15+ tablas; las principales:
 - `users`, `trades` (+ `trade_images`), `systems`, `signals`, `user_timeframes`, `trade_signals`, `trade_timeframes`
-- `notes` (jerárquico) → `note_blocks` → (`note_block_images`, `note_block_trades`, `note_block_tag_assignments` → `note_tags`) y `note_tag_assignments` → `note_tags` (`note_tags.group_key`: grupos fijos; ver [`docs/features/specs/tags-bloques.md`](docs/features/specs/tags-bloques.md))
+- `notes` (jerárquico) → `note_blocks` → (`note_block_images`, `note_block_trades`, `note_block_tag_assignments` → `note_tags`) y `note_tag_assignments` → `note_tags` (`note_tags.group_id` → `note_tag_groups`, los grupos de cada usuario; NULL es "Libre". Ver [`docs/architecture/database.md`](docs/architecture/database.md#grupos-de-tags-por-usuario-migraciones-031-y-032))
 - `backtest_sessions` → `backtest_trades`
 
-Columnas generadas en `trades`: `pnl` y `pnl_percentage` (STORED). Soft-delete con `deleted_at` en `trades` y `notes` (el de notas es recursivo: marca la nota y sus descendientes). Drag-and-drop via `fractional-indexing`. Migrations secuenciales (`001_` a `030_`). Detalle: [`docs/architecture/database.md`](docs/architecture/database.md).
+Columnas generadas en `trades`: `pnl` y `pnl_percentage` (STORED). Soft-delete con `deleted_at` en `trades` y `notes` (el de notas es recursivo: marca la nota y sus descendientes). Drag-and-drop via `fractional-indexing`. Migrations secuenciales (`001_` a `032_`). Detalle: [`docs/architecture/database.md`](docs/architecture/database.md).
 
 ## CSV Import
 

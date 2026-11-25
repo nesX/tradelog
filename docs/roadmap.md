@@ -73,13 +73,14 @@ Originados en [`analysis/scaling.md` Fase 0](analysis/scaling.md#fase-0--hardeni
 | Bloque callout | `update-notas-bloque-callout.md` | ✅ Implementado (migración 014) |
 | Backtesting rápido | `sistema-de-backtesting-rapido.md` + `backtesting-rapido-detalle.md` | ✅ Implementado (rutas, controllers, UI completos) |
 | Gestión de usuarios | `sistema-de-gestion-de-usuarios.md` | 🟡 Parcial — super_admin existe, listing en admin/Users, pero spec habla de invitaciones / RBAC más fino |
-| Búsqueda full-text de notas | `buscador-full-texto-notas.md` | ✅ Implementado (`/api/notes/search`, migración 015) |
+| Búsqueda full-text de notas | `buscador-full-texto-notas.md` | ✅ Implementado (`/api/notes/search`, migración 015). Rehecha en las tasks 043–044: página `/buscar` con bloques por nota, prefijos mientras se escribe y tags de bloque (falta prod, task 048) |
 | Section dividers en sidebar | `section-dividers-en-sidebar-de-notas.md` | ✅ Implementado (migración 020) |
 | Sistema de estrategias | `sistema-de-estrategias.md` | 🟡 Parcial — `systems` y `signals` existen pero spec describe algo más amplio (templates, paneles dedicados) |
 | Progreso DnD | `progreso-draganddrop.md` | 📝 Doc de tracking del DnD (no es feature) |
 | Recordatorios de análisis (alertas de precio y por fecha) + bandeja `/recordatorios` | `alertas-de-precio-en-notas.md` | ✅ Implementado y en prod (migración 028, tasks 016–026 en `tasks/done/`) |
 | Notificaciones push de los recordatorios (Web Push en la PWA) | `notificaciones-push-pwa.md` | 🟡 Implementado (tasks 028–031); falta la puesta en prod (task 032) |
 | Tags por bloque con grupos, repaso por tag y visor de bloques | `tags-bloques.md` | 🟡 Implementado (migración 030, tasks 033–041); falta la puesta en prod y la migración de las notas-categoría reales (task 042) |
+| Página `/tags` y grupos de tags por usuario | `tags-bloques.md` (D1 reemplazada) + tasks 045–047 | 🟡 Implementado (migraciones 031 y 032); falta la puesta en prod en orden 031 → deploy → 032, después de la 042 (task 048) |
 
 ### Mejoras de UX / DX
 

@@ -2,7 +2,7 @@
 
 PostgreSQL 16 (en compose dev). En producción se conecta al postgres compartido del proyecto `market-tracker`.
 
-Migraciones: `trading-journal/database/0NN_*.sql`, secuenciales del `001` al `030`. **No hay framework de migraciones** — se aplican manualmente con `psql`.
+Migraciones: `trading-journal/database/0NN_*.sql`, secuenciales del `001` al `032`. **No hay framework de migraciones** — se aplican manualmente con `psql`.
 
 ## Tablas
 
@@ -89,20 +89,34 @@ Modelo jerárquico tipo Notion con bloques tipados y reordenamiento por `fractio
 | `note_blocks` | Bloques dentro de una nota: `block_type` (`text`, `image_gallery`, `image`, `reference`, `callout`, `trade_reference`), `content` (TEXT), `metadata` (JSONB), `position` (string fractional), `requires_follow_up` (bool, "Revisión"), `marked_for_revisit` (bool, "Repaso"). |
 | `note_block_images` | Imágenes asociadas a un bloque `image_gallery` o `image` (este último guarda como máximo una: subir otra reemplaza la anterior). `position` INTEGER (reorden por índice, no fractional). |
 | `note_block_trades` | Trades referenciados desde un bloque `trade_reference`. M:N entre `note_blocks` y `trades`. |
-| `note_tags` | Tags globales por usuario, con `group_key` (`activo` \| `tipo` \| `estrategia` \| `resultado` \| `libre`, default `libre`). Nombre único por usuario sin distinguir mayúsculas (`idx_note_tags_unique_name`). |
+| `note_tags` | Tags globales por usuario, con `group_id` → `note_tag_groups` (`ON DELETE SET NULL`; NULL es **Libre**). Nombre único por usuario sin distinguir mayúsculas (`idx_note_tags_unique_name`). |
+| `note_tag_groups` | Grupos de tags de cada usuario: `name` (único por usuario sin distinguir mayúsculas), `color` (el que se propone a los tags nuevos del grupo) y `position` (orden de los grupos y, con él, el orden canónico de los tags). Libre no es una fila. |
 | `note_tag_assignments` | M:N entre `notes` y `note_tags`. Los tags de una nota son los tags por defecto de sus bloques nuevos. |
 | `note_block_tag_assignments` | M:N entre `note_blocks` y `note_tags` (PK `(block_id, tag_id)`). Es lo que filtra el repaso por tag. |
 
-Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_migration_notes_search.sql`, `017_migration_dnd.sql`, `018_migration_fix_positions.sql`, `019_migration_block_follow_up.sql`, `020_migration_note_sections.sql`, `022_migration_references.sql`, `023_migration_trade_reference_block.sql`, `024_migration_block_updated_at_skip_reorder.sql`, `025_migration_block_revisit.sql`, `026_migration_image_block.sql`, `030_migration_block_tags.sql`.
+Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_migration_notes_search.sql`, `017_migration_dnd.sql`, `018_migration_fix_positions.sql`, `019_migration_block_follow_up.sql`, `020_migration_note_sections.sql`, `022_migration_references.sql`, `023_migration_trade_reference_block.sql`, `024_migration_block_updated_at_skip_reorder.sql`, `025_migration_block_revisit.sql`, `026_migration_image_block.sql`, `030_migration_block_tags.sql`, `031_migration_tag_groups.sql`, `032_drop_tag_group_key.sql`.
 
 #### Tags por bloque (migración 030)
 
 `030_migration_block_tags.sql` (spec [`features/specs/tags-bloques.md`](../features/specs/tags-bloques.md)):
 
-- `note_tags.group_key VARCHAR(20) NOT NULL DEFAULT 'libre'` con el CHECK `note_tags_group_key_check`. Los tags existentes quedan en `libre`. La lista de grupos tiene que coincidir con `TAG_GROUPS` del backend y del frontend (`constants/tagGroups.js`): agregar un grupo es una migración nueva más esas dos constantes.
+- `note_tags.group_key VARCHAR(20) NOT NULL DEFAULT 'libre'` con el CHECK `note_tags_group_key_check`: los grupos fijos Activo, Tipo, Estrategia, Resultado y Libre. **Historia**: la 031 los reemplazó por grupos de cada usuario y la 032 borró la columna (ver abajo).
 - `note_block_tag_assignments (block_id, tag_id)`, PK compuesta (ninguna asignación se direcciona por id) e índice `idx_note_block_tag_assignments_tag (tag_id, block_id)` para el filtro del repaso por tag.
 - Cascadas: borrar un bloque o un tag borra sus asignaciones; la purga de notas (`hardDeleteNotes`) llega por nota → bloques → asignaciones. El soft delete de notas no las toca.
 - Idempotente. El CHECK se recrea con `DROP CONSTRAINT IF EXISTS` + `ADD`: declarado junto al `ADD COLUMN IF NOT EXISTS`, Postgres rechaza el nombre repetido en la segunda corrida.
+
+#### Grupos de tags por usuario (migraciones 031 y 032)
+
+`031_migration_tag_groups.sql`:
+
+- Tabla `note_tag_groups (id, user_id → users ON DELETE CASCADE, name VARCHAR(50), color, position, created_at)` con el índice único `uq_note_tag_groups_user_name (user_id, LOWER(name))`.
+- `note_tags.group_id INTEGER REFERENCES note_tag_groups(id) ON DELETE SET NULL` e índice `idx_note_tags_group`. Borrar un grupo deja sus tags en Libre (NULL) sin tocar sus asignaciones.
+- Semilla: los usuarios sin ningún grupo reciben Activo, Tipo, Estrategia y Resultado (colores y orden de la 030), y cada tag pasa al grupo de su `group_key` (los de `libre` quedan en NULL). Libre no se siembra. La semilla y el paso de tags corren solo si existe `group_key`: tras la 032, volver a correr la 031 no resucita grupos borrados.
+- No borra `group_key`: el código anterior la sigue usando entre la migración y el deploy.
+
+`032_drop_tag_group_key.sql`: borra el CHECK y la columna `group_key`. En dev va junto con la 031; en prod, **después** del deploy del código que usa `group_id` (orden en la task 048).
+
+Orden canónico de los tags en las queries: `LEFT JOIN note_tag_groups g ON g.id = t.group_id` y `ORDER BY g.position NULLS LAST, g.id, LOWER(t.name)`. El AND entre grupos del repaso por tag y de la búsqueda cuenta `COUNT(DISTINCT COALESCE(t.group_id, 0))`: sin el `COALESCE`, un tag Libre no contaría como grupo.
 
 `note_blocks` no tiene `user_id`: el dueño de un bloque se comprueba siempre por su nota (`JOIN notes n ON n.id = b.note_id AND n.user_id = $N`). Las referencias (`block_type = 'reference'`) no llevan tags.
 

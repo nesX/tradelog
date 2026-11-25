@@ -4,6 +4,8 @@
 
 Rutas relativas a `trading-journal/`. Base técnica: el resumen "Tags de notas: diseño técnico actual".
 
+> **Actualización 2026-11-25 (tasks 043–048):** los grupos fijos (D1) se reemplazaron por **grupos de cada usuario** (`note_tag_groups`, `note_tags.group_id`; migraciones 031 y 032), con "Libre" como los tags sin grupo, y se gestionan en la página `/tags`. La búsqueda de notas pasó a buscar bloques con la misma regla de tags que el repaso (`/buscar`). Lo que este spec dice de `group_key`, `TAG_GROUPS` y `NoteTagManager` es historia: ver [`architecture/database.md`](../../architecture/database.md#grupos-de-tags-por-usuario-migraciones-031-y-032) y [`api/reference.md`](../../api/reference.md#grupos-de-tags).
+
 ## 0. Objetivo
 
 Hoy los tags son planos y se asignan a notas completas. Pero la unidad que se documenta y se repasa es el **bloque**. Una proyección de NQ puede ser a la vez "NQ", "proyección" y "trade perdido", y como un bloque vive en una sola nota, hoy se compensa creando bloques de referencia en otras notas. Eso no escala y no funciona hacia atrás: una nota nueva nace vacía aunque el contenido ya exista.
@@ -22,7 +24,7 @@ Regla general: **el bloque es lo que se etiqueta y se repasa; la nota solo propo
 
 | # | Decisión | Por qué |
 |---|---|---|
-| D1 | Grupos fijos en una columna `group_key` de `note_tags`: `activo`, `tipo`, `estrategia`, `resultado`, `libre` (default). No hay tabla de grupos. | Simplicidad. El camino a grupos por usuario está en §11. |
+| D1 | ~~Grupos fijos en una columna `group_key` de `note_tags`: `activo`, `tipo`, `estrategia`, `resultado`, `libre` (default). No hay tabla de grupos.~~ **Reemplazada** (task 046): grupos por usuario en `note_tag_groups` y `note_tags.group_id`; NULL es Libre, que no es una fila y va siempre al final. | Simplicidad al principio. El camino a grupos por usuario estaba en §11 y se siguió con esa variante. |
 | D2 | Un solo vocabulario: los mismos `note_tags` sirven para notas y para bloques. | Evitar dos sistemas que se ven iguales y significan cosas distintas. |
 | D3 | Filtro: OR dentro de un grupo, AND entre grupos. | "NQ, ya sean proyecciones o trades perdidos" tiene que poder pedirse sin un lenguaje de consultas. |
 | D4 | Los tags de la nota se **copian** a cada bloque nuevo creado en ella. No hay herencia en vivo: cambiar los tags de la nota no toca bloques existentes, y mover un bloque conserva los suyos. | Es predecible. Con herencia en vivo, las notas mixtas etiquetan mal y no hay forma de excluir un bloque. |
@@ -455,6 +457,8 @@ Archivo de mapeo:
 }
 ```
 
+> Desde la task 046, `group` es el **nombre** de un grupo del usuario (sin distinguir mayúsculas; un nombre que no existe es un error del mapeo), y `"libre"` o sin `group` es Libre. Un tag creado por el script nace con el color de su grupo. Con los grupos sembrados por la 031, el ejemplo de arriba sigue valiendo.
+
 Comportamiento, todo en una transacción:
 
 1. **Validar:**
@@ -572,12 +576,10 @@ La 037, la 040 y la 041 solo dependen de la 034 y pueden ir en paralelo con el e
 ## 11. Fuera de alcance
 
 - Unificar con los tags de trades.
-- Grupos definidos por el usuario. Si hicieran falta: una tabla `note_tag_groups` por usuario, sembrada con los cinco grupos actuales, y pasar de `group_key` a `group_id`. La query de repaso no cambia, porque cuenta grupos distintos.
 - Herencia en vivo de los tags de nota.
 - Vistas guardadas en BD (las URLs cumplen ese papel).
 - Conteo de bloques por tag.
 - Marca de "repasado" y repetición espaciada.
 - Bloque de consulta dentro de notas.
-- Cambios en la búsqueda de notas (sigue con OR y solo sobre notas).
 - Tags en notas `section`/`todo` desde la UI.
 - Quitar los tags del payload de `getTree`.
