@@ -21,6 +21,8 @@ import Review from './pages/Review.jsx';
 import Repaso from './pages/Repaso.jsx';
 import Todo from './pages/Todo.jsx';
 import Reminders from './pages/Reminders.jsx';
+import Search from './pages/Search.jsx';
+import Tags from './pages/Tags.jsx';
 import { usePushSync } from './hooks/usePushSubscription.js';
 import { useServiceWorkerMessages } from './hooks/useServiceWorkerMessages.js';
 
@@ -216,6 +218,26 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <Reminders />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/buscar"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Search />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/tags"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Tags />
                       </Layout>
                     </ProtectedRoute>
                   }

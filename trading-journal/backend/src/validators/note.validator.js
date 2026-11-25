@@ -1,5 +1,4 @@
 import Joi from 'joi';
-import { TAG_GROUPS } from '../constants/tagGroups.js';
 
 export const createNoteSchema = Joi.object({
   title: Joi.string().max(500).optional().default('Sin título'),
@@ -74,16 +73,37 @@ export const reorderBlocksSchema = Joi.object({
   block_ids: Joi.array().items(Joi.number().integer().positive()).min(1).required(),
 });
 
+const hexColor = Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/);
+// Grupo de un tag: un grupo del usuario, o null para Libre.
+const tagGroupId = Joi.number().integer().positive().allow(null);
+
 export const createTagSchema = Joi.object({
   name: Joi.string().max(100).trim().required(),
-  color: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).optional(),
-  group_key: Joi.string().valid(...TAG_GROUPS).optional(),
+  color: hexColor.optional(),
+  group_id: tagGroupId.optional(),
 });
 
 export const updateTagSchema = Joi.object({
   name: Joi.string().max(100).trim().optional(),
-  color: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).optional(),
-  group_key: Joi.string().valid(...TAG_GROUPS).optional(),
+  color: hexColor.optional(),
+  group_id: tagGroupId.optional(),
+});
+
+const tagGroupName = Joi.string().trim().min(1).max(50);
+
+export const createTagGroupSchema = Joi.object({
+  name: tagGroupName.required(),
+  color: hexColor.optional(),
+});
+
+export const updateTagGroupSchema = Joi.object({
+  name: tagGroupName.optional(),
+  color: hexColor.optional(),
+});
+
+// El service comprueba que sean exactamente los grupos del usuario.
+export const reorderTagGroupsSchema = Joi.object({
+  group_ids: Joi.array().items(Joi.number().integer().positive()).required(),
 });
 
 export const assignTagsSchema = Joi.object({

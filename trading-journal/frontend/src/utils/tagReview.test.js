@@ -62,11 +62,18 @@ test('a igual fecha, cronológico desempata por id', () => {
 });
 
 test('buildReviewTitle separa grupos con " · " y tags del mismo grupo con ", "', () => {
-  const selected = [
-    { id: 2, name: 'trade perdido', group_key: 'tipo' },
-    { id: 1, name: 'NQ', group_key: 'activo' },
-    { id: 3, name: 'proyección', group_key: 'tipo' },
+  const groups = [
+    { id: 10, name: 'Activo', color: '#3B82F6' },
+    { id: 11, name: 'Tipo', color: '#F59E0B' },
   ];
-  assert.equal(buildReviewTitle(selected), 'NQ · proyección, trade perdido');
-  assert.equal(buildReviewTitle([]), '');
+  const selected = [
+    { id: 2, name: 'trade perdido', group_id: 11 },
+    { id: 1, name: 'NQ', group_id: 10 },
+    { id: 3, name: 'proyección', group_id: 11 },
+    { id: 4, name: 'zeta', group_id: null },
+  ];
+  assert.equal(buildReviewTitle(selected, groups), 'NQ · proyección, trade perdido · zeta');
+  assert.equal(buildReviewTitle([], groups), '');
+  // Sin grupos cargados: una sola lista por nombre.
+  assert.equal(buildReviewTitle(selected.slice(0, 3), undefined), 'NQ, proyección, trade perdido');
 });

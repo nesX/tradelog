@@ -1,10 +1,31 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical, BookOpen, Menu, X, LayoutDashboard, Users, ListTodo, Bell } from 'lucide-react';
+import { TrendingUp, BarChart3, Plus, Moon, Sun, FlaskConical, BookOpen, Menu, X, LayoutDashboard, Users, ListTodo, Bell, Search, Tags } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import UserMenu from '../auth/UserMenu.jsx';
 import { useNotificationCount } from '../../hooks/useNotifications.js';
+
+/**
+ * Icono del header del área de notas que lleva a una página propia (búsqueda,
+ * tags, recordatorios), resaltado cuando se está en ella. `children` va encima del
+ * icono (p. ej. el badge de la campana).
+ */
+const HeaderIconLink = ({ to, icon: Icon, label, title = label, active, className = '', children }) => (
+  <Link
+    to={to}
+    title={title}
+    aria-label={label}
+    className={`relative p-2 rounded-lg transition-colors ${
+      active
+        ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+    } ${className}`}
+  >
+    <Icon className="w-5 h-5" />
+    {children}
+  </Link>
+);
 
 /**
  * Campana de la bandeja /recordatorios con el número de tarjetas abiertas (sin
@@ -13,24 +34,21 @@ import { useNotificationCount } from '../../hooks/useNotifications.js';
 const RemindersBell = ({ active, className = '' }) => {
   const { data: openCount = 0 } = useNotificationCount();
   return (
-    <Link
+    <HeaderIconLink
       to="/recordatorios"
+      icon={Bell}
+      label="Recordatorios"
       title={openCount > 0 ? `Recordatorios (${openCount} pendientes)` : 'Recordatorios'}
-      aria-label="Recordatorios"
-      className={`relative p-2 rounded-lg transition-colors ${
-        active
-          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
-          : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-      } ${className}`}
+      active={active}
+      className={className}
     >
-      <Bell className="w-5 h-5" />
       {openCount > 0 && (
         <span className="absolute -top-0.5 -right-0.5 min-w-[1.1rem] h-[1.1rem] px-1 flex items-center justify-center
-                         rounded-full bg-rose-500 text-white text-[10px] font-semibold leading-none">
+                         rounded-full bg-rose-500 text-white text-xs font-semibold leading-none">
           {openCount > 99 ? '99+' : openCount}
         </span>
       )}
-    </Link>
+    </HeaderIconLink>
   );
 };
 
@@ -49,7 +67,7 @@ const Header = () => {
 
   // Notas (y lo que cuelga de ellas) funciona casi como una app aparte: header
   // reducido, sin estadísticas/backtesting/usuarios ni el link a app.nesx.
-  const isNotesArea = ['/notes', '/review', '/repaso', '/todo', '/recordatorios'].some(isActive);
+  const isNotesArea = ['/notes', '/review', '/repaso', '/todo', '/recordatorios', '/buscar', '/tags'].some(isActive);
 
   const primaryNav = isNotesArea
     ? [
@@ -117,7 +135,13 @@ const Header = () => {
               </Link>
             ))}
 
-            {isNotesArea && <RemindersBell active={isActive('/recordatorios')} className="ml-1" />}
+            {isNotesArea && (
+              <>
+                <HeaderIconLink to="/buscar" icon={Search} label="Buscar" active={isActive('/buscar')} className="ml-1" />
+                <HeaderIconLink to="/tags" icon={Tags} label="Tags" active={isActive('/tags')} />
+                <RemindersBell active={isActive('/recordatorios')} />
+              </>
+            )}
 
             <button
               onClick={toggleTheme}
@@ -160,7 +184,13 @@ const Header = () => {
               </Link>
             ))}
 
-            {isNotesArea && <RemindersBell active={isActive('/recordatorios')} />}
+            {isNotesArea && (
+              <>
+                <HeaderIconLink to="/buscar" icon={Search} label="Buscar" active={isActive('/buscar')} />
+                <HeaderIconLink to="/tags" icon={Tags} label="Tags" active={isActive('/tags')} />
+                <RemindersBell active={isActive('/recordatorios')} />
+              </>
+            )}
 
             {/* Hamburger */}
             <button

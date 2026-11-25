@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../api/endpoints.js';
-import { sortTags } from '../constants/tagGroups.js';
-import { noteKeys } from './useNotes.js';
+import { sortTags } from '../utils/tagGroups.js';
+import { noteKeys, getCachedTagGroups } from './useNotes.js';
 import { revisitKeys } from './useRevisit.js';
 
 /**
@@ -27,7 +27,9 @@ export const updateBlockTagsInCache = (qc, { noteId, blockId }, update) => {
   );
 };
 
-const withTag = (tag) => (tags) => (tags.some((t) => t.id === tag.id) ? tags : sortTags([...tags, tag]));
+// `groups`: los grupos del caché, para insertar el tag en orden canónico.
+const withTag = (tag, groups) => (tags) =>
+  tags.some((t) => t.id === tag.id) ? tags : sortTags([...tags, tag], groups);
 const withoutTag = (tag) => (tags) => tags.filter((t) => t.id !== tag.id);
 
 /**
@@ -40,7 +42,7 @@ const withoutTag = (tag) => (tags) => tags.filter((t) => t.id !== tag.id);
  *    mutaciones de tags de ese bloque en curso, para que una respuesta vieja no
  *    pise un optimistic más nuevo.
  *  - No se refresca la nota en cada toggle (trae bloques, imágenes, trades y
- *    recordatorios); sí el repaso por tag.
+ *    recordatorios); sí el repaso por tag y la búsqueda.
  */
 const useBlockTagMutation = ({ noteId, blockId }, { request, apply, revert }) => {
   const qc = useQueryClient();
@@ -53,15 +55,18 @@ const useBlockTagMutation = ({ noteId, blockId }, { request, apply, revert }) =>
     mutationFn: (tag) => request(blockId, tag.id),
     onMutate: (tag) => {
       qc.cancelQueries({ queryKey: noteKeys.block(blockId) });
-      updateBlockTagsInCache(qc, target, apply(tag));
+      updateBlockTagsInCache(qc, target, apply(tag, getCachedTagGroups(qc)));
     },
     onSuccess: (res) => {
       if (qc.isMutating({ mutationKey }) === 1 && res?.data?.tags) {
         updateBlockTagsInCache(qc, target, () => res.data.tags);
       }
     },
-    onError: (_err, tag) => updateBlockTagsInCache(qc, target, revert(tag)),
-    onSettled: () => qc.invalidateQueries({ queryKey: revisitKeys.tags }),
+    onError: (_err, tag) => updateBlockTagsInCache(qc, target, revert(tag, getCachedTagGroups(qc))),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: revisitKeys.tags });
+      qc.invalidateQueries({ queryKey: noteKeys.search() });
+    },
   });
 };
 

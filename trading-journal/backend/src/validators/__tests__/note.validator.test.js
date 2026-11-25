@@ -7,6 +7,9 @@ import {
   noteRevisitSchema,
   createTagSchema,
   updateTagSchema,
+  createTagGroupSchema,
+  updateTagGroupSchema,
+  reorderTagGroupsSchema,
   blockTagSchema,
   blocksByTagsSchema,
 } from '../note.validator.js';
@@ -120,22 +123,52 @@ describe('note.validator', () => {
     });
   });
 
-  describe('createTagSchema / updateTagSchema — group_key', () => {
-    it('acepta un group_key válido al crear y al editar', () => {
-      expect(createTagSchema.validate({ name: 'NQ', group_key: 'activo' }).error).toBeUndefined();
-      expect(updateTagSchema.validate({ group_key: 'resultado' }).error).toBeUndefined();
+  describe('createTagSchema / updateTagSchema — group_id', () => {
+    it('acepta un group_id entero positivo, o null para Libre', () => {
+      expect(createTagSchema.validate({ name: 'NQ', group_id: 3 }).error).toBeUndefined();
+      expect(createTagSchema.validate({ name: 'NQ', group_id: null }).error).toBeUndefined();
+      expect(updateTagSchema.validate({ group_id: 5 }).error).toBeUndefined();
+      expect(updateTagSchema.validate({ group_id: null }).error).toBeUndefined();
     });
 
-    it('rechaza un group_key fuera de los grupos fijos', () => {
-      expect(createTagSchema.validate({ name: 'NQ', group_key: 'foo' }).error).toBeDefined();
-      expect(updateTagSchema.validate({ group_key: 'foo' }).error).toBeDefined();
+    it('rechaza un group_id que no es un entero positivo', () => {
+      expect(createTagSchema.validate({ name: 'NQ', group_id: 'activo' }).error).toBeDefined();
+      expect(updateTagSchema.validate({ group_id: 0 }).error).toBeDefined();
+      expect(updateTagSchema.validate({ group_id: 1.5 }).error).toBeDefined();
     });
 
-    it('group_key es opcional (el default libre lo pone el repositorio)', () => {
+    it('group_id es opcional y group_key ya no existe', () => {
       const { error, value } = createTagSchema.validate({ name: 'NQ' });
       expect(error).toBeUndefined();
-      expect(value.group_key).toBeUndefined();
+      expect(value.group_id).toBeUndefined();
       expect(updateTagSchema.validate({ name: 'otro' }).error).toBeUndefined();
+      expect(createTagSchema.validate({ name: 'NQ', group_key: 'activo' }).error).toBeDefined();
+    });
+  });
+
+  describe('grupos de tags', () => {
+    it('name de 1 a 50 caracteres, con trim', () => {
+      const { error, value } = createTagGroupSchema.validate({ name: '  Sesión  ' });
+      expect(error).toBeUndefined();
+      expect(value.name).toBe('Sesión');
+      expect(createTagGroupSchema.validate({ name: '   ' }).error).toBeDefined();
+      expect(createTagGroupSchema.validate({ name: 'x'.repeat(51) }).error).toBeDefined();
+      expect(createTagGroupSchema.validate({ name: 'x'.repeat(50) }).error).toBeUndefined();
+      expect(createTagGroupSchema.validate({ color: '#3B82F6' }).error).toBeDefined();
+    });
+
+    it('color con el mismo patrón hex que los tags', () => {
+      expect(createTagGroupSchema.validate({ name: 'A', color: '#3B82F6' }).error).toBeUndefined();
+      expect(updateTagGroupSchema.validate({ color: 'azul' }).error).toBeDefined();
+      expect(updateTagGroupSchema.validate({ color: '#3B82F' }).error).toBeDefined();
+    });
+
+    it('group_ids: array de enteros positivos', () => {
+      expect(reorderTagGroupsSchema.validate({ group_ids: [3, 1, 2] }).error).toBeUndefined();
+      expect(reorderTagGroupsSchema.validate({ group_ids: [] }).error).toBeUndefined();
+      expect(reorderTagGroupsSchema.validate({ group_ids: [1, -2] }).error).toBeDefined();
+      expect(reorderTagGroupsSchema.validate({ group_ids: ['a'] }).error).toBeDefined();
+      expect(reorderTagGroupsSchema.validate({}).error).toBeDefined();
     });
   });
 

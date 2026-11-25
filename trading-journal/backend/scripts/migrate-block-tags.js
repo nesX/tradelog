@@ -91,7 +91,9 @@ const main = async () => {
       );
       if (result.created_tags.length > 0 || result.group_changes.length > 0) {
         console.log('  No se tocan los tags; revertir a mano si hace falta:');
-        for (const t of result.created_tags) console.log(`  · creado: "${t.name}" (#${t.id}, ${t.group_key})`);
+        // `group_key`: reportes anteriores a los grupos por usuario (046).
+        for (const t of result.created_tags)
+          console.log(`  · creado: "${t.name}" (#${t.id}, ${t.group ?? t.group_key})`);
         for (const g of result.group_changes) console.log(`  · grupo: "${g.name}" (#${g.tag_id}) ${g.from} → ${g.to}`);
       }
       return;

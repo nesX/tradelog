@@ -6,7 +6,12 @@ import { NotFoundError, ValidationError, ConflictError } from '../middleware/err
 import { deleteFileIfExists } from '../utils/fileUtils.js';
 import * as repo from '../repositories/note.repository.js';
 import * as tradeRepo from '../repositories/trade.repository.js';
-import { TAG_REVIEW_MAX_ITEMS, TAG_REVIEW_MAX_TAGS } from '../constants/tagGroups.js';
+import {
+  TAG_GROUPS_MAX,
+  FREE_GROUP_NAME,
+  TAG_REVIEW_MAX_ITEMS,
+  TAG_REVIEW_MAX_TAGS,
+} from '../constants/tagGroups.js';
 
 const uploadsDir = () => path.resolve(config.upload.dir);
 
@@ -374,11 +379,49 @@ export const moveBlockToNote = async ({ blockId, targetNoteId, userId }) => {
   });
 };
 
-export const search = async (userId, { q, tagIds, limit }) => {
-  if (!q?.trim() && (!tagIds || tagIds.length === 0)) {
-    throw new ValidationError('Se requiere texto de búsqueda o al menos un tag');
-  }
-  return repo.search(userId, { q: q?.trim() ?? '', tagIds: tagIds ?? [], limit });
+// Bloques por nota que la búsqueda devuelve con snippet; el resto va en block_ids.
+export const SEARCH_SNIPPETS_PER_NOTE = 3;
+
+// Sintaxis de websearch_to_tsquery: comillas, `or` como palabra o `-` al inicio de una palabra.
+const WEBSEARCH_SYNTAX = /"|(?:^|\s)or(?:\s|$)|(?:^|\s)-\S/i;
+const SEARCH_TOKEN = /[\p{L}\p{N}]+/gu;
+
+/**
+ * Traduce el texto del buscador a una tsquery. websearch_to_tsquery no hace
+ * prefijos ("proyec" no encuentra "proyección"), así que sin sintaxis de
+ * websearch se arma `tok1 & tok2 & ultimo:*` para to_tsquery: buscar mientras se
+ * escribe. Los tokens son solo letras y dígitos, así to_tsquery nunca falla por
+ * sintaxis. Devuelve { text, mode } ('prefix' | 'websearch'), o null si no hay
+ * ninguna palabra (equivale a no tener texto).
+ */
+export const buildSearchQuery = (q) => {
+  const tokens = (q ?? '').match(SEARCH_TOKEN) ?? [];
+  if (tokens.length === 0) return null;
+  if (WEBSEARCH_SYNTAX.test(q)) return { text: q.trim(), mode: 'websearch' };
+  return { text: [...tokens.slice(0, -1), `${tokens.at(-1)}:*`].join(' & '), mode: 'prefix' };
+};
+
+/**
+ * Búsqueda de bloques agrupados por nota:
+ * - Solo texto: notas cuyo título hace match y bloques text/callout cuyo contenido
+ *   hace match.
+ * - Solo tags: bloques con esos tags (misma regla que el repaso por tag).
+ * - Texto + tags: bloques con los tags cuyo contenido o el título de su nota hace match.
+ * Nunca referencias ni notas en la papelera.
+ */
+export const search = async (userId, { q, tagIds = [], limit }) => {
+  const query = buildSearchQuery(q);
+  if (!query && tagIds.length === 0) throw new ValidationError('Escribe algo o elige un tag');
+
+  const tagFilter = await resolveTagFilter(userId, tagIds);
+  return repo.search(userId, {
+    query,
+    tagIds: tagFilter.ids,
+    groupCount: tagFilter.groupCount,
+    limit,
+    maxIds: TAG_REVIEW_MAX_ITEMS,
+    snippetsPerNote: SEARCH_SNIPPETS_PER_NOTE,
+  });
 };
 
 // ============================================================
@@ -611,10 +654,16 @@ const rethrowDuplicateTag = (err) => {
   throw err;
 };
 
-export const createTag = async (userId, { name, color, group_key }) => {
+// `group_id` de un tag: null (Libre) o un grupo del usuario.
+const checkTagGroup = async (userId, groupId) => {
+  if (groupId != null) await findOwnTagGroup(userId, groupId);
+};
+
+export const createTag = async (userId, { name, color, group_id }) => {
   const existing = await repo.getTagByName(userId, name);
   if (existing) throw new ValidationError(DUPLICATE_TAG_MESSAGE);
-  return repo.createTag(userId, { name, color, group_key }).catch(rethrowDuplicateTag);
+  await checkTagGroup(userId, group_id);
+  return repo.createTag(userId, { name, color, group_id }).catch(rethrowDuplicateTag);
 };
 
 export const updateTag = async (userId, tagId, data) => {
@@ -627,6 +676,7 @@ export const updateTag = async (userId, tagId, data) => {
       throw new ValidationError(DUPLICATE_TAG_MESSAGE);
     }
   }
+  await checkTagGroup(userId, data.group_id);
 
   return repo.updateTag(userId, tagId, data).catch(rethrowDuplicateTag);
 };
@@ -673,6 +723,74 @@ export const applyNoteTagsToBlocks = async (userId, noteId) => {
 };
 
 // ============================================================
+// GRUPOS DE TAGS
+// ============================================================
+// Cada usuario tiene sus grupos (note_tag_groups). "Libre" no es un grupo: son los
+// tags con group_id NULL, y su nombre está reservado.
+
+const DUPLICATE_GROUP_MESSAGE = 'Ya existe un grupo con ese nombre';
+
+const rethrowDuplicateGroup = (err) => {
+  if (err?.code === '23505') throw new ConflictError(DUPLICATE_GROUP_MESSAGE);
+  throw err;
+};
+
+// Grupo del usuario o 404 (también si el id no es un entero: viene de la URL).
+const findOwnTagGroup = async (userId, groupId) => {
+  const group = Number.isInteger(groupId) ? await repo.getTagGroupById(userId, groupId) : null;
+  if (!group) throw new NotFoundError('Grupo no encontrado');
+  return group;
+};
+
+// Nombre válido para un grupo: no es "Libre" y no lo usa otro grupo del usuario.
+const checkTagGroupName = async (userId, name, groupId = null) => {
+  if (name.toLowerCase() === FREE_GROUP_NAME.toLowerCase()) {
+    throw new ValidationError(`"${FREE_GROUP_NAME}" es el grupo de los tags sin grupo`);
+  }
+  const existing = await repo.getTagGroupByName(userId, name);
+  if (existing && existing.id !== groupId) throw new ConflictError(DUPLICATE_GROUP_MESSAGE);
+};
+
+export const getTagGroups = async (userId) => repo.getTagGroups(userId);
+
+export const createTagGroup = async (userId, { name, color }) => {
+  await checkTagGroupName(userId, name);
+  if ((await repo.countTagGroups(userId)) >= TAG_GROUPS_MAX) {
+    throw new ValidationError(`Se pueden tener como máximo ${TAG_GROUPS_MAX} grupos`);
+  }
+  return repo.createTagGroup(userId, { name, color }).catch(rethrowDuplicateGroup);
+};
+
+export const updateTagGroup = async (userId, groupId, data) => {
+  await findOwnTagGroup(userId, groupId);
+  if (data.name !== undefined) await checkTagGroupName(userId, data.name, groupId);
+  return repo.updateTagGroup(userId, groupId, data).catch(rethrowDuplicateGroup);
+};
+
+/** Borra el grupo; sus tags pasan a Libre y siguen asignados a sus notas y bloques. */
+export const deleteTagGroup = async (userId, groupId) => {
+  await findOwnTagGroup(userId, groupId);
+  const deleted = await repo.deleteTagGroup(userId, groupId);
+  if (!deleted) throw new NotFoundError('Grupo no encontrado');
+  return deleted;
+};
+
+/**
+ * Nuevo orden de los grupos. `groupIds` tiene que ser exactamente el conjunto de
+ * grupos del usuario, sin repetidos. Devuelve la lista ordenada.
+ */
+export const reorderTagGroups = async (userId, groupIds) => {
+  const current = await repo.getTagGroups(userId);
+  const own = new Set(current.map((g) => g.id));
+  const requested = new Set(groupIds);
+  if (requested.size !== groupIds.length || requested.size !== own.size || groupIds.some((id) => !own.has(id))) {
+    throw new ValidationError('El orden tiene que incluir cada uno de tus grupos una sola vez');
+  }
+  await repo.reorderTagGroups(userId, groupIds);
+  return repo.getTagGroups(userId);
+};
+
+// ============================================================
 // TAGS DE BLOQUE
 // ============================================================
 
@@ -714,12 +832,15 @@ export const removeBlockTag = async (userId, blockId, tagId) => {
 // ============================================================
 
 /**
- * Bloques que cumplen una combinación de tags: OR dentro de un grupo, AND entre
- * grupos. Devuelve hasta TAG_REVIEW_MAX_ITEMS, más recientes primero; el orden de
- * presentación lo decide el cliente.
+ * Selección de tags para filtrar bloques (repaso por tag y búsqueda): sin
+ * repetidos, como máximo TAG_REVIEW_MAX_TAGS, todos del usuario. `groupCount` es
+ * el número de grupos distintos: el filtro pide un tag de cada grupo (OR dentro
+ * de un grupo, AND entre grupos). Libre (group_id null) cuenta como un grupo más,
+ * igual que el COALESCE(group_id, 0) del repositorio.
  */
-export const getBlocksByTags = async (userId, tagIds) => {
+const resolveTagFilter = async (userId, tagIds) => {
   const ids = [...new Set(tagIds)];
+  if (ids.length === 0) return { ids, groupCount: 0 };
   if (ids.length > TAG_REVIEW_MAX_TAGS) {
     throw new ValidationError(`Se pueden elegir como máximo ${TAG_REVIEW_MAX_TAGS} tags`);
   }
@@ -728,7 +849,16 @@ export const getBlocksByTags = async (userId, tagIds) => {
   if (tags.length !== ids.length) {
     throw new ValidationError('Algunos tags no existen o no te pertenecen');
   }
-  const groupCount = new Set(tags.map((t) => t.group_key)).size;
+  return { ids, groupCount: new Set(tags.map((t) => t.group_id ?? 0)).size };
+};
+
+/**
+ * Bloques que cumplen una combinación de tags: OR dentro de un grupo, AND entre
+ * grupos. Devuelve hasta TAG_REVIEW_MAX_ITEMS, más recientes primero; el orden de
+ * presentación lo decide el cliente.
+ */
+export const getBlocksByTags = async (userId, tagIds) => {
+  const { ids, groupCount } = await resolveTagFilter(userId, tagIds);
 
   const rows = await repo.findBlocksByTags(userId, ids, groupCount, TAG_REVIEW_MAX_ITEMS);
   const total = rows[0]?.total ?? 0;
@@ -872,7 +1002,7 @@ export const exportAsJSON = async (userId) => {
     version: '1.0',
     total_notes: notes.length,
     total_tags: tags.length,
-    tags: tags.map((t) => ({ name: t.name, color: t.color, group: t.group_key })),
+    tags: tags.map((t) => ({ name: t.name, color: t.color, group: t.group_name ?? FREE_GROUP_NAME })),
     notes: buildNoteTree(groupNotesByParent(notes), blocksMap, null),
   };
 };

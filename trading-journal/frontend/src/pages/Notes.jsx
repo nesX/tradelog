@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Plus, Tags, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, BookMarked, Folder, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Plus, Menu, X, BookOpen, FileText, Clock, FolderInput, Search, Flag, BookMarked, Folder, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNoteTree, useCreateNote, useCreateBlock, useDeleteNote, useRestoreNote, useMoveNote, useUpdateNoteTitle, noteKeys } from '../hooks/useNotes.js';
 import { insertSubNote } from '../hooks/useBlockInserter.js';
@@ -8,9 +8,6 @@ import { clearSectionCollapsed } from '../hooks/useSectionCollapsed.js';
 import { useToast } from '../components/common/Toast.jsx';
 import ConfirmDialog from '../components/common/ConfirmDialog.jsx';
 import NoteTree from '../components/notes/NoteTree.jsx';
-import NoteTagManager from '../components/notes/NoteTagManager.jsx';
-import NoteSearch from '../components/notes/NoteSearch.jsx';
-import NoteSearchResults from '../components/notes/NoteSearchResults.jsx';
 import NoteEditor from './NoteEditor.jsx';
 import Review from './Review.jsx';
 import Repaso from './Repaso.jsx';
@@ -57,7 +54,6 @@ const Notes = () => {
   const restoreNote = useRestoreNote();
   const toast = useToast();
 
-  const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Colapsar el sidebar en pantallas md+ (tablet/desktop). Persistido en
   // localStorage para respetar la preferencia entre sesiones. En mobile el
@@ -65,10 +61,8 @@ const Notes = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('notes-sidebar-collapsed') === '1'
   );
-  const [isSearchActive, setIsSearchActive] = useState(false);
   const [isReviewActive, setIsReviewActive] = useState(false);
   const [isRepasoActive, setIsRepasoActive] = useState(false);
-  const [searchParams, setSearchParams] = useState({ q: '', tagIds: [] });
   const [moveNoteId, setMoveNoteId] = useState(null);
   const [moveSearch, setMoveSearch] = useState('');
   // Nota pendiente de confirmación de borrado (solo cuando tiene sub-notas).
@@ -120,8 +114,6 @@ const Notes = () => {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [addMenuOpen]);
-
-  const handleSearchChange = useCallback((params) => setSearchParams(params), []);
 
   const tree = treeData?.tree || [];
   const flat = treeData?.flat || [];
@@ -270,19 +262,11 @@ const Notes = () => {
       >
         {/* Cabecera del sidebar */}
         <div className="flex items-center justify-between px-3 py-3 border-b border-gray-200 dark:border-gray-700">
-          <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-200">
+          <span className="flex items-center gap-1.5 text-reading/snug font-semibold text-gray-700 dark:text-gray-200">
             <BookOpen className="w-4 h-4" />
             Mis notas
           </span>
           <div className="flex items-center gap-0.5">
-            <button
-              onClick={() => setTagManagerOpen(true)}
-              className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200
-                         hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              title="Gestionar tags"
-            >
-              <Tags className="w-4 h-4" />
-            </button>
             {/* Dropdown: nueva nota / nueva sección */}
             <div className="relative" ref={addMenuRef}>
               <button
@@ -298,13 +282,13 @@ const Notes = () => {
                 <div className="absolute right-0 top-8 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
                   <button
                     onClick={() => { setAddMenuOpen(false); handleCreateRoot(); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-reading/snug text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     <FileText className="w-4 h-4 text-gray-400" /> Nueva nota
                   </button>
                   <button
                     onClick={() => { setAddMenuOpen(false); setNewSectionTitle(''); setCreatingSection(true); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-reading/snug text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     <Folder className="w-4 h-4 text-gray-400" /> Nueva sección
                   </button>
@@ -329,13 +313,6 @@ const Notes = () => {
           </div>
         </div>
 
-        {/* Búsqueda */}
-        <NoteSearch
-          onSearchActive={setIsSearchActive}
-          onChange={handleSearchChange}
-          onEnter={() => selectedId && navigate('/notes')}
-        />
-
         {/* Árbol de notas */}
         <div className="flex-1 overflow-y-auto pt-2">
           {isLoading ? (
@@ -345,7 +322,7 @@ const Notes = () => {
           ) : tree.length === 0 ? (
             <div className="text-center py-10 px-4">
               <BookOpen className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-              <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">No hay notas aún</p>
+              <p className="text-reading/snug text-gray-400 dark:text-gray-500 mb-3">No hay notas aún</p>
               <button
                 onClick={handleCreateRoot}
                 disabled={createNote.isPending}
@@ -390,7 +367,7 @@ const Notes = () => {
         <div className="px-3 pb-1.5 pt-1.5 flex flex-col gap-1 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={() => { setIsReviewActive(false); setIsRepasoActive(false); navigate('/notes'); setSidebarOpen(false); }}
-            className="w-full flex items-center gap-2 px-2.5 py-2 text-sm
+            className="w-full flex items-center gap-2 px-2.5 py-2 text-reading/snug
                        text-gray-600 dark:text-gray-300
                        hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
@@ -399,7 +376,7 @@ const Notes = () => {
           </button>
           <button
             onClick={() => { setIsReviewActive(true); setIsRepasoActive(false); setSidebarOpen(false); navigate('/notes'); }}
-            className="w-full flex items-center gap-2 px-2.5 py-2 text-sm
+            className="w-full flex items-center gap-2 px-2.5 py-2 text-reading/snug
                        bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400
                        hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
           >
@@ -408,7 +385,7 @@ const Notes = () => {
           </button>
           <button
             onClick={() => { setIsRepasoActive(true); setIsReviewActive(false); setSidebarOpen(false); navigate('/notes'); }}
-            className="w-full flex items-center gap-2 px-2.5 py-2 text-sm
+            className="w-full flex items-center gap-2 px-2.5 py-2 text-reading/snug
                        bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400
                        hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
           >
@@ -469,15 +446,6 @@ const Notes = () => {
           <div className="flex-1 bg-gray-50 dark:bg-gray-900">
             <NoteEditor embeddedId={selectedId} />
           </div>
-        ) : isSearchActive ? (
-          <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
-            <NoteSearchResults
-              q={searchParams.q}
-              tagIds={searchParams.tagIds}
-              flat={flat}
-              onSelectNote={handleSelectNote}
-            />
-          </div>
         ) : (
           /* ── Panel de inicio: notas recientes ── */
           <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-gray-800">
@@ -486,7 +454,7 @@ const Notes = () => {
                             border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                <span className="text-reading/snug font-semibold text-gray-700 dark:text-gray-200">
                   Notas recientes
                 </span>
               </div>
@@ -540,15 +508,15 @@ const Notes = () => {
                           >
                             <FileText className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                              <p className="text-reading/snug font-medium text-gray-800 dark:text-gray-100 truncate">
                                 {note.title || 'Sin título'}
                               </p>
                               {breadcrumb && (
-                                <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                                <p className="text-xs text-gray-600 dark:text-gray-300 truncate mt-0.5">
                                   {breadcrumb}
                                 </p>
                               )}
-                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                              <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
                                 {new Date(note.created_at).toLocaleDateString('es-ES', {
                                   day: '2-digit',
                                   month: 'short',
@@ -586,9 +554,6 @@ const Notes = () => {
         isLoading={deleteNote.isPending}
       />
 
-      {/* Modal de tags */}
-      <NoteTagManager isOpen={tagManagerOpen} onClose={() => setTagManagerOpen(false)} />
-
       {/* Modal: mover nota dentro de otra */}
       {moveNoteId && (() => {
         const movingNote = flat.find((n) => n.id === moveNoteId);
@@ -622,7 +587,7 @@ const Notes = () => {
 
               {/* Nota a mover */}
               <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-200 dark:border-gray-700">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Moviendo:</p>
+                <p className="text-xs text-gray-600 dark:text-gray-300">Moviendo:</p>
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
                   {movingNote?.title || 'Sin título'}
                 </p>
@@ -681,7 +646,7 @@ const Notes = () => {
                             {n.title || 'Sin título'}
                           </p>
                           {bc && (
-                            <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                            <p className="text-xs text-gray-600 dark:text-gray-300 truncate">
                               {bc}
                             </p>
                           )}

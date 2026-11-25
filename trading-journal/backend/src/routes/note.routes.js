@@ -17,6 +17,9 @@ import {
   reorderBlocksSchema,
   createTagSchema,
   updateTagSchema,
+  createTagGroupSchema,
+  updateTagGroupSchema,
+  reorderTagGroupsSchema,
   assignTagsSchema,
   removeTagsSchema,
   blockTagSchema,
@@ -56,6 +59,13 @@ router.get('/tags', ctrl.getTags);
 router.post('/tags', validate(createTagSchema), ctrl.createTag);
 router.patch('/tags/:tagId', validate(updateTagSchema), ctrl.updateTag);
 router.delete('/tags/:tagId', ctrl.deleteTag);
+
+// Grupos de tags. /tag-groups/order (estática) ANTES de /tag-groups/:groupId
+router.get('/tag-groups', ctrl.getTagGroups);
+router.post('/tag-groups', validate(createTagGroupSchema), ctrl.createTagGroup);
+router.put('/tag-groups/order', validate(reorderTagGroupsSchema), ctrl.reorderTagGroups);
+router.patch('/tag-groups/:groupId', validate(updateTagGroupSchema), ctrl.updateTagGroup);
+router.delete('/tag-groups/:groupId', ctrl.deleteTagGroup);
 
 // Bloques (rutas sin noteId param)
 // Rutas estáticas /blocks/review, /blocks/revisit y /blocks/by-tags ANTES de /blocks/:blockId

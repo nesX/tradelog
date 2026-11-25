@@ -29,12 +29,27 @@ const fakeClient = (handlers) => {
 const executed = (client) => client.query.mock.calls.map(([sql]) => sql.trim().split(/\s+/).slice(0, 3).join(' '));
 
 describe('blockTagsMigration — parseMapping', () => {
-  it('normaliza el mapeo: grupo libre y noteDefaults true por defecto', () => {
-    const result = parseMapping({ userId: 1, notes: [{ noteId: 12, tags: [{ name: ' NQ ' }] }] });
+  it('normaliza el mapeo: Libre (null) y noteDefaults true por defecto', () => {
+    const result = parseMapping({
+      userId: 1,
+      notes: [
+        { noteId: 12, tags: [{ name: ' NQ ' }, { name: 'zeta', group: 'LIBRE' }, { name: 'ES', group: ' Activo ' }] },
+      ],
+    });
 
     expect(result).toEqual({
       userId: 1,
-      notes: [{ noteId: 12, tags: [{ name: 'NQ', group: 'libre' }], noteDefaults: true }],
+      notes: [
+        {
+          noteId: 12,
+          tags: [
+            { name: 'NQ', group: null },
+            { name: 'zeta', group: null },
+            { name: 'ES', group: 'Activo' },
+          ],
+          noteDefaults: true,
+        },
+      ],
     });
   });
 
@@ -43,7 +58,7 @@ describe('blockTagsMigration — parseMapping', () => {
       userId: 0,
       notes: [
         { noteId: 12, tags: [{ name: '', group: 'tipo' }] },
-        { noteId: 12, tags: [{ name: 'x'.repeat(101), group: 'foo' }], noteDefaults: 'sí' },
+        { noteId: 12, tags: [{ name: 'x'.repeat(101), group: 3 }], noteDefaults: 'sí' },
         { noteId: 'a', tags: [] },
       ],
     };
@@ -63,7 +78,7 @@ describe('blockTagsMigration — parseMapping', () => {
         'notes[1]: la nota 12 está repetida en el mapeo',
         'notes[1]: noteDefaults tiene que ser true o false',
         'notes[1].tags[0]: el nombre tiene que tener entre 1 y 100 caracteres',
-        expect.stringContaining('grupo "foo" inválido'),
+        'notes[1].tags[0]: group tiene que ser el nombre de un grupo',
         'notes[2]: noteId tiene que ser un entero positivo',
         'notes[2]: tags tiene que ser una lista con al menos un tag',
       ])
@@ -108,21 +123,29 @@ describe('blockTagsMigration — migrateBlockTags', () => {
         noteId: 12,
         tags: [
           { name: 'proyección', group: 'tipo' },
-          { name: 'NQ', group: 'activo' },
+          { name: 'NQ', group: 'Activo' },
           { name: 'scalping', group: 'estrategia' },
         ],
       },
     ],
   };
 
-  // proyección no existe; NQ existe en libre; scalping existe en otro grupo.
+  // Grupos del usuario: Activo (1), Tipo (2), Estrategia (3).
+  const groups = [
+    { id: 1, name: 'Activo', color: '#3B82F6' },
+    { id: 2, name: 'Tipo', color: '#F59E0B' },
+    { id: 3, name: 'Estrategia', color: '#8B5CF6' },
+  ];
+
+  // proyección no existe; NQ existe en Libre; scalping existe en otro grupo.
   const scenario = () => {
     const existingTags = {
-      nq: { id: 4, name: 'NQ', group_key: 'libre' },
-      scalping: { id: 6, name: 'Scalping', group_key: 'tipo' },
+      nq: { id: 4, name: 'NQ', group_id: null },
+      scalping: { id: 6, name: 'Scalping', group_id: 2 },
     };
     return fakeClient([
       [/FROM users/, () => [{ id: 1 }]],
+      [/FROM note_tag_groups/, () => groups],
       [
         /FROM notes WHERE id = ANY/,
         () => [{ id: 12, user_id: 1, title: 'Proyecciones', type: 'note', deleted_at: null }],
@@ -131,7 +154,7 @@ describe('blockTagsMigration — migrateBlockTags', () => {
         /FROM note_tags WHERE user_id = \$1 AND LOWER/,
         ([, name]) => [existingTags[name.toLowerCase()]].filter(Boolean),
       ],
-      [/INSERT INTO note_tags/, ([, name, color, group]) => [{ id: 9, name, group_key: group, color }]],
+      [/INSERT INTO note_tags/, ([, name, , groupId]) => [{ id: 9, name, group_id: groupId }]],
       [
         /INSERT INTO note_tag_assignments/,
         ([noteId, tagIds]) => tagIds.map((tagId) => ({ note_id: noteId, tag_id: tagId })),
@@ -167,9 +190,11 @@ describe('blockTagsMigration — migrateBlockTags', () => {
     const report = await migrateBlockTags(client, mapping);
 
     expect(report.mode).toBe('dry-run');
-    expect(report.created_tags).toEqual([{ id: 9, name: 'proyección', group_key: 'tipo' }]);
-    expect(report.group_changes).toEqual([{ tag_id: 4, name: 'NQ', from: 'libre', to: 'activo' }]);
-    expect(report.warnings).toEqual([expect.stringContaining('"Scalping" ya está en el grupo "tipo"')]);
+    expect(report.created_tags).toEqual([{ id: 9, name: 'proyección', group: 'Tipo' }]);
+    expect(report.group_changes).toEqual([{ tag_id: 4, name: 'NQ', from: 'Libre', to: 'Activo' }]);
+    expect(report.warnings).toEqual([
+      'El tag "Scalping" ya está en el grupo "Tipo" y se respeta (el mapeo pide "Estrategia")',
+    ]);
     expect(report.inserted_note_tags).toHaveLength(3);
     // 2 bloques × 3 tags en la fase A + 3 en el destino de la referencia válida
     expect(report.inserted_block_tags).toHaveLength(9);
@@ -185,10 +210,50 @@ describe('blockTagsMigration — migrateBlockTags', () => {
     expect(statements[0]).toBe('BEGIN');
     expect(statements[1]).toBe('SELECT pg_advisory_xact_lock($1)');
     expect(statements.at(-1)).toBe('ROLLBACK');
-    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE note_tags SET group_key'), [
-      'activo',
-      4,
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE note_tags SET group_id'), [1, 4, 1]);
+    // El tag nuevo nace con el color de su grupo.
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO note_tags'), [
       1,
+      'proyección',
+      '#F59E0B',
+      2,
+    ]);
+  });
+
+  it('un grupo que el usuario no tiene es un error del mapeo y no toca nada', async () => {
+    const client = scenario();
+
+    const promise = migrateBlockTags(client, {
+      userId: 1,
+      notes: [
+        {
+          noteId: 12,
+          tags: [
+            { name: 'NQ', group: 'Activo' },
+            { name: 'ganador', group: 'resultado' },
+          ],
+        },
+      ],
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(MappingError);
+    await expect(promise).rejects.toThrow('notes[0].tags[1]: el grupo "resultado" no existe');
+    const statements = executed(client);
+    expect(statements.at(-1)).toBe('ROLLBACK');
+    expect(statements.some((s) => s.startsWith('INSERT') || s.startsWith('UPDATE'))).toBe(false);
+  });
+
+  it('un tag nuevo en Libre nace con el color de Libre y sin grupo', async () => {
+    const client = scenario();
+
+    const report = await migrateBlockTags(client, { userId: 1, notes: [{ noteId: 12, tags: [{ name: 'nuevo' }] }] });
+
+    expect(report.created_tags).toEqual([{ id: 9, name: 'nuevo', group: 'Libre' }]);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO note_tags'), [
+      1,
+      'nuevo',
+      '#6B7280',
+      null,
     ]);
   });
 
@@ -264,7 +329,7 @@ describe('blockTagsMigration — rollbackBlockTags', () => {
         { block_id: 101, tag_id: 4 },
       ],
       inserted_note_tags: [{ note_id: 12, tag_id: 4 }],
-      created_tags: [{ id: 9, name: 'proyección', group_key: 'tipo' }],
+      created_tags: [{ id: 9, name: 'proyección', group: 'Tipo' }],
       group_changes: [],
     };
 

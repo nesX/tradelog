@@ -1,11 +1,17 @@
 import { pool } from '../config/database.js';
 import { generateKeyBetween } from 'fractional-indexing';
-import { TAG_GROUPS, DEFAULT_TAG_GROUP } from '../constants/tagGroups.js';
+import { FREE_GROUP_COLOR } from '../constants/tagGroups.js';
 
-// Orden canónico de los tags: por grupo según TAG_GROUPS (que va como parámetro
-// `groupsParam`, nunca concatenado) y luego por nombre. `alias` es el de note_tags.
-const tagOrder = (alias, groupsParam) =>
-  `array_position(${groupsParam}::text[], ${alias}.group_key::text), LOWER(${alias}.name)`;
+// Orden canónico de los tags: por la posición de su grupo, Libre (group_id NULL)
+// al final, y luego por nombre. Va con tagGroupJoin: `tagAlias` es el alias de
+// note_tags y `groupAlias` el de note_tag_groups (literales fijos, nunca datos).
+const tagGroupJoin = (tagAlias, groupAlias) =>
+  `LEFT JOIN note_tag_groups ${groupAlias} ON ${groupAlias}.id = ${tagAlias}.group_id`;
+const tagOrder = (tagAlias, groupAlias) =>
+  `${groupAlias}.position NULLS LAST, ${groupAlias}.id, LOWER(${tagAlias}.name)`;
+
+// Shape de un tag en todas las respuestas.
+const TAG_COLUMNS = 'id, name, color, group_id, created_at';
 
 // ============================================================
 // NOTAS
@@ -23,7 +29,7 @@ export const getTree = async (userId) => {
        WHERE nb.note_id = n.parent_note_id AND nb.linked_note_id = n.id
        ORDER BY nb.position COLLATE "C" ASC LIMIT 1) as parent_block_position,
       COALESCE(
-        (SELECT json_agg(json_build_object('id', nt.id, 'name', nt.name, 'color', nt.color))
+        (SELECT json_agg(json_build_object('id', nt.id, 'name', nt.name, 'color', nt.color, 'group_id', nt.group_id))
          FROM note_tag_assignments nta
          JOIN note_tags nt ON nt.id = nta.tag_id
          WHERE nta.note_id = n.id), '[]'
@@ -60,12 +66,13 @@ export const getById = async (userId, noteId) => {
   for (const block of blocksResult.rows) block.tags = blockTags.get(block.id) ?? [];
 
   const tagsResult = await pool.query(
-    `SELECT nt.id, nt.name, nt.color, nt.group_key
+    `SELECT nt.id, nt.name, nt.color, nt.group_id
     FROM note_tag_assignments nta
     JOIN note_tags nt ON nt.id = nta.tag_id
+    ${tagGroupJoin('nt', 'g')}
     WHERE nta.note_id = $1
-    ORDER BY ${tagOrder('nt', '$2')}`,
-    [noteId, TAG_GROUPS]
+    ORDER BY ${tagOrder('nt', 'g')}`,
+    [noteId]
   );
 
   // Alertas y recordatorios de nivel nota (los de bloque van en cada bloque)
@@ -809,25 +816,26 @@ export const removeTradeFromBlock = async (blockId, tradeId) => {
 // ============================================================
 
 export const getTags = async (userId) => {
-  // Orden por nombre (no el canónico): el frontend agrupa por group_key.
+  // Orden por nombre (no el canónico): el frontend agrupa con la lista de grupos.
   const result = await pool.query(
-    `SELECT id, name, color, group_key, created_at FROM note_tags WHERE user_id = $1 ORDER BY name ASC`,
+    `SELECT ${TAG_COLUMNS} FROM note_tags WHERE user_id = $1 ORDER BY name ASC`,
     [userId]
   );
   return result.rows;
 };
 
-export const createTag = async (userId, { name, color, group_key }) => {
+// `group_id` null o ausente: Libre.
+export const createTag = async (userId, { name, color, group_id }) => {
   const result = await pool.query(
-    `INSERT INTO note_tags (user_id, name, color, group_key) VALUES ($1, $2, $3, $4) RETURNING *`,
-    [userId, name, color || '#6B7280', group_key || DEFAULT_TAG_GROUP]
+    `INSERT INTO note_tags (user_id, name, color, group_id) VALUES ($1, $2, $3, $4) RETURNING ${TAG_COLUMNS}`,
+    [userId, name, color || FREE_GROUP_COLOR, group_id ?? null]
   );
   return result.rows[0];
 };
 
 export const getTagByName = async (userId, name) => {
   const result = await pool.query(
-    `SELECT * FROM note_tags WHERE user_id = $1 AND LOWER(name) = LOWER($2)`,
+    `SELECT ${TAG_COLUMNS} FROM note_tags WHERE user_id = $1 AND LOWER(name) = LOWER($2)`,
     [userId, name]
   );
   return result.rows[0] || null;
@@ -835,24 +843,24 @@ export const getTagByName = async (userId, name) => {
 
 export const getTagById = async (userId, tagId) => {
   const result = await pool.query(
-    `SELECT * FROM note_tags WHERE id = $1 AND user_id = $2`,
+    `SELECT ${TAG_COLUMNS} FROM note_tags WHERE id = $1 AND user_id = $2`,
     [tagId, userId]
   );
   return result.rows[0] || null;
 };
 
-export const updateTag = async (userId, tagId, { name, color, group_key }) => {
+export const updateTag = async (userId, tagId, { name, color, group_id }) => {
   const fields = [];
   const values = [];
   let idx = 1;
   if (name !== undefined) { fields.push(`name = $${idx++}`); values.push(name); }
   if (color !== undefined) { fields.push(`color = $${idx++}`); values.push(color); }
-  if (group_key !== undefined) { fields.push(`group_key = $${idx++}`); values.push(group_key); }
+  if (group_id !== undefined) { fields.push(`group_id = $${idx++}`); values.push(group_id); }
   if (fields.length === 0) return await getTagById(userId, tagId);
 
   values.push(tagId, userId);
   const result = await pool.query(
-    `UPDATE note_tags SET ${fields.join(', ')} WHERE id = $${idx++} AND user_id = $${idx} RETURNING *`,
+    `UPDATE note_tags SET ${fields.join(', ')} WHERE id = $${idx++} AND user_id = $${idx} RETURNING ${TAG_COLUMNS}`,
     values
   );
   return result.rows[0] || null;
@@ -899,10 +907,102 @@ export const removeTags = async (noteId, tagIds) => {
 
 export const getTagsByIds = async (userId, tagIds) => {
   const result = await pool.query(
-    `SELECT id, group_key FROM note_tags WHERE id = ANY($1) AND user_id = $2`,
+    `SELECT id, group_id FROM note_tags WHERE id = ANY($1) AND user_id = $2`,
     [tagIds, userId]
   );
   return result.rows;
+};
+
+// ============================================================
+// GRUPOS DE TAGS
+// ============================================================
+// Libre (tags con group_id NULL) no es una fila: aquí solo están los grupos propios.
+
+// `tag_count` va en todas las respuestas de grupos (la confirmación de borrado lo usa).
+const TAG_GROUP_COLUMNS = `g.id, g.name, g.color, g.position,
+  (SELECT COUNT(*) FROM note_tags t WHERE t.group_id = g.id)::int AS tag_count`;
+
+export const getTagGroups = async (userId) => {
+  const result = await pool.query(
+    `SELECT ${TAG_GROUP_COLUMNS} FROM note_tag_groups g WHERE g.user_id = $1 ORDER BY g.position, g.id`,
+    [userId]
+  );
+  return result.rows;
+};
+
+export const getTagGroupById = async (userId, groupId) => {
+  const result = await pool.query(
+    `SELECT ${TAG_GROUP_COLUMNS} FROM note_tag_groups g WHERE g.id = $1 AND g.user_id = $2`,
+    [groupId, userId]
+  );
+  return result.rows[0] || null;
+};
+
+export const getTagGroupByName = async (userId, name) => {
+  const result = await pool.query(
+    `SELECT id, name FROM note_tag_groups WHERE user_id = $1 AND LOWER(name) = LOWER($2)`,
+    [userId, name]
+  );
+  return result.rows[0] || null;
+};
+
+export const countTagGroups = async (userId) => {
+  const result = await pool.query(`SELECT COUNT(*)::int AS n FROM note_tag_groups WHERE user_id = $1`, [userId]);
+  return result.rows[0].n;
+};
+
+// El grupo nuevo va al final.
+export const createTagGroup = async (userId, { name, color }) => {
+  const result = await pool.query(
+    `INSERT INTO note_tag_groups (user_id, name, color, position)
+     SELECT $1, $2, $3, COALESCE(MAX(position) + 1, 0) FROM note_tag_groups WHERE user_id = $1
+     RETURNING id, name, color, position, 0 AS tag_count`,
+    [userId, name, color || FREE_GROUP_COLOR]
+  );
+  return result.rows[0];
+};
+
+export const updateTagGroup = async (userId, groupId, { name, color }) => {
+  const fields = [];
+  const values = [];
+  let idx = 1;
+  if (name !== undefined) { fields.push(`name = $${idx++}`); values.push(name); }
+  if (color !== undefined) { fields.push(`color = $${idx++}`); values.push(color); }
+  if (fields.length === 0) return getTagGroupById(userId, groupId);
+
+  values.push(groupId, userId);
+  const result = await pool.query(
+    `UPDATE note_tag_groups g SET ${fields.join(', ')} WHERE g.id = $${idx++} AND g.user_id = $${idx}
+     RETURNING ${TAG_GROUP_COLUMNS}`,
+    values
+  );
+  return result.rows[0] || null;
+};
+
+/**
+ * Borra el grupo; sus tags pasan a Libre por el ON DELETE SET NULL de
+ * note_tags.group_id, sin tocar sus asignaciones. `moved_tags` los cuenta con el
+ * mismo snapshot que el DELETE.
+ */
+export const deleteTagGroup = async (userId, groupId) => {
+  const result = await pool.query(
+    `WITH moved AS (SELECT COUNT(*)::int AS n FROM note_tags WHERE group_id = $1 AND user_id = $2)
+     DELETE FROM note_tag_groups WHERE id = $1 AND user_id = $2
+     RETURNING id, (SELECT n FROM moved) AS moved_tags`,
+    [groupId, userId]
+  );
+  return result.rows[0] || null;
+};
+
+// `groupIds` ya validado en el service: exactamente los grupos del usuario.
+export const reorderTagGroups = async (userId, groupIds) => {
+  await pool.query(
+    `UPDATE note_tag_groups g
+     SET position = (o.ord - 1)::int
+     FROM unnest($2::int[]) WITH ORDINALITY AS o(id, ord)
+     WHERE g.id = o.id AND g.user_id = $1`,
+    [userId, groupIds]
+  );
 };
 
 // ============================================================
@@ -910,20 +1010,26 @@ export const getTagsByIds = async (userId, tagIds) => {
 // ============================================================
 // note_blocks no tiene user_id: el dueño se comprueba por su nota.
 
+// Grupos distintos entre los tags de un bloque (alias `t`), para el AND entre
+// grupos. Libre (NULL) cuenta como el grupo 0: COUNT(DISTINCT) ignora los NULL,
+// así que sin el COALESCE un tag Libre no sumaría y el AND no se cumpliría nunca.
+const DISTINCT_TAG_GROUPS = 'COUNT(DISTINCT COALESCE(t.group_id, 0))';
+
 /**
  * Tags de varios bloques en una sola query, en orden canónico. Devuelve un Map
- * block_id → [{ id, name, color, group_key }]; los bloques sin tags no aparecen.
+ * block_id → [{ id, name, color, group_id }]; los bloques sin tags no aparecen.
  */
 export const getBlockTags = async (blockIds, userId, exec = pool) => {
   const map = new Map();
   if (!blockIds || blockIds.length === 0) return map;
   const result = await exec.query(
-    `SELECT a.block_id, t.id, t.name, t.color, t.group_key
+    `SELECT a.block_id, t.id, t.name, t.color, t.group_id
      FROM note_block_tag_assignments a
      JOIN note_tags t ON t.id = a.tag_id AND t.user_id = $2
+     ${tagGroupJoin('t', 'g')}
      WHERE a.block_id = ANY($1::int[])
-     ORDER BY ${tagOrder('t', '$3')}`,
-    [blockIds, userId, TAG_GROUPS]
+     ORDER BY ${tagOrder('t', 'g')}`,
+    [blockIds, userId]
   );
   for (const { block_id: blockId, ...tag } of result.rows) {
     if (!map.has(blockId)) map.set(blockId, []);
@@ -993,9 +1099,9 @@ export const applyNoteTagsToBlocks = async (noteId, userId) => {
 /**
  * Repaso por tag: bloques con al menos un tag seleccionado de CADA grupo presente
  * en la selección (OR dentro de un grupo, AND entre grupos). `groupCount` es el
- * número de grupos distintos entre `tagIds`. Excluye referencias, notas en la
- * papelera y las notas ocultas de los pendientes. Cada fila lleva `total` (todas
- * las que cumplen, antes del LIMIT).
+ * número de grupos distintos entre `tagIds`, con Libre como uno más. Excluye
+ * referencias, notas en la papelera y las notas ocultas de los pendientes. Cada
+ * fila lleva `total` (todas las que cumplen, antes del LIMIT).
  */
 export const findBlocksByTags = async (userId, tagIds, groupCount, limit) => {
   const result = await pool.query(
@@ -1005,7 +1111,7 @@ export const findBlocksByTags = async (userId, tagIds, groupCount, limit) => {
        JOIN note_tags t ON t.id = a.tag_id AND t.user_id = $1
        WHERE a.tag_id = ANY($2::int[])
        GROUP BY a.block_id
-       HAVING COUNT(DISTINCT t.group_key) = $3
+       HAVING ${DISTINCT_TAG_GROUPS} = $3
      )
      SELECT b.id AS block_id, b.note_id, n.title AS note_title, b.block_type,
             CASE WHEN b.block_type IN ('text', 'callout') THEN LEFT(b.content, 140) END AS preview,
@@ -1027,101 +1133,212 @@ export const findBlocksByTags = async (userId, tagIds, groupCount, limit) => {
 // BÚSQUEDA
 // ============================================================
 
-// Tags de cada nota en orden canónico. `groupsParam` es el placeholder de
-// TAG_GROUPS, distinto en cada query que lo usa.
-const tagsAgg = (groupsParam) => `COALESCE(
-    (SELECT json_agg(
-       json_build_object('id', nt.id, 'name', nt.name, 'color', nt.color, 'group_key', nt.group_key)
-       ORDER BY ${tagOrder('nt', groupsParam)}
-     )
-     FROM note_tag_assignments nta
-     JOIN note_tags nt ON nt.id = nta.tag_id
-     WHERE nta.note_id = n.id), '[]'
-  )`;
+// Función de tsquery de cada modo de buildSearchQuery (note.service.js). Lista
+// cerrada: el nombre va fijo en el SQL y el texto del usuario siempre como parámetro.
+const TSQUERY_FNS = { prefix: 'to_tsquery', websearch: 'websearch_to_tsquery' };
 
-const TAG_FILTER = `($2 = '{}'::int[] OR EXISTS (
-    SELECT 1 FROM note_tag_assignments nta_f
-    WHERE nta_f.note_id = n.id AND nta_f.tag_id = ANY($2)
-  ))`;
+/**
+ * Búsqueda de bloques agrupados por nota (semántica en el service `search`).
+ *
+ * Dos fases, para que se usen los índices GIN de la migración 015:
+ * - Fase 1 (`title_hits`, `content_hits`, `tag_hits`): candidatos por predicados
+ *   que coinciden EXACTAMENTE con las expresiones indexadas
+ *   (`to_tsvector('spanish', COALESCE(title|content, ''))`), así el planner usa
+ *   Bitmap Index Scan sobre `idx_notes_title_fts` e `idx_note_blocks_content_fts`
+ *   en vez de calcular el tsvector de todo el contenido al vuelo.
+ * - Fase 2: rank sobre los bloques que cumplen, y ts_headline solo para los
+ *   `snippetsPerNote` mejores de cada nota devuelta (lo caro).
+ *
+ * Devuelve una fila por (nota, bloque con snippet), en orden; una nota que solo
+ * hace match por título trae una fila con block_id NULL. Los totales van en cada fila.
+ */
+const searchSql = ({ tsq, tagsParam, groupCountParam }) => {
+  const hasText = Boolean(tsq);
+  const hasTags = Boolean(tagsParam);
 
-// Búsqueda FTS en dos fases para que se usen los índices GIN de la migración 015.
-//
-// Fase 1 (CTE `candidates`): obtiene los note_id que hacen match vía predicados
-// que coinciden EXACTAMENTE con las expresiones indexadas
-// (`to_tsvector('spanish', COALESCE(title|content, ''))`), de modo que el planner
-// use Bitmap Index Scan sobre `idx_notes_title_fts` e `idx_note_blocks_content_fts`
-// en vez de un seq scan calculando el tsvector de todo el contenido al vuelo.
-//
-// Fase 2: calcula rank, ts_headline y tags SOLO para esos candidatos (conjunto
-// chico). El ranking, los snippets y el orden son idénticos a la versión anterior.
-const FTS_QUERY = `
-  WITH candidates AS (
-    SELECT n.id AS note_id
-    FROM notes n
-    WHERE n.user_id = $2
-      AND n.deleted_at IS NULL
-      AND n.type = 'note'
-      AND to_tsvector('spanish', COALESCE(n.title, '')) @@ websearch_to_tsquery('spanish', $1)
-    UNION
-    SELECT nb.note_id
-    FROM note_blocks nb
-    WHERE nb.block_type IN ('text', 'callout')
-      AND to_tsvector('spanish', COALESCE(nb.content, '')) @@ websearch_to_tsquery('spanish', $1)
-  )
-  SELECT
-    n.id, n.title, n.parent_note_id, n.updated_at,
-    ts_rank(to_tsvector('spanish', COALESCE(n.title, '')), websearch_to_tsquery('spanish', $1)) * 2
-      + COALESCE(nb.content_rank, 0) AS rank,
-    ts_headline('spanish', COALESCE(n.title, ''), websearch_to_tsquery('spanish', $1),
-      'MaxWords=8, MinWords=3, MaxFragments=1') AS title_headline,
-    COALESCE(ts_headline('spanish', COALESCE(nb.content_agg, ''), websearch_to_tsquery('spanish', $1),
-      'MaxWords=20, MinWords=5, MaxFragments=2, FragmentDelimiter=" … "'), '') AS content_snippet,
-    ${tagsAgg('$5')} AS tags
-  FROM notes n
-  LEFT JOIN LATERAL (
-    SELECT
-      string_agg(content, ' ' ORDER BY position) AS content_agg,
-      MAX(ts_rank(to_tsvector('spanish', COALESCE(content, '')), websearch_to_tsquery('spanish', $1))) AS content_rank
-    FROM note_blocks
-    WHERE note_id = n.id AND block_type IN ('text', 'callout')
-  ) nb ON true
-  WHERE
-    n.id IN (SELECT note_id FROM candidates)
-    AND n.user_id = $2
-    AND n.deleted_at IS NULL
-    AND n.type = 'note'
-    AND ($3 = '{}'::int[] OR EXISTS (
-      SELECT 1 FROM note_tag_assignments nta_f
-      WHERE nta_f.note_id = n.id AND nta_f.tag_id = ANY($3)
-    ))
-  ORDER BY rank DESC, n.updated_at DESC
-  LIMIT $4
-`;
-
-const TAG_ONLY_QUERY = `
-  SELECT
-    n.id, n.title, n.parent_note_id, n.updated_at,
-    0 AS rank,
-    n.title AS title_headline,
-    '' AS content_snippet,
-    ${tagsAgg('$4')} AS tags
-  FROM notes n
-  WHERE
-    n.user_id = $1
-    AND n.deleted_at IS NULL
-    AND n.type = 'note'
-    AND ${TAG_FILTER}
-  ORDER BY n.updated_at DESC
-  LIMIT $3
-`;
-
-export const search = async (userId, { q = '', tagIds = [], limit = 30 }) => {
-  if (q) {
-    const result = await pool.query(FTS_QUERY, [q, userId, tagIds, limit, TAG_GROUPS]);
-    return result.rows;
+  const ctes = [];
+  if (hasText) {
+    ctes.push(`title_hits AS (
+      SELECT n.id AS note_id
+      FROM notes n
+      WHERE n.user_id = $1 AND n.deleted_at IS NULL AND n.type = 'note'
+        AND to_tsvector('spanish', COALESCE(n.title, '')) @@ ${tsq}
+    )`);
+    ctes.push(`content_hits AS (
+      SELECT nb.id AS block_id
+      FROM note_blocks nb
+      JOIN notes n ON n.id = nb.note_id AND n.user_id = $1
+      WHERE nb.block_type IN ('text', 'callout')
+        AND to_tsvector('spanish', COALESCE(nb.content, '')) @@ ${tsq}
+    )`);
   }
-  const result = await pool.query(TAG_ONLY_QUERY, [userId, tagIds, limit, TAG_GROUPS]);
-  return result.rows;
+  if (hasTags) {
+    // Mismo filtro que findBlocksByTags: OR dentro de un grupo, AND entre grupos.
+    ctes.push(`tag_hits AS (
+      SELECT a.block_id
+      FROM note_block_tag_assignments a
+      JOIN note_tags t ON t.id = a.tag_id AND t.user_id = $1
+      WHERE a.tag_id = ANY(${tagsParam}::int[])
+      GROUP BY a.block_id
+      HAVING ${DISTINCT_TAG_GROUPS} = ${groupCountParam}
+    )`);
+  }
+
+  const contentOrTitle = `(b.id IN (SELECT block_id FROM content_hits)
+                           OR b.note_id IN (SELECT note_id FROM title_hits))`;
+  let blockFilter = 'b.id IN (SELECT block_id FROM content_hits)';
+  if (hasTags) blockFilter = 'b.id IN (SELECT block_id FROM tag_hits)';
+  if (hasTags && hasText) blockFilter += ` AND ${contentOrTitle}`;
+
+  // Solo texto: también las notas cuyo título hace match aunque ningún bloque lo haga.
+  const hitNotes =
+    hasText && !hasTags
+      ? 'SELECT note_id FROM matched UNION SELECT note_id FROM title_hits'
+      : 'SELECT DISTINCT note_id FROM matched';
+
+  const blockRank = hasText ? `ts_rank(to_tsvector('spanish', COALESCE(b.content, '')), ${tsq})` : '0';
+  const noteRank = hasText
+    ? `ts_rank(to_tsvector('spanish', COALESCE(n.title, '')), ${tsq}) * 2 + COALESCE(s.best_rank, 0)`
+    : '0';
+  const noteOrder = hasText ? 'rank DESC, updated_at DESC, id DESC' : 'last_created DESC NULLS LAST, id DESC';
+  const snippetOrder = hasText
+    ? 'm.rank DESC, m.position COLLATE "C", m.block_id'
+    : 'm.created_at DESC, m.block_id DESC';
+  // Con texto + tags, un bloque puede entrar por el título de su nota sin que su
+  // contenido haga match: ts_headline devolvería solo las primeras MinWords palabras.
+  const snippet = hasText
+    ? `CASE WHEN to_tsvector('spanish', COALESCE(b.content, '')) @@ ${tsq}
+         THEN ts_headline('spanish', COALESCE(b.content, ''), ${tsq},
+           'MaxWords=20, MinWords=5, MaxFragments=2, FragmentDelimiter=" … "')
+         ELSE LEFT(b.content, 140) END`
+    : 'LEFT(b.content, 140)';
+
+  return `
+    WITH ${ctes.join(',\n')},
+    matched AS (
+      SELECT b.id AS block_id, b.note_id, b.position, b.created_at, ${blockRank} AS rank
+      FROM note_blocks b
+      JOIN notes n ON n.id = b.note_id AND n.user_id = $1 AND n.deleted_at IS NULL AND n.type = 'note'
+      WHERE b.block_type <> 'reference' AND ${blockFilter}
+    ),
+    hit_notes AS (${hitNotes}),
+    scored AS (
+      SELECT n.id, n.title, n.parent_note_id, n.updated_at,
+             COALESCE(s.block_count, 0)::int AS block_count, s.last_created,
+             ${noteRank} AS rank
+      FROM hit_notes h
+      JOIN notes n ON n.id = h.note_id
+      LEFT JOIN (
+        SELECT note_id, COUNT(*) AS block_count, MAX(rank) AS best_rank, MAX(created_at) AS last_created
+        FROM matched GROUP BY note_id
+      ) s ON s.note_id = n.id
+    ),
+    top_notes AS (
+      SELECT *, ROW_NUMBER() OVER (ORDER BY ${noteOrder}) AS ord
+      FROM scored
+      ORDER BY ord
+      LIMIT $2
+    ),
+    -- block_ids en orden de resultados (nota, y dentro de la nota por posición),
+    -- con tope global $3.
+    numbered AS (
+      SELECT m.note_id, m.block_id,
+             ROW_NUMBER() OVER (ORDER BY t.ord, m.position COLLATE "C", m.block_id) AS seq
+      FROM matched m
+      JOIN top_notes t ON t.id = m.note_id
+    )
+    SELECT t.id, t.title, t.parent_note_id, t.updated_at, t.block_count,
+           -- HighlightAll: el título entero (con MaxWords se cortaba aunque no hiciera match).
+           ${hasText ? `ts_headline('spanish', COALESCE(t.title, ''), ${tsq}, 'HighlightAll=true')` : 'NULL'}
+             AS title_headline,
+           ${hasText ? 't.id IN (SELECT note_id FROM title_hits)' : 'false'} AS title_match,
+           COALESCE(
+             (SELECT array_agg(x.block_id ORDER BY x.seq) FROM numbered x WHERE x.note_id = t.id AND x.seq <= $3),
+             '{}'
+           ) AS block_ids,
+           sn.block_id, sn.block_type, sn.snippet, sn.created_at AS block_created_at,
+           (SELECT COUNT(*) FROM scored)::int AS total_notes,
+           (SELECT COUNT(*) FROM matched)::int AS total_blocks,
+           (SELECT COUNT(*) FROM numbered) > $3 AS truncated
+    FROM top_notes t
+    LEFT JOIN LATERAL (
+      SELECT b.id AS block_id, b.block_type, b.created_at, sel.snip_ord,
+             CASE WHEN b.block_type IN ('text', 'callout') THEN ${snippet} END AS snippet
+      FROM (
+        SELECT m.block_id, ROW_NUMBER() OVER (ORDER BY ${snippetOrder}) AS snip_ord
+        FROM matched m
+        WHERE m.note_id = t.id
+        ORDER BY snip_ord
+        LIMIT $4
+      ) sel
+      JOIN note_blocks b ON b.id = sel.block_id
+    ) sn ON true
+    ORDER BY t.ord, sn.snip_ord`;
+};
+
+/**
+ * `query`: { text, mode } de buildSearchQuery, o null sin texto. `tagIds` y
+ * `groupCount` vienen validados del service ([] y 0 sin tags). Devuelve
+ * { notes, total_notes, total_blocks, truncated }.
+ */
+export const search = async (userId, { query, tagIds, groupCount, limit, maxIds, snippetsPerNote }) => {
+  // $1 usuario, $2 notas, $3 tope de block_ids, $4 snippets por nota; el resto, según el caso.
+  const params = [userId, limit, maxIds, snippetsPerNote];
+  let tsq = null;
+  if (query) {
+    const fn = TSQUERY_FNS[query.mode];
+    if (!fn) throw new Error(`Modo de búsqueda desconocido: ${query.mode}`);
+    params.push(query.text);
+    tsq = `${fn}('spanish', $${params.length})`;
+  }
+  let tagsParam = null;
+  let groupCountParam = null;
+  if (tagIds.length > 0) {
+    params.push(tagIds, groupCount);
+    tagsParam = `$${params.length - 1}`;
+    groupCountParam = `$${params.length}`;
+  }
+
+  const { rows } = await pool.query(searchSql({ tsq, tagsParam, groupCountParam }), params);
+
+  const blockTags = await getBlockTags(
+    rows.filter((r) => r.block_id !== null).map((r) => r.block_id),
+    userId
+  );
+  const notes = [];
+  for (const row of rows) {
+    let note = notes.at(-1);
+    if (note?.id !== row.id) {
+      note = {
+        id: row.id,
+        title: row.title,
+        parent_note_id: row.parent_note_id,
+        updated_at: row.updated_at,
+        title_headline: row.title_headline,
+        title_match: row.title_match,
+        block_count: row.block_count,
+        blocks: [],
+        block_ids: row.block_ids,
+      };
+      notes.push(note);
+    }
+    if (row.block_id !== null) {
+      note.blocks.push({
+        block_id: row.block_id,
+        block_type: row.block_type,
+        snippet: row.snippet,
+        tags: blockTags.get(row.block_id) ?? [],
+        created_at: row.block_created_at,
+      });
+    }
+  }
+
+  return {
+    notes,
+    total_notes: rows[0]?.total_notes ?? 0,
+    total_blocks: rows[0]?.total_blocks ?? 0,
+    truncated: rows[0]?.truncated ?? false,
+  };
 };
 
 // ============================================================
@@ -1132,15 +1349,16 @@ export const getFullTree = async (userId) => {
   const notesResult = await pool.query(
     `SELECT n.id, n.parent_note_id, n.title, n.position, n.created_at,
       COALESCE(
-        (SELECT json_agg(nt.name ORDER BY ${tagOrder('nt', '$2')})
+        (SELECT json_agg(nt.name ORDER BY ${tagOrder('nt', 'g')})
          FROM note_tag_assignments nta
          JOIN note_tags nt ON nt.id = nta.tag_id
+         ${tagGroupJoin('nt', 'g')}
          WHERE nta.note_id = n.id), '[]'
       ) as tag_names
     FROM notes n
     WHERE n.user_id = $1 AND n.deleted_at IS NULL AND n.type = 'note'
     ORDER BY n.position COLLATE "C" ASC, n.created_at ASC`,
-    [userId, TAG_GROUPS]
+    [userId]
   );
 
   const blocksResult = await pool.query(
@@ -1170,8 +1388,13 @@ export const getFullTree = async (userId) => {
     [userId]
   );
 
+  // `group_name` NULL: Libre.
   const tagsResult = await pool.query(
-    `SELECT id, name, color, group_key FROM note_tags WHERE user_id = $1 ORDER BY name ASC`,
+    `SELECT t.id, t.name, t.color, t.group_id, g.name AS group_name
+     FROM note_tags t
+     ${tagGroupJoin('t', 'g')}
+     WHERE t.user_id = $1
+     ORDER BY t.name ASC`,
     [userId]
   );
 
@@ -1181,8 +1404,9 @@ export const getFullTree = async (userId) => {
     `SELECT a.block_id, t.name
      FROM note_block_tag_assignments a
      JOIN note_tags t ON t.id = a.tag_id AND t.user_id = $1
-     ORDER BY a.block_id, ${tagOrder('t', '$2')}`,
-    [userId, TAG_GROUPS]
+     ${tagGroupJoin('t', 'g')}
+     ORDER BY a.block_id, ${tagOrder('t', 'g')}`,
+    [userId]
   );
   const tagNamesByBlock = new Map();
   for (const { block_id: blockId, name } of blockTagsResult.rows) {

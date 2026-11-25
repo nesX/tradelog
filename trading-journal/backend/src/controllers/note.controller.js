@@ -213,6 +213,35 @@ export const applyNoteTagsToBlocks = async (req, res) => {
 };
 
 // ============================================================
+// GRUPOS DE TAGS
+// ============================================================
+
+export const getTagGroups = async (req, res) => {
+  const data = await noteService.getTagGroups(req.user.id);
+  sendSuccess(res, data);
+};
+
+export const createTagGroup = async (req, res) => {
+  const data = await noteService.createTagGroup(req.user.id, req.body);
+  sendCreated(res, data, 'Grupo creado');
+};
+
+export const updateTagGroup = async (req, res) => {
+  const data = await noteService.updateTagGroup(req.user.id, parseInt(req.params.groupId, 10), req.body);
+  sendSuccess(res, data, 'Grupo actualizado');
+};
+
+export const deleteTagGroup = async (req, res) => {
+  const data = await noteService.deleteTagGroup(req.user.id, parseInt(req.params.groupId, 10));
+  sendSuccess(res, data, 'Grupo eliminado');
+};
+
+export const reorderTagGroups = async (req, res) => {
+  const data = await noteService.reorderTagGroups(req.user.id, req.body.group_ids);
+  sendSuccess(res, data, 'Grupos reordenados');
+};
+
+// ============================================================
 // TAGS DE BLOQUE
 // ============================================================
 

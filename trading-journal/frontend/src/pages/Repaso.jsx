@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { BookMarked, Play, Tags, Search, FileQuestion } from 'lucide-react';
 import { useRevisit, useTagReviewBlocks } from '../hooks/useRevisit.js';
 import { useToggleRevisit } from '../hooks/useBlockRevisit.js';
-import { useNoteTags } from '../hooks/useNotes.js';
+import { useNoteTags, useTagGroups } from '../hooks/useNotes.js';
 import { BLOCK_OPTIONS } from '../hooks/useBlockInserter.js';
 import { TimeRangeTabs, BlockItem } from '../components/notes/blockReviewShared.jsx';
 import GroupedTagList from '../components/notes/GroupedTagList.jsx';
@@ -138,7 +138,7 @@ function TagReviewRow({ item, onOpen }) {
         <p className={`truncate text-sm ${item.preview ? 'text-gray-800 dark:text-gray-100' : 'italic text-gray-400'}`}>
           {item.preview || info?.label || item.block_type}
         </p>
-        <p className="truncate text-xs text-gray-400 dark:text-gray-500">
+        <p className="truncate text-xs text-gray-600 dark:text-gray-300">
           {item.note_title || 'Sin título'} · {formatDate(item.created_at)}
         </p>
       </div>
@@ -153,6 +153,7 @@ function TagReviewRow({ item, onOpen }) {
 function TagsTab({ selectedIds, order, tagsLoaded, allTags, onChangeSelection, onChangeOrder, onOpenViewer }) {
   const [filterText, setFilterText] = useState('');
   const { data, isLoading, isFetching, isPlaceholderData, error } = useTagReviewBlocks(selectedIds);
+  const { data: tagGroups } = useTagGroups();
   const items = useMemo(() => (selectedIds.length > 0 ? data?.items ?? [] : []), [data, selectedIds.length]);
 
   // Aleatorio: se baraja una vez por conjunto de resultados (o al elegir el orden),
@@ -168,7 +169,7 @@ function TagsTab({ selectedIds, order, tagsLoaded, allTags, onChangeSelection, o
   const sorted = useMemo(() => sortReviewItems(items, order, randomOrder), [items, order, randomOrder]);
 
   const selectedTags = allTags.filter((t) => selectedIds.includes(t.id));
-  const title = buildReviewTitle(selectedTags);
+  const title = buildReviewTitle(selectedTags, tagGroups);
   const openViewer = (initialIndex) =>
     onOpenViewer({ blockIds: sorted.map((i) => i.block_id), initialIndex, title });
 
@@ -195,7 +196,7 @@ function TagsTab({ selectedIds, order, tagsLoaded, allTags, onChangeSelection, o
           {selectedIds.length > 0 && (
             <button
               onClick={() => onChangeSelection([])}
-              className="flex-shrink-0 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              className="flex-shrink-0 text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
             >
               Limpiar
             </button>
@@ -212,7 +213,7 @@ function TagsTab({ selectedIds, order, tagsLoaded, allTags, onChangeSelection, o
             emptyText={allTags.length === 0 ? 'Todavía no hay tags.' : 'Ningún tag coincide.'}
           />
         )}
-        <p className="text-xs text-gray-400 dark:text-gray-500">
+        <p className="text-xs text-gray-600 dark:text-gray-300">
           Mismo grupo: cualquiera · Grupos distintos: todos a la vez
         </p>
       </section>
@@ -242,7 +243,7 @@ function TagsTab({ selectedIds, order, tagsLoaded, allTags, onChangeSelection, o
                     className={`px-2.5 py-1 text-xs rounded-lg border transition-colors
                       ${order === o.key
                         ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium'
-                        : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                       }`}
                   >
                     {o.label}

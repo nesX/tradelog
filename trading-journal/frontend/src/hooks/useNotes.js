@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import * as api from '../api/endpoints.js';
 import { applyOptimisticNoteMoveFlat, applyOptimisticBlockMove } from '../utils/treeManipulation.js';
-import { sortTags } from '../constants/tagGroups.js';
+import { sortTags, moveTagGroup } from '../utils/tagGroups.js';
 import { revisitKeys } from './useRevisit.js';
 
 export const noteKeys = {
@@ -9,8 +9,12 @@ export const noteKeys = {
   tree: () => [...noteKeys.all, 'tree'],
   detail: (id) => [...noteKeys.all, 'detail', id],
   tags: () => [...noteKeys.all, 'tags'],
+  // Grupos de tags del usuario, en orden (Libre no viene: son los tags sin grupo).
+  tagGroups: () => [...noteKeys.all, 'tag-groups'],
   // Un bloque suelto (visor de repaso), con el mismo shape que en detail.
   block: (id) => [...noteKeys.all, 'block', id],
+  // Todas las búsquedas de /buscar (se invalidan juntas al cambiar tags de un bloque).
+  search: () => [...noteKeys.all, 'search'],
 };
 
 // Construye árbol a partir del array plano
@@ -199,11 +203,19 @@ export const useNoteTags = () =>
     staleTime: 60000,
   });
 
-export const useCreateTag = () => {
+// Grupos del caché, para ordenar tags en los optimistic (undefined si no cargaron).
+export const getCachedTagGroups = (qc) => qc.getQueryData(noteKeys.tagGroups())?.data;
+
+// `silenceError`: el llamador muestra el error en línea (la página de tags) y no
+// hace falta el toast global de mutaciones.
+const errorMeta = (silenceError) => (silenceError ? { meta: { silenceError: true } } : {});
+
+export const useCreateTag = ({ silenceError = false } = {}) => {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: [...noteKeys.all, 'createTag'],
     mutationFn: (data) => api.createNoteTag(data),
+    ...errorMeta(silenceError),
     onSuccess: (res) => {
       // El tag nuevo entra a la caché con la respuesta: el TagPicker lo asigna en
       // el mismo flujo y tiene que verse ya en la lista.
@@ -216,33 +228,123 @@ export const useCreateTag = () => {
         );
       }
       qc.invalidateQueries({ queryKey: noteKeys.tags() });
+      // El tag_count del grupo cambió.
+      qc.invalidateQueries({ queryKey: noteKeys.tagGroups() });
     },
   });
 };
 
 // Renombrar, recolorear, cambiar de grupo o borrar un tag se ve en el editor, en
-// cada bloque, en el visor y en el repaso por tag: se refresca todo lo de notas.
+// cada bloque, en el visor, en el repaso por tag y en la búsqueda: se refresca
+// todo lo de notas (los grupos incluidos, por su tag_count).
 const invalidateTagViews = (qc) => {
   qc.invalidateQueries({ queryKey: noteKeys.all });
   qc.invalidateQueries({ queryKey: revisitKeys.tags });
 };
 
-export const useUpdateTag = () => {
+export const useUpdateTag = ({ silenceError = false } = {}) => {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: [...noteKeys.all, 'updateTag'],
     mutationFn: ({ tagId, data }) => api.updateNoteTag(tagId, data),
+    ...errorMeta(silenceError),
     onSuccess: () => invalidateTagViews(qc),
   });
 };
 
-export const useDeleteTag = () => {
+export const useDeleteTag = ({ silenceError = false } = {}) => {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: [...noteKeys.all, 'deleteTag'],
     mutationFn: (tagId) => api.deleteNoteTag(tagId),
+    ...errorMeta(silenceError),
     onSuccess: () => invalidateTagViews(qc),
   });
+};
+
+/** Grupos de tags del usuario, en orden: [{ id, name, color, position, tag_count }]. */
+export const useTagGroups = () =>
+  useQuery({
+    queryKey: noteKeys.tagGroups(),
+    queryFn: () => api.getTagGroups(),
+    select: (response) => response.data,
+    staleTime: 60000,
+  });
+
+// Crear, renombrar y recolorear solo cambian la lista de grupos: los tags apuntan
+// al grupo por id y el nombre y el color salen de ahí. Errores en línea en /tags.
+export const useCreateTagGroup = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: [...noteKeys.all, 'createTagGroup'],
+    mutationFn: (data) => api.createTagGroup(data),
+    meta: { silenceError: true },
+    onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.tagGroups() }),
+  });
+};
+
+export const useUpdateTagGroup = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: [...noteKeys.all, 'updateTagGroup'],
+    mutationFn: ({ groupId, data }) => api.updateTagGroup(groupId, data),
+    meta: { silenceError: true },
+    onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.tagGroups() }),
+  });
+};
+
+// Borrar un grupo pasa sus tags a Libre: cambia el group_id de esos tags en todas
+// las respuestas (tags, notas, bloques, repaso y búsqueda).
+export const useDeleteTagGroup = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: [...noteKeys.all, 'deleteTagGroup'],
+    mutationFn: (groupId) => api.deleteTagGroup(groupId),
+    meta: { silenceError: true },
+    onSuccess: () => invalidateTagViews(qc),
+  });
+};
+
+/**
+ * Sube (-1) o baja (+1) un grupo. El endpoint recibe la lista entera, así que,
+ * como en useToggleNoteTag:
+ *  - la lista nueva se arma desde la caché en el click, con optimistic update;
+ *  - los cambios van en serie (`scope`): en paralelo podían confirmarse en otro
+ *    orden y dejar en el servidor un orden distinto del de la pantalla;
+ *  - el rollback y el refresco, solo cuando no queda ninguno en curso. Al
+ *    terminar se refresca todo: el orden de los tags cambia en las respuestas.
+ */
+export const useMoveTagGroup = () => {
+  const qc = useQueryClient();
+  const key = noteKeys.tagGroups();
+  const mutationKey = [...noteKeys.all, 'reorderTagGroups'];
+
+  const mutation = useMutation({
+    mutationKey,
+    scope: { id: 'tag-groups-order' },
+    mutationFn: ({ groups }) => api.reorderTagGroups(groups.map((g) => g.id)),
+    onMutate: ({ groups }) => {
+      qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData(key);
+      qc.setQueryData(key, (old) => (old?.data ? { ...old, data: groups } : old));
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (qc.isMutating({ mutationKey }) === 1 && context?.previous) qc.setQueryData(key, context.previous);
+    },
+    onSettled: () => {
+      if (qc.isMutating({ mutationKey }) === 1) invalidateTagViews(qc);
+    },
+  });
+
+  const move = (groupId, delta) => {
+    const current = getCachedTagGroups(qc);
+    if (!current) return;
+    const groups = moveTagGroup(current, groupId, delta);
+    if (groups !== current) mutation.mutate({ groups });
+  };
+
+  return { move, isPending: mutation.isPending };
 };
 
 /**
@@ -293,7 +395,7 @@ export const useToggleNoteTag = (noteId) => {
     const current = qc.getQueryData(detailKey)?.data?.tags ?? [];
     const tags = current.some((t) => t.id === tag.id)
       ? current.filter((t) => t.id !== tag.id)
-      : sortTags([...current, tag]);
+      : sortTags([...current, tag], getCachedTagGroups(qc));
     mutation.mutate({ tags });
   };
 
@@ -313,15 +415,22 @@ export const useApplyNoteTagsToBlocks = (noteId) => {
   });
 };
 
-export const useNoteSearch = ({ q, tagIds, limit, enabled = true }) =>
-  useQuery({
-    queryKey: [...noteKeys.all, 'search', { q, tagIds, limit }],
-    queryFn: () =>
-      api.searchNotes({ q, tag_ids: tagIds?.join(',') || undefined, limit }).then((r) => r.data),
-    enabled: enabled && (!!q?.trim() || (tagIds?.length ?? 0) > 0),
+/**
+ * Búsqueda de /buscar: { notes, total_notes, total_blocks, truncated }, con los
+ * bloques agrupados por nota. Los ids van ordenados en la key: la misma selección
+ * es la misma consulta.
+ */
+export const useNoteSearch = ({ q, tagIds = [], limit, enabled = true }) => {
+  const ids = [...tagIds].sort((a, b) => a - b);
+  return useQuery({
+    queryKey: [...noteKeys.search(), { q, tagIds: ids, limit }],
+    queryFn: () => api.searchNotes({ q: q || undefined, tag_ids: ids.join(',') || undefined, limit }),
+    select: (response) => response.data,
+    enabled: enabled && (!!q?.trim() || ids.length > 0),
     staleTime: 10_000,
     placeholderData: keepPreviousData,
   });
+};
 
 export const useMoveNoteDnd = () => {
   const qc = useQueryClient();

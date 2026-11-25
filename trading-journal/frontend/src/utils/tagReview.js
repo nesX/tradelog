@@ -1,4 +1,4 @@
-import { groupTags } from '../constants/tagGroups.js';
+import { groupTags } from './tagGroups.js';
 
 // Helpers puros de la pestaña "Por tag" de Repaso: el estado en la URL
 // (?tab=tags&tags=1,4,7&order=chrono), el orden de los resultados y el título del
@@ -55,10 +55,11 @@ export const sortReviewItems = (items, order, randomOrder = []) => {
 };
 
 /**
- * Título del visor desde la selección, en orden canónico: grupos separados por
- * " · " y tags del mismo grupo por ", ". Ej.: "NQ · proyección, trade perdido".
+ * Título del visor desde la selección, en orden canónico (`groups`: los grupos
+ * del usuario): grupos separados por " · " y tags del mismo grupo por ", ".
+ * Ej.: "NQ · proyección, trade perdido".
  */
-export const buildReviewTitle = (selectedTags) =>
-  groupTags(selectedTags)
+export const buildReviewTitle = (selectedTags, groups) =>
+  groupTags(selectedTags, groups)
     .map((group) => group.tags.map((t) => t.name).join(', '))
     .join(' · ');

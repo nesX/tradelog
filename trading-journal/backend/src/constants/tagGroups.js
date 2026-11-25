@@ -1,20 +1,11 @@
-// Grupos fijos de los tags de notas (columna note_tags.group_key). Tiene que
-// coincidir con el CHECK de database/030_migration_block_tags.sql: agregar un
-// grupo implica una migración nueva más esta lista y la del frontend
-// (frontend/src/constants/tagGroups.js). El orden es el canónico de los tags.
-export const TAG_GROUPS = ['activo', 'tipo', 'estrategia', 'resultado', 'libre'];
-export const DEFAULT_TAG_GROUP = 'libre';
+// Grupos de tags de cada usuario (tabla note_tag_groups, migración 031). Un tag
+// sin grupo (note_tags.group_id NULL) está en "Libre": no es una fila, no se
+// puede crear, renombrar ni borrar, y va siempre al final.
+export const TAG_GROUPS_MAX = 20;
+export const FREE_GROUP_NAME = 'Libre';
+// Color de Libre: el de un tag creado sin grupo (frontend: FREE_GROUP en utils/tagGroups.js).
+export const FREE_GROUP_COLOR = '#6B7280';
 
-// Topes del repaso por tag (GET /api/notes/blocks/by-tags).
+// Topes del repaso por tag (GET /api/notes/blocks/by-tags) y de la búsqueda.
 export const TAG_REVIEW_MAX_ITEMS = 500;
 export const TAG_REVIEW_MAX_TAGS = 50;
-
-// Color con el que nace un tag creado en cada grupo (desde el TagPicker o el
-// script de migración). Igual que los defaultColor de frontend/src/constants/tagGroups.js.
-export const TAG_GROUP_COLORS = {
-  activo: '#3B82F6',
-  tipo: '#F59E0B',
-  estrategia: '#8B5CF6',
-  resultado: '#10B981',
-  libre: '#6B7280',
-};

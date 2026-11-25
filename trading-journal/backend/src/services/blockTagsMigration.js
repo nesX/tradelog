@@ -1,12 +1,15 @@
-import { TAG_GROUPS, TAG_GROUP_COLORS } from '../constants/tagGroups.js';
+import { FREE_GROUP_NAME, FREE_GROUP_COLOR } from '../constants/tagGroups.js';
 
 /**
  * Migración de notas-categoría a tags de bloque (spec tags-bloques.md §7, task 041).
  *
  * Una nota-categoría junta bloques, o referencias a bloques, de un tema. El mapeo
  * dice qué tags representa cada una; la migración:
- *   1. valida el mapeo contra la BD (usuario, notas propias y vivas, nombres, grupos);
- *   2. resuelve cada tag por nombre (sin distinguir mayúsculas), creándolo si falta;
+ *   1. valida el mapeo contra la BD (usuario, notas propias y vivas, nombres, y
+ *      grupos: cada `group` es el nombre de un grupo del usuario, sin distinguir
+ *      mayúsculas; "libre" o sin `group` es Libre, group_id NULL);
+ *   2. resuelve cada tag por nombre (sin distinguir mayúsculas), creándolo si falta
+ *      con el color de su grupo;
  *   3. con `noteDefaults` (true por defecto), asigna los tags a la nota, para que sus
  *      bloques nuevos los reciban;
  *   4. Fase A: pone los tags en los bloques directos de la nota que no son referencias;
@@ -34,10 +37,13 @@ export class MappingError extends Error {
 
 const isPositiveInt = (v) => Number.isInteger(v) && v > 0;
 
+const isFreeGroup = (group) => group.toLowerCase() === FREE_GROUP_NAME.toLowerCase();
+
 /**
  * Valida la forma del mapeo, sin BD. Devuelve el mapeo normalizado
- * ({ userId, notes: [{ noteId, tags: [{ name, group }], noteDefaults }] }) o lanza
- * MappingError con todos los problemas encontrados.
+ * ({ userId, notes: [{ noteId, tags: [{ name, group }], noteDefaults }] }, con
+ * `group` el nombre del grupo o null para Libre) o lanza MappingError con todos
+ * los problemas encontrados. Que el grupo exista lo comprueba loadGroups.
  */
 export const parseMapping = (mapping) => {
   const problems = [];
@@ -66,9 +72,12 @@ export const parseMapping = (mapping) => {
       if (name.length < 1 || name.length > 100) {
         problems.push(`${where}.tags[${j}]: el nombre tiene que tener entre 1 y 100 caracteres`);
       }
-      const group = tag?.group ?? 'libre';
-      if (!TAG_GROUPS.includes(group)) {
-        problems.push(`${where}.tags[${j}]: grupo "${group}" inválido (válidos: ${TAG_GROUPS.join(', ')})`);
+      let group = tag?.group ?? null;
+      if (group !== null && (typeof group !== 'string' || group.trim() === '')) {
+        problems.push(`${where}.tags[${j}]: group tiene que ser el nombre de un grupo`);
+        group = null;
+      } else if (group !== null) {
+        group = isFreeGroup(group.trim()) ? null : group.trim();
       }
       return { name, group };
     });
@@ -102,47 +111,76 @@ export const classifyReference = (reference, target, userId) => {
   return 'valido';
 };
 
-// Resuelve los tags del mapeo por nombre, creándolos o pasándolos de 'libre' al
-// grupo del mapeo. Devuelve Map nombre en minúsculas → { id, name, group_key }.
-const resolveTags = async (client, userId, notes, report) => {
+const groupLabel = (group) => group?.name ?? FREE_GROUP_NAME;
+
+// Grupos del mapeo contra los del usuario. Devuelve Map nombre en minúsculas →
+// { id, name, color }; un grupo que no existe es un problema del mapeo.
+const loadGroups = async (client, userId, notes) => {
+  const result = await client.query(
+    `SELECT id, name, color FROM note_tag_groups WHERE user_id = $1 ORDER BY position, id`,
+    [userId]
+  );
+  const byName = new Map(result.rows.map((g) => [g.name.toLowerCase(), g]));
+  const problems = [];
+  notes.forEach((note, i) =>
+    note.tags.forEach(({ group }, j) => {
+      if (group !== null && !byName.has(group.toLowerCase())) {
+        const known = [...result.rows.map((g) => g.name), FREE_GROUP_NAME].join(', ');
+        problems.push(`notes[${i}].tags[${j}]: el grupo "${group}" no existe (grupos: ${known})`);
+      }
+    })
+  );
+  if (problems.length > 0) throw new MappingError(problems);
+  return byName;
+};
+
+// Resuelve los tags del mapeo por nombre, creándolos o pasándolos de Libre al
+// grupo del mapeo. Devuelve Map nombre en minúsculas → { id, name, group_id }.
+const resolveTags = async (client, userId, notes, groupsByName, report) => {
+  const groupsById = new Map([...groupsByName.values()].map((g) => [g.id, g]));
+  const groupOfTag = (tag) => groupsById.get(tag.group_id) ?? null;
   const resolved = new Map();
   for (const note of notes) {
-    for (const { name, group } of note.tags) {
+    for (const { name, group: groupName } of note.tags) {
+      const group = groupName === null ? null : groupsByName.get(groupName.toLowerCase());
+      const groupId = group?.id ?? null;
       const key = name.toLowerCase();
       const known = resolved.get(key);
       if (known) {
-        if (known.group_key !== group) {
+        if (known.group_id !== groupId) {
           report.warnings.push(
-            `El tag "${known.name}" queda en el grupo "${known.group_key}"; la nota ${note.noteId} lo pide en "${group}"`
+            `El tag "${known.name}" queda en el grupo "${groupLabel(groupOfTag(known))}"; ` +
+              `la nota ${note.noteId} lo pide en "${groupLabel(group)}"`
           );
         }
         continue;
       }
 
       const existing = await client.query(
-        `SELECT id, name, group_key FROM note_tags WHERE user_id = $1 AND LOWER(name) = LOWER($2)`,
+        `SELECT id, name, group_id FROM note_tags WHERE user_id = $1 AND LOWER(name) = LOWER($2)`,
         [userId, name]
       );
       let tag = existing.rows[0];
       if (!tag) {
         const created = await client.query(
-          `INSERT INTO note_tags (user_id, name, color, group_key) VALUES ($1, $2, $3, $4)
-           RETURNING id, name, group_key`,
-          [userId, name, TAG_GROUP_COLORS[group], group]
+          `INSERT INTO note_tags (user_id, name, color, group_id) VALUES ($1, $2, $3, $4)
+           RETURNING id, name, group_id`,
+          [userId, name, group?.color ?? FREE_GROUP_COLOR, groupId]
         );
         tag = created.rows[0];
-        report.created_tags.push({ id: tag.id, name: tag.name, group_key: tag.group_key });
-      } else if (tag.group_key === 'libre' && group !== 'libre') {
-        await client.query(`UPDATE note_tags SET group_key = $1 WHERE id = $2 AND user_id = $3`, [
-          group,
+        report.created_tags.push({ id: tag.id, name: tag.name, group: groupLabel(group) });
+      } else if (tag.group_id === null && groupId !== null) {
+        await client.query(`UPDATE note_tags SET group_id = $1 WHERE id = $2 AND user_id = $3`, [
+          groupId,
           tag.id,
           userId,
         ]);
-        report.group_changes.push({ tag_id: tag.id, name: tag.name, from: 'libre', to: group });
-        tag = { ...tag, group_key: group };
-      } else if (tag.group_key !== group) {
+        report.group_changes.push({ tag_id: tag.id, name: tag.name, from: FREE_GROUP_NAME, to: group.name });
+        tag = { ...tag, group_id: groupId };
+      } else if (tag.group_id !== groupId) {
         report.warnings.push(
-          `El tag "${tag.name}" ya está en el grupo "${tag.group_key}" y se respeta (el mapeo pide "${group}")`
+          `El tag "${tag.name}" ya está en el grupo "${groupLabel(groupOfTag(tag))}" y se respeta ` +
+            `(el mapeo pide "${groupLabel(group)}")`
         );
       }
       resolved.set(key, tag);
@@ -210,7 +248,8 @@ export const migrateBlockTags = async (client, rawMapping, { apply = false } = {
     await client.query('SELECT pg_advisory_xact_lock($1)', [userId]);
 
     const notesById = await loadNotes(client, userId, notes);
-    const tagsByName = await resolveTags(client, userId, notes, report);
+    const groupsByName = await loadGroups(client, userId, notes);
+    const tagsByName = await resolveTags(client, userId, notes, groupsByName, report);
 
     for (const entry of notes) {
       const note = notesById.get(entry.noteId);
