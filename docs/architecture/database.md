@@ -94,7 +94,7 @@ Modelo jerárquico tipo Notion con bloques tipados y reordenamiento por `fractio
 | `note_tag_assignments` | M:N entre `notes` y `note_tags`. Los tags de una nota son los tags por defecto de sus bloques nuevos. |
 | `note_block_tag_assignments` | M:N entre `note_blocks` y `note_tags` (PK `(block_id, tag_id)`). Es lo que filtra el repaso por tag. |
 
-Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_migration_notes_search.sql`, `017_migration_dnd.sql`, `018_migration_fix_positions.sql`, `019_migration_block_follow_up.sql`, `020_migration_note_sections.sql`, `022_migration_references.sql`, `023_migration_trade_reference_block.sql`, `024_migration_block_updated_at_skip_reorder.sql`, `025_migration_block_revisit.sql`, `026_migration_image_block.sql`, `030_migration_block_tags.sql`, `031_migration_tag_groups.sql`, `032_drop_tag_group_key.sql`.
+Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_migration_notes_search.sql`, `017_migration_dnd.sql`, `018_migration_fix_positions.sql`, `019_migration_block_follow_up.sql`, `020_migration_note_sections.sql`, `022_migration_references.sql`, `023_migration_trade_reference_block.sql`, `024_migration_block_updated_at_skip_reorder.sql`, `025_migration_block_revisit.sql`, `026_migration_image_block.sql`, `030_migration_block_tags.sql`, `031_migration_tag_groups.sql`, `032_drop_tag_group_key.sql`, `033_migration_tag_positions.sql`.
 
 #### Tags por bloque (migración 030)
 
@@ -116,7 +116,9 @@ Migraciones: `013_migration_notes.sql`, `014_migration_note_callout.sql`, `015_m
 
 `032_drop_tag_group_key.sql`: borra el CHECK y la columna `group_key`. En dev va junto con la 031; en prod, **después** del deploy del código que usa `group_id` (orden en la task 048).
 
-Orden canónico de los tags en las queries: `LEFT JOIN note_tag_groups g ON g.id = t.group_id` y `ORDER BY g.position NULLS LAST, g.id, LOWER(t.name)`. El AND entre grupos del repaso por tag y de la búsqueda cuenta `COUNT(DISTINCT COALESCE(t.group_id, 0))`: sin el `COALESCE`, un tag Libre no contaría como grupo.
+`033_migration_tag_positions.sql`: `note_tags.position INTEGER NOT NULL DEFAULT 0`, el orden del tag dentro de su grupo (Libre incluido). La semilla numera cada grupo de cada usuario por nombre (el orden que se veía antes) y corre solo al crear la columna: volver a correrla no pisa el orden elegido. Un tag nuevo, o uno que cambia de grupo, va al final del grupo; borrar un grupo pasa sus tags al final de Libre en su orden (el repositorio los mueve antes del `DELETE`, en la misma transacción). Las posiciones pueden tener huecos: solo cuenta el orden relativo. Va **antes** del deploy: el código anterior no lee la columna.
+
+Orden canónico de los tags en las queries: `LEFT JOIN note_tag_groups g ON g.id = t.group_id` y `ORDER BY g.position NULLS LAST, g.id, t.position, LOWER(t.name)` (`tagOrder` en `note.repository.js`). El AND entre grupos del repaso por tag y de la búsqueda cuenta `COUNT(DISTINCT COALESCE(t.group_id, 0))`: sin el `COALESCE`, un tag Libre no contaría como grupo.
 
 `note_blocks` no tiene `user_id`: el dueño de un bloque se comprueba siempre por su nota (`JOIN notes n ON n.id = b.note_id AND n.user_id = $N`). Las referencias (`block_type = 'reference'`) no llevan tags.
 

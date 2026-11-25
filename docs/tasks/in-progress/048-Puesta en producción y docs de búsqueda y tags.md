@@ -16,13 +16,16 @@ con la documentación al día.
      [database-ops.md](../../operations/database-ops.md).
   2. Aplicar la **031** en prod. El código viejo sigue funcionando porque
      `group_key` no se toca.
+     Justo después, aplicar la **033** (orden de los tags dentro de su grupo;
+     necesita el `group_id` de la 031). El código viejo no lee `position`.
   3. Push a `main` con 046–047 y esperar el deploy.
   4. Verificar en `https://tradelog.nesx.co`:
      - Los grupos sembrados y los tags en sus grupos.
      - Repaso por tag con un link guardado.
      - `/buscar` con tags de dos grupos.
-  5. Si se creó o editó algún tag entre el paso 2 y el 3, revisarlo. Volver a
-     correr la 031 completa solo antes del paso 6.
+  5. Si se creó o editó algún tag entre el paso 2 y el 3, revisarlo (también su
+     lugar en el grupo: el código viejo lo crea con `position` 0, al principio).
+     Volver a correr la 031 completa solo antes del paso 6.
   6. Aplicar la **032**, que borra `group_key`.
 - Si algo falla entre el 3 y el 6, se puede volver al código anterior sin tocar
   la BD: `group_key` sigue ahí.
@@ -63,4 +66,10 @@ reemplazada, §11, formato del mapeo del script), `features/README.md`,
 `roadmap.md` y `CLAUDE.md`.
 
 Falta todo el §1 (prod), que depende de la 042 (también pendiente en prod), y
-mover 043–048 a `done/` al terminar. Antes, en dev: aplicar la 031 y la 032.
+mover 043–048 a `done/` al terminar. Antes, en dev: aplicar la 031, la 033 y la
+032.
+
+Añadido después: orden de los tags dentro de su grupo (migración 033,
+`PUT /api/notes/tags/order` y flechas en `/tags`), con su documentación en
+`api/reference.md`, `architecture/database.md`, `architecture/frontend.md`,
+`roadmap.md` y `CLAUDE.md`.

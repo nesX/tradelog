@@ -80,7 +80,7 @@ Originados en [`analysis/scaling.md` Fase 0](analysis/scaling.md#fase-0--hardeni
 | Recordatorios de análisis (alertas de precio y por fecha) + bandeja `/recordatorios` | `alertas-de-precio-en-notas.md` | ✅ Implementado y en prod (migración 028, tasks 016–026 en `tasks/done/`) |
 | Notificaciones push de los recordatorios (Web Push en la PWA) | `notificaciones-push-pwa.md` | 🟡 Implementado (tasks 028–031); falta la puesta en prod (task 032) |
 | Tags por bloque con grupos, repaso por tag y visor de bloques | `tags-bloques.md` | 🟡 Implementado (migración 030, tasks 033–041); falta la puesta en prod y la migración de las notas-categoría reales (task 042) |
-| Página `/tags` y grupos de tags por usuario | `tags-bloques.md` (D1 reemplazada) + tasks 045–047 | 🟡 Implementado (migraciones 031 y 032); falta la puesta en prod en orden 031 → deploy → 032, después de la 042 (task 048) |
+| Página `/tags` y grupos de tags por usuario | `tags-bloques.md` (D1 reemplazada) + tasks 045–047 | 🟡 Implementado (migraciones 031 y 032, y la 033 para ordenar los tags dentro de su grupo); falta la puesta en prod en orden 031 → 033 → deploy → 032, después de la 042 (task 048) |
 
 ### Mejoras de UX / DX
 

@@ -59,7 +59,7 @@ for f in trading-journal/database/0*.sql; do
 done
 ```
 
-**Manual schema setup** (sin Docker) — los archivos están numerados `001_` a `032_`:
+**Manual schema setup** (sin Docker) — los archivos están numerados `001_` a `033_`:
 ```bash
 createdb trading_journal
 for f in trading-journal/database/0*.sql; do psql -d trading_journal -f "$f"; done
@@ -123,10 +123,10 @@ TanStack Query: `staleTime=30s`, `refetchOnWindowFocus=false`, **NO persistence 
 
 15+ tablas; las principales:
 - `users`, `trades` (+ `trade_images`), `systems`, `signals`, `user_timeframes`, `trade_signals`, `trade_timeframes`
-- `notes` (jerárquico) → `note_blocks` → (`note_block_images`, `note_block_trades`, `note_block_tag_assignments` → `note_tags`) y `note_tag_assignments` → `note_tags` (`note_tags.group_id` → `note_tag_groups`, los grupos de cada usuario; NULL es "Libre". Ver [`docs/architecture/database.md`](docs/architecture/database.md#grupos-de-tags-por-usuario-migraciones-031-y-032))
+- `notes` (jerárquico) → `note_blocks` → (`note_block_images`, `note_block_trades`, `note_block_tag_assignments` → `note_tags`) y `note_tag_assignments` → `note_tags` (`note_tags.group_id` → `note_tag_groups`, los grupos de cada usuario; NULL es "Libre"; `note_tags.position` es el orden dentro del grupo. Ver [`docs/architecture/database.md`](docs/architecture/database.md#grupos-de-tags-por-usuario-migraciones-031-y-032))
 - `backtest_sessions` → `backtest_trades`
 
-Columnas generadas en `trades`: `pnl` y `pnl_percentage` (STORED). Soft-delete con `deleted_at` en `trades` y `notes` (el de notas es recursivo: marca la nota y sus descendientes). Drag-and-drop via `fractional-indexing`. Migrations secuenciales (`001_` a `032_`). Detalle: [`docs/architecture/database.md`](docs/architecture/database.md).
+Columnas generadas en `trades`: `pnl` y `pnl_percentage` (STORED). Soft-delete con `deleted_at` en `trades` y `notes` (el de notas es recursivo: marca la nota y sus descendientes). Drag-and-drop via `fractional-indexing`. Migrations secuenciales (`001_` a `033_`). Detalle: [`docs/architecture/database.md`](docs/architecture/database.md).
 
 ## CSV Import
 

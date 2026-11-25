@@ -365,7 +365,7 @@ Timeframes del usuario.
 | Método | Ruta | Notas |
 |--------|------|-------|
 | `POST` | `/api/notes` | Crear nota. Body: `{ title?, parent_note_id?, type? }` (`type` ∈ `note` \| `section`). |
-| `GET` | `/api/notes/:id` | Detalle con bloques. Cada bloque trae `price_alerts` y `date_reminders` (con `last_price` del catálogo para la distancia), y la nota los suyos de nivel nota. Ver [Recordatorios de análisis](#recordatorios-de-análisis). La nota y cada bloque traen `tags: [{ id, name, color, group_id }]` en orden canónico (`[]` si no tienen). |
+| `GET` | `/api/notes/:id` | Detalle con bloques. Cada bloque trae `price_alerts` y `date_reminders` (con `last_price` del catálogo para la distancia), y la nota los suyos de nivel nota. Ver [Recordatorios de análisis](#recordatorios-de-análisis). La nota y cada bloque traen `tags: [{ id, name, color, group_id, position }]` en orden canónico (`[]` si no tienen). |
 | `PATCH` | `/api/notes/:id/title` | Renombrar. |
 | `DELETE` | `/api/notes/:id` | Soft-delete recursivo (nota + descendientes vía `deleted_at`). Conserva las filas de bloques/imágenes; de disco solo borra archivos de imagen con >24h. |
 | `PATCH` | `/api/notes/:id/move` | Mover (cambia parent). |
@@ -373,7 +373,11 @@ Timeframes del usuario.
 
 ### Tags (globales por usuario)
 
-`GET`/`POST`/`PATCH`/`DELETE` en `/api/notes/tags[/:tagId]`. Cada tag es `{ id, name, color, group_id }` en todas las respuestas (el CRUD agrega `created_at`). `group_id` es un grupo del usuario, o `null` para **Libre**. `POST` y `PATCH` aceptan `group_id` (entero positivo o `null`; sin él, Libre); un grupo ajeno o inexistente → 404 "Grupo no encontrado". Un nombre repetido (sin distinguir mayúsculas, también con dos creaciones simultáneas) → 400 "Ya existe un tag con ese nombre". `GET` ordena por nombre; el resto de respuestas usan el **orden canónico**: por la posición de su grupo, Libre al final, y luego por nombre. Spec: [`features/specs/tags-bloques.md`](../features/specs/tags-bloques.md).
+`GET`/`POST`/`PATCH`/`DELETE` en `/api/notes/tags[/:tagId]`. Cada tag es `{ id, name, color, group_id, position }` en todas las respuestas (el CRUD agrega `created_at`). `group_id` es un grupo del usuario, o `null` para **Libre**; `position` es su orden dentro del grupo. `POST` y `PATCH` aceptan `group_id` (entero positivo o `null`; sin él, Libre); un grupo ajeno o inexistente → 404 "Grupo no encontrado". El tag nuevo va al final de su grupo, y un `PATCH` que cambia el grupo lo pone al final del nuevo (con el mismo grupo conserva su lugar). Un nombre repetido (sin distinguir mayúsculas, también con dos creaciones simultáneas) → 400 "Ya existe un tag con ese nombre". `GET` ordena por nombre; el resto de respuestas usan el **orden canónico**: por la posición de su grupo, Libre al final, luego por la `position` del tag y, para empates, por nombre. Spec: [`features/specs/tags-bloques.md`](../features/specs/tags-bloques.md).
+
+| Método | Ruta | Body | Respuesta |
+|---|---|---|---|
+| `PUT` | `/api/notes/tags/order` | `{ group_id, tag_ids }` | Los tags del grupo en el orden nuevo. `group_id` es obligatorio (`null`: Libre) y `tag_ids` tiene que ser exactamente el conjunto de tags del grupo, sin repetidos → si no, 400. Grupo ajeno o inexistente → 404. Cambia el orden de los tags en todas las respuestas. |
 
 #### Grupos de tags
 
@@ -384,7 +388,7 @@ Cada usuario tiene sus grupos (`note_tag_groups`). **Libre no es un grupo**: son
 | `GET` | `/api/notes/tag-groups` | — | Lista por `position, id`. |
 | `POST` | `/api/notes/tag-groups` | `{ name, color? }` | 201 con el grupo, al final. |
 | `PATCH` | `/api/notes/tag-groups/:groupId` | `{ name?, color? }` | El grupo. |
-| `DELETE` | `/api/notes/tag-groups/:groupId` | — | `{ id, moved_tags }`: sus tags pasan a Libre y siguen asignados a sus notas y bloques. |
+| `DELETE` | `/api/notes/tag-groups/:groupId` | — | `{ id, moved_tags }`: sus tags pasan al final de Libre, en el orden que tenían, y siguen asignados a sus notas y bloques. |
 | `PUT` | `/api/notes/tag-groups/order` | `{ group_ids }` | La lista ordenada. Reordenar cambia el orden de los tags en todas las respuestas. |
 
 - `name`: de 1 a 50 caracteres, con trim. Repetido (sin mayúsculas) → 409 "Ya existe un grupo con ese nombre". "Libre" → 400 `"Libre" es el grupo de los tags sin grupo`.
