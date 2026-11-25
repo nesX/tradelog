@@ -70,6 +70,6 @@ mover 043–048 a `done/` al terminar. Antes, en dev: aplicar la 031, la 033 y l
 032.
 
 Añadido después: orden de los tags dentro de su grupo (migración 033,
-`PUT /api/notes/tags/order` y flechas en `/tags`), con su documentación en
+`PUT /api/notes/tags/order` y arrastrar en `/tags`, para tags y grupos), con su documentación en
 `api/reference.md`, `architecture/database.md`, `architecture/frontend.md`,
 `roadmap.md` y `CLAUDE.md`.
