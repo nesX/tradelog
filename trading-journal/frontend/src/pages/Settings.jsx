@@ -126,7 +126,7 @@ const CreateSystemModal = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-600 dark:text-gray-300">
           Señales con <strong>Escala</strong>: se registran como Débil / Media / Fuerte / Importante.<br />
           Sin escala: simplemente presente o ausente.
         </p>
@@ -195,7 +195,7 @@ const SystemRow = ({ system }) => {
           <span className="flex-1 font-medium text-gray-900 dark:text-white">{system.name}</span>
         )}
 
-        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-gray-600 dark:text-gray-300 whitespace-nowrap">
           {system.signal_count} señal{system.signal_count !== 1 ? 'es' : ''}
         </span>
 
@@ -239,9 +239,9 @@ const SystemRow = ({ system }) => {
 
       {showSignals && (
         <div className="px-4 pb-3 pt-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700">
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 pt-3">Señales:</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300 mb-2 pt-3">Señales:</p>
           <div className="flex flex-wrap gap-2">
-            {!systemDetail && <span className="text-xs text-gray-400">Cargando...</span>}
+            {!systemDetail && <span className="text-xs text-gray-600 dark:text-gray-300">Cargando...</span>}
             {systemDetail?.signals?.map(sig => (
               <span key={sig.id} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-gray-700 dark:text-gray-300">
                 {sig.name}

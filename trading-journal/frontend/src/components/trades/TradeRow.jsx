@@ -141,7 +141,7 @@ const TradeRow = ({
           </div>
         ) : (
           <div className="h-10 w-10 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
-            <span className="text-gray-400 text-xs">-</span>
+            <span className="text-gray-600 dark:text-gray-300 text-xs">-</span>
           </div>
         )}
       </td>

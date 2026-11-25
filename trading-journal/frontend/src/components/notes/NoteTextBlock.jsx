@@ -26,7 +26,7 @@ const MARKDOWN_COMPONENTS = { more: MoreBlock };
 // Markdown del bloque: lo comparten la vista previa del editor y la solo lectura.
 const TextMarkdown = ({ value }) => (
   <div
-    className="prose prose-sm dark:prose-invert max-w-none
+    className="prose prose-sm text-reading dark:prose-invert max-w-none
                text-gray-800 dark:text-gray-200
                prose-headings:font-semibold prose-headings:text-gray-900 dark:prose-headings:text-white
                prose-code:bg-gray-100 dark:prose-code:bg-gray-700
@@ -48,7 +48,7 @@ const ReadOnlyTextBlock = ({ block }) => (
     {block.content ? (
       <TextMarkdown value={block.content} />
     ) : (
-      <p className="text-sm leading-6 text-gray-400 dark:text-gray-500 italic">Sin contenido</p>
+      <p className="text-reading text-gray-400 dark:text-gray-500 italic">Sin contenido</p>
     )}
   </div>
 );
@@ -63,8 +63,8 @@ const EditableTextBlock = ({ block, onUpdate, saveStatus }) => {
   const handleClick = value ? handleDoubleClick : startEditing;
 
   /* ---------- MODO EDICIÓN ---------- */
-  // Misma caja, padding, fuente e interlineado que el preview (prose-sm = 14px /
-  // 24px) para que entrar en edición no mueva el bloque; solo queda fijo el ring
+  // Misma caja, padding, fuente e interlineado que el preview (text-reading = 15.2px /
+  // 26px) para que entrar en edición no mueva el bloque; solo queda fijo el ring
   // que en preview aparece con hover.
   if (editing) {
     return (
@@ -76,14 +76,14 @@ const EditableTextBlock = ({ block, onUpdate, saveStatus }) => {
           onBlur={handleBlur}
           rows={1}
           className="block w-full resize-none bg-transparent p-0
-                     text-sm leading-6 text-gray-800 dark:text-gray-200 outline-none
+                     text-reading text-gray-800 dark:text-gray-200 outline-none
                      placeholder:italic placeholder:text-gray-300 dark:placeholder:text-gray-600"
           placeholder="Escribe en markdown..."
           style={{ overflow: 'hidden' }}
         />
         {/* Indicador de guardado */}
         {saveStatus && (
-          <span className="absolute bottom-1 right-2 text-xs text-gray-400 pointer-events-none">
+          <span className="absolute bottom-1 right-2 text-xs text-gray-600 dark:text-gray-300 pointer-events-none">
             {saveStatus}
           </span>
         )}
@@ -102,14 +102,14 @@ const EditableTextBlock = ({ block, onUpdate, saveStatus }) => {
       {value ? (
         <TextMarkdown value={value} />
       ) : (
-        <p className="text-sm leading-6 text-gray-300 dark:text-gray-600 italic select-none">
+        <p className="text-reading text-gray-300 dark:text-gray-600 italic select-none">
           Haz click para escribir...
         </p>
       )}
 
       {/* Indicador de guardado en modo preview */}
       {saveStatus && (
-        <span className="absolute bottom-1 right-2 text-xs text-gray-400 pointer-events-none">
+        <span className="absolute bottom-1 right-2 text-xs text-gray-600 dark:text-gray-300 pointer-events-none">
           {saveStatus}
         </span>
       )}

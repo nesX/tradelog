@@ -114,7 +114,7 @@ const Stats = () => {
                     <p className={`font-medium ${stat.total_pnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                       {formatCurrency(stat.total_pnl)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-600 dark:text-gray-300">
                       WR: {stat.win_rate}%
                     </p>
                   </div>
@@ -187,7 +187,7 @@ const StatCard = ({ title, value, subtitle, icon: Icon, color }) => {
             {value}
           </p>
           {subtitle && (
-            <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{subtitle}</p>
           )}
         </div>
         <div className={`p-2 rounded-lg ${colorClasses.bg}`}>
@@ -217,7 +217,7 @@ const TypeStatRow = ({ type, stats, color }) => {
         <p className={`font-medium ${parseFloat(stats.total_pnl) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
           {formatCurrency(stats.total_pnl)}
         </p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-600 dark:text-gray-300">
           WR: {stats.win_rate}% | Avg: {formatCurrency(stats.avg_pnl)}
         </p>
       </div>
@@ -234,7 +234,7 @@ const TradeStatRow = ({ trade, isProfit }) => {
         <span className={`ml-2 text-xs ${trade.trade_type === 'LONG' ? 'text-blue-600 dark:text-blue-400' : 'text-purple-600 dark:text-purple-400'}`}>
           {trade.trade_type}
         </span>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-600 dark:text-gray-300">
           {formatDate(trade.entry_date, { includeTime: false })}
         </p>
       </div>

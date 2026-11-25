@@ -39,7 +39,7 @@ export function TimeRangeTabs({ value, onChange, includeAll = false }) {
           className={`px-3 py-1 text-xs rounded-lg border transition-colors
             ${value === opt.value
               ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium'
-              : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+              : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
             }`}
         >
           {opt.label}
@@ -54,13 +54,13 @@ const IMAGE_BLOCK_LABELS = { image_gallery: 'Galería de imágenes', image: 'Ima
 export function BlockPreview({ content, blockType }) {
   if (!content || IMAGE_BLOCK_LABELS[blockType]) {
     return (
-      <span className="text-xs italic text-gray-400 dark:text-gray-500">
+      <span className="text-xs italic text-gray-600 dark:text-gray-300">
         {IMAGE_BLOCK_LABELS[blockType] || 'Sin contenido'}
       </span>
     );
   }
   if (blockType === 'reference') {
-    return <span className="text-xs italic text-gray-400 dark:text-gray-500">Referencia</span>;
+    return <span className="text-xs italic text-gray-600 dark:text-gray-300">Referencia</span>;
   }
   const lines = content.split('\n').filter(Boolean).slice(0, 3).join(' ');
   const preview = lines.length > 120 ? lines.slice(0, 120) + '…' : lines;
@@ -98,12 +98,12 @@ export function BlockItem({ block, LeadingIcon = null, leadingIconClass = '', ac
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-1">
           <BookOpen className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-300 truncate">
             {block.note_title || 'Sin título'}
           </span>
         </div>
         <BlockPreview content={block.content} blockType={block.block_type} />
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
           {timeAgo(block.updated_at)}
         </p>
       </div>

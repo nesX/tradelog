@@ -188,13 +188,13 @@ export default function NotificationCard({ card, onResolve, onEditAlert, onEditR
       <header className="flex items-start gap-2">
         <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${variant.iconClass}`} />
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
             {variant.label} · {timeAgo(card.created_at)}
           </p>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white break-words">{headline}</h3>
         </div>
         {resolved && (
-          <span className="flex-shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
+          <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
             {RESOLUTION_LABEL[card.resolution] || 'Cerrada'} · {formatDate(card.resolved_at, { includeTime: false })}
           </span>
         )}
@@ -202,9 +202,9 @@ export default function NotificationCard({ card, onResolve, onEditAlert, onEditR
 
       <div className="pl-6 space-y-1 text-sm text-gray-600 dark:text-gray-300">
         {detail && <p>{detail}</p>}
-        {armedLine && <p className="text-xs text-gray-500 dark:text-gray-400">{armedLine}</p>}
+        {armedLine && <p className="text-xs text-gray-600 dark:text-gray-300">{armedLine}</p>}
         {isTrigger && p.armed_at && p.candle_open_time && (
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-gray-600 dark:text-gray-300">
             {new Date(p.candle_open_time) > new Date(p.armed_at)
               ? `Tardó ${durationBetween(p.armed_at, p.candle_open_time)} desde el armado`
               : 'Saltó en la misma hora del armado'}
@@ -214,11 +214,11 @@ export default function NotificationCard({ card, onResolve, onEditAlert, onEditR
           <p className="flex items-center gap-1.5 text-gray-700 dark:text-gray-200">
             <FileText className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
             <span className="truncate">{p.note_title}</span>
-            {!card.note_available && <span className="text-xs text-gray-400">(nota no disponible)</span>}
+            {!card.note_available && <span className="text-xs text-gray-600 dark:text-gray-300">(nota no disponible)</span>}
           </p>
         )}
         {p.block_excerpt && (
-          <p className="text-xs italic text-gray-500 dark:text-gray-400 line-clamp-3">“{p.block_excerpt}”</p>
+          <p className="text-xs italic text-gray-600 dark:text-gray-300 line-clamp-3">“{p.block_excerpt}”</p>
         )}
         {p.message && card.type !== 'date_reminder_due' && (
           <p className="flex items-center gap-1.5 text-xs">

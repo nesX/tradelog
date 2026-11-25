@@ -97,7 +97,7 @@ export default function UsersTable({ users, actor, pagination, onPageChange }) {
 
       {pagination?.totalPages > 1 && (
         <div className="flex items-center justify-between p-3 border-t border-gray-100 dark:border-gray-700">
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-gray-600 dark:text-gray-300">
             Página {pagination.page} de {pagination.totalPages} · {pagination.total} usuarios
           </span>
           <div className="space-x-2">

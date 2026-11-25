@@ -232,7 +232,7 @@ const NoteTree = ({ notes = [], selectedNoteId, onSelect, onCreateChild, onDelet
       </div>
       <DragOverlay>
         {activeNote ? (
-          <div className="bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-600 shadow-lg rounded-lg px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 opacity-90 cursor-grabbing max-w-[220px] truncate">
+          <div className="bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-600 shadow-lg rounded-lg px-3 py-1.5 text-reading/snug text-gray-700 dark:text-gray-200 opacity-90 cursor-grabbing max-w-[220px] truncate">
             {activeNote.title || 'Sin título'}
           </div>
         ) : null}

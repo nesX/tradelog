@@ -68,8 +68,8 @@ function ScheduledRow({ icon: Icon, iconClass, title, subtitle, item, onEdit, on
       <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${iconClass}`} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
-        {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>}
-        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+        {subtitle && <p className="text-xs text-gray-600 dark:text-gray-300">{subtitle}</p>}
+        <p className="text-xs text-gray-600 dark:text-gray-300 truncate">
           {item.note_title}
           {item.block_excerpt && <span className="italic"> · “{item.block_excerpt}”</span>}
         </p>
@@ -279,7 +279,7 @@ export default function Reminders() {
               <Icon className="w-4 h-4" />
               {label}
               {key === 'pending' && openCount > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500 text-white">
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500 text-white">
                   {openCount}
                 </span>
               )}

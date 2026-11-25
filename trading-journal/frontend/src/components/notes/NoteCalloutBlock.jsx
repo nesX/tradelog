@@ -39,7 +39,7 @@ const DOT_COLORS = {
 // Markdown del destacado: lo comparten la vista previa del editor y la solo lectura.
 const CalloutMarkdown = ({ value }) => (
   <div
-    className="prose prose-sm dark:prose-invert max-w-none
+    className="prose prose-sm text-reading dark:prose-invert max-w-none
                text-gray-800 dark:text-gray-200
                prose-headings:font-semibold prose-headings:text-gray-900 dark:prose-headings:text-white
                prose-code:bg-white/60 dark:prose-code:bg-black/20
@@ -60,14 +60,14 @@ const ReadOnlyCalloutBlock = ({ block }) => {
     <div className={`border-l-4 rounded-r-xl ${bg} ${border} px-4 pt-3 pb-3`}>
       <div className="flex items-center gap-2 mb-2">
         {metadata.icon && <span className="text-base leading-none">{metadata.icon}</span>}
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
           {label}
         </span>
       </div>
       {block.content ? (
         <CalloutMarkdown value={block.content} />
       ) : (
-        <p className="text-sm leading-6 text-gray-400 dark:text-gray-500 italic">Sin contenido</p>
+        <p className="text-reading text-gray-400 dark:text-gray-500 italic">Sin contenido</p>
       )}
     </div>
   );
@@ -95,7 +95,7 @@ const EditableCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus })
         {metadata.icon && (
           <span className="text-base leading-none">{metadata.icon}</span>
         )}
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
           {label}
         </span>
         {/* Selector de estilo — puntos de color */}
@@ -114,7 +114,7 @@ const EditableCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus })
 
       {/* Contenido */}
       {/* En edición, mismo alto mínimo, fuente e interlineado que el preview
-          (prose-sm = 14px / 24px) y sin borde: el destacado ya delimita el bloque. */}
+          (text-reading = 15.2px / 26px) y sin borde: el destacado ya delimita el bloque. */}
       {editing ? (
         <div className="min-h-[32px]">
           <textarea
@@ -124,13 +124,13 @@ const EditableCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus })
             onBlur={handleBlur}
             rows={1}
             className="block w-full resize-none bg-transparent p-0
-                       text-sm leading-6 text-gray-800 dark:text-gray-200 outline-none
+                       text-reading text-gray-800 dark:text-gray-200 outline-none
                        placeholder:italic placeholder:text-gray-400 dark:placeholder:text-gray-500"
             placeholder="Escribe en markdown..."
             style={{ overflow: 'hidden' }}
           />
           {saveStatus && (
-            <span className="text-xs text-gray-400">{saveStatus}</span>
+            <span className="text-xs text-gray-600 dark:text-gray-300">{saveStatus}</span>
           )}
         </div>
       ) : (
@@ -141,12 +141,12 @@ const EditableCalloutBlock = ({ block, onUpdate, onUpdateMetadata, saveStatus })
           {value ? (
             <CalloutMarkdown value={value} />
           ) : (
-            <p className="text-sm leading-6 text-gray-400 dark:text-gray-500 italic select-none">
+            <p className="text-reading text-gray-400 dark:text-gray-500 italic select-none">
               Haz click para escribir...
             </p>
           )}
           {saveStatus && (
-            <span className="text-xs text-gray-400">{saveStatus}</span>
+            <span className="text-xs text-gray-600 dark:text-gray-300">{saveStatus}</span>
           )}
         </div>
       )}

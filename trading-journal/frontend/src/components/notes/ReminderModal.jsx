@@ -104,7 +104,7 @@ function Row({ label, children, hint }) {
       <span className="text-sm text-gray-600 dark:text-gray-300">{label}</span>
       <div>
         {children}
-        {hint && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{hint}</p>}
+        {hint && <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{hint}</p>}
       </div>
     </div>
   );
@@ -142,7 +142,7 @@ function AnchorReminderList({ alerts, reminders, editingId, onEditAlert, onEditR
 
   return (
     <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Recordatorios de este anclaje</p>
+      <p className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Recordatorios de este anclaje</p>
       <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
         {alerts.map((a) => {
           const key = `a${a.id}`;
@@ -180,7 +180,7 @@ function AnchorReminderList({ alerts, reminders, editingId, onEditAlert, onEditR
               <span className="flex-1 min-w-0 truncate text-gray-700 dark:text-gray-200">
                 {formatDate(r.remind_at)}
                 {r.message && <span className="text-gray-400"> · {r.message}</span>}
-                {r.status === 'sent' && <span className="ml-1 text-xs text-gray-400">· enviado</span>}
+                {r.status === 'sent' && <span className="ml-1 text-xs text-gray-600 dark:text-gray-300">· enviado</span>}
               </span>
               {confirmRow(key, () => deleteReminder.mutate(r.id)) || (
                 <>
@@ -527,7 +527,7 @@ export default function ReminderModal({
               <span>
                 Es una invalidación
                 {form.isInvalidation && (
-                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  <span className="block text-xs text-gray-600 dark:text-gray-300 mt-0.5">
                     Salta solo si una vela diaria cierra por {direction === 'above' ? 'encima' : 'debajo'} (cierre de
                     Binance: 00:00 UTC · {dailyCloseLocalTime()} hora local)
                   </span>

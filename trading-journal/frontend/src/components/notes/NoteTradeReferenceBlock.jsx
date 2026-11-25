@@ -36,7 +36,7 @@ const TradeCard = ({ trade, onOpen, onRemove = null }) => {
       <div className="flex-shrink-0 w-[140px] h-[110px] rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 flex items-center justify-center px-2">
         <div className="flex flex-col items-center gap-1 text-gray-400 dark:text-gray-500">
           <AlertCircle className="w-4 h-4" />
-          <span className="text-[10px] text-center leading-tight italic">
+          <span className="text-xs text-center leading-tight italic">
             Trade no disponible
           </span>
         </div>
@@ -69,7 +69,7 @@ const TradeCard = ({ trade, onOpen, onRemove = null }) => {
                 {trade.symbol}
               </span>
               <span
-                className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded font-medium ${sideBadgeClass(
+                className={`inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded font-medium ${sideBadgeClass(
                   trade.side
                 )}`}
               >
@@ -213,13 +213,13 @@ const NoteTradeReferenceBlock = ({ block, noteId, readOnly = false, onLightboxCh
               className="px-2 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none focus:border-blue-400 dark:focus:border-blue-500"
             />
             {parseError && (
-              <div className="flex items-center gap-1 text-[10px] text-red-500 dark:text-red-400">
+              <div className="flex items-center gap-1 text-xs text-red-500 dark:text-red-400">
                 <AlertCircle className="w-3 h-3" />
                 {parseError}
               </div>
             )}
             {addTrade.isPending && (
-              <span className="text-[10px] text-blue-500 dark:text-blue-400 italic">
+              <span className="text-xs text-blue-500 dark:text-blue-400 italic">
                 Añadiendo…
               </span>
             )}

@@ -143,7 +143,7 @@ const NoteImageGalleryBlock = ({ block, noteId, readOnly = false, onLightboxChan
         {hasMetadata && (
           <div className="flex flex-wrap items-center gap-1.5">
             {meta.analysis_date && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">{formatAnalysisDate(meta.analysis_date)}</span>
+              <span className="text-xs text-gray-600 dark:text-gray-300">{formatAnalysisDate(meta.analysis_date)}</span>
             )}
             {meta.symbols?.map((s) => (
               <span
@@ -182,7 +182,7 @@ const NoteImageGalleryBlock = ({ block, noteId, readOnly = false, onLightboxChan
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-lg" />
                   {img.created_at && (
-                    <span className="absolute bottom-1 left-1.5 text-[10px] leading-none
+                    <span className="absolute bottom-1 left-1.5 text-xs leading-none
                                      text-white/90 drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]
                                      pointer-events-none select-none">
                       {formatDate(img.created_at)}
@@ -326,20 +326,20 @@ const NoteImageGalleryBlock = ({ block, noteId, readOnly = false, onLightboxChan
           {hasMetadata ? (
             <>
               {meta.analysis_date && (
-                <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                <span className="text-xs text-gray-600 dark:text-gray-300">
                   {formatAnalysisDate(meta.analysis_date)}
                 </span>
               )}
               {meta.symbols?.map((s) => (
                 <span key={s}
-                  className="text-[11px] px-1.5 py-0 rounded
+                  className="text-xs px-1.5 py-0 rounded
                              bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-mono">
                   {s}
                 </span>
               ))}
             </>
           ) : (
-            <span className="text-[11px] text-gray-300 dark:text-gray-600 italic
+            <span className="text-xs text-gray-500 dark:text-gray-400 italic
                              opacity-0 group-hover/meta:opacity-100 touch:opacity-100 transition-opacity">
               + fecha / símbolo
             </span>

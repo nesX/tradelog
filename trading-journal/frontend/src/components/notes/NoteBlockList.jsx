@@ -143,7 +143,8 @@ function SortableBlockItem({
               <BlockReminderToggle block={block} onOpen={onOpenReminder} />
 
               {/* Tags del bloque: siempre visible (relleno si tiene tags) para que
-                  la grilla no cambie de forma */}
+                  la grilla no cambie de forma. Los tags no se listan bajo el
+                  bloque: el title los nombra y el picker los muestra marcados. */}
               {taggable && (
                 <button
                   type="button"
@@ -155,7 +156,7 @@ function SortableBlockItem({
                                ? 'border-teal-500 dark:border-teal-600 text-teal-600 hover:text-teal-700'
                                : 'border-gray-200 dark:border-gray-700 text-gray-400 hover:text-teal-600 hover:border-teal-300 dark:hover:border-teal-700'
                              }`}
-                  title="Tags del bloque"
+                  title={hasTags ? `Tags: ${block.tags.map((t) => t.name).join(', ')}` : 'Tags del bloque'}
                   aria-expanded={tagsOpen}
                 >
                   <Tag className="w-3.5 h-3.5" fill={hasTags ? 'currentColor' : 'none'} />
@@ -208,15 +209,16 @@ function SortableBlockItem({
         />
       </div>
 
-      {/* Tags y chips de recordatorios: fuera del contenedor del bloque para no
-          mover sus controles flotantes (centrados en vertical). */}
+      {/* Picker de tags (sin fila de tags) y chips de recordatorios: fuera del
+          contenedor del bloque para no mover sus controles flotantes (centrados
+          en vertical). */}
       {taggable && (
         <BlockTags
           block={block}
           noteId={noteId}
+          showList={false}
           open={tagsOpen}
           onOpenChange={(open) => onOpenTags(open ? block.id : null)}
-          className="px-4 pb-1.5 -mt-0.5"
         />
       )}
       {noteActions && (

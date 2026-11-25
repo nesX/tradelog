@@ -20,7 +20,7 @@ const MoodBadge = ({ score, label }) => {
 const StatBadge = ({ value, label, colorClass }) => (
   <div className="text-center">
     <div className={`text-xl font-bold ${colorClass}`}>{value}</div>
-    <div className="text-xs text-gray-400 dark:text-gray-500">{label}</div>
+    <div className="text-xs text-gray-600 dark:text-gray-300">{label}</div>
   </div>
 );
 
@@ -91,7 +91,7 @@ const TradeCommentArea = ({ result, onConfirm, onCancel, isLoading }) => {
             </button>
           </div>
         ) : (
-          <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
             <Camera className="w-3.5 h-3.5" />
             Adjuntar captura (opcional)
             <input
@@ -105,7 +105,7 @@ const TradeCommentArea = ({ result, onConfirm, onCancel, isLoading }) => {
         )}
       </div>
 
-      <p className="text-xs text-gray-400 dark:text-gray-500">Ctrl+Enter para confirmar · Esc para cancelar</p>
+      <p className="text-xs text-gray-600 dark:text-gray-300">Ctrl+Enter para confirmar · Esc para cancelar</p>
       <div className="flex gap-2">
         <button
           type="button"
@@ -242,7 +242,7 @@ const BacktestSession = () => {
               className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                 isActive
                   ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
               }`}
             >
               {isActive ? 'Activa' : 'Cerrada'}
@@ -265,7 +265,7 @@ const BacktestSession = () => {
       {/* Descripción editable */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">
             Descripción
           </p>
           {!editingDescription && (
@@ -300,7 +300,7 @@ const BacktestSession = () => {
               <button
                 type="button"
                 onClick={() => setEditingDescription(false)}
-                className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 Cancelar
               </button>
@@ -387,7 +387,7 @@ const BacktestSession = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
           {session.closing_comment && (
             <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide mb-1">
                 Comentario de cierre
               </p>
               <p className="text-sm text-gray-700 dark:text-gray-300">{session.closing_comment}</p>
@@ -395,7 +395,7 @@ const BacktestSession = () => {
           )}
           {session.mood_end_comment && (
             <div>
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide mb-1">
                 Ánimo final
               </p>
               <p className="text-sm text-gray-700 dark:text-gray-300">{session.mood_end_comment}</p>

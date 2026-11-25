@@ -16,7 +16,7 @@ const NoteSaveIndicator = () => {
 
   if (status === 'saving') {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 select-none whitespace-nowrap">
+      <span className="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300 select-none whitespace-nowrap">
         <Loader2 className="w-3 h-3 animate-spin" />
         Guardando…
       </span>
@@ -33,7 +33,7 @@ const NoteSaveIndicator = () => {
   }
 
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 select-none whitespace-nowrap">
+    <span className="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300 select-none whitespace-nowrap">
       <Check className="w-3 h-3 text-green-500" />
       Todos los cambios guardados{at ? ` · ${formatTime(at)}` : ''}
     </span>

@@ -7,6 +7,11 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      fontSize: {
+        // Texto de lectura sostenida (cuerpo de notas, celdas de la tabla de trades).
+        // 15.2px / 26px: misma proporción de interlineado que prose-sm (1.71).
+        reading: ['0.95rem', { lineHeight: '1.625rem' }],
+      },
       colors: {
         // Colores personalizados para trading
         profit: {

@@ -7,19 +7,29 @@ import { useAddBlockTag, useRemoveBlockTag } from '../../hooks/useBlockTags.js';
 /**
  * Tags de un bloque: una fila de badges pequeños en orden canónico (solo si el
  * bloque tiene tags); un click en la fila abre el TagPicker. Lo usan el editor
- * (bajo cada bloque) y el pie del visor de repaso.
+ * y el pie del visor de repaso.
  *
- * El picker puede controlarlo el padre (`open` / `onOpenChange`): en el editor lo
- * abren también el botón "Tags" de la grilla de acciones y el menú táctil. Con
- * `showAdd`, un bloque sin tags muestra un botón "Agregar tag" (el visor no tiene
- * otra forma de abrirlo). Los bloques de referencia no llevan tags.
+ * El picker puede controlarlo el padre (`open` / `onOpenChange`). En el editor
+ * (`showList={false}`) no hay fila: el picker lo abren el botón "Tags" de la
+ * grilla de acciones y el menú táctil, y se ancla bajo el bloque. Con `showAdd`,
+ * un bloque sin tags muestra un botón "Agregar tag" (el visor no tiene otra forma
+ * de abrirlo). Los bloques de referencia no llevan tags.
  *
  * @param {object} props.block   - bloque con `id`, `block_type` y `tags`
  * @param {number} props.noteId  - nota del bloque (para actualizar su caché)
  * @param {string} [props.pickerClassName] - anclaje del picker (en el pie del
  *   visor se abre hacia arriba)
  */
-const BlockTags = ({ block, noteId, open, onOpenChange, showAdd = false, className = '', pickerClassName }) => {
+const BlockTags = ({
+  block,
+  noteId,
+  open,
+  onOpenChange,
+  showList = true,
+  showAdd = false,
+  className = '',
+  pickerClassName,
+}) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
@@ -31,7 +41,8 @@ const BlockTags = ({ block, noteId, open, onOpenChange, showAdd = false, classNa
   if (block.block_type === 'reference') return null;
 
   const tags = block.tags || [];
-  if (tags.length === 0 && !isOpen && !showAdd) return null;
+  const showRow = showList && (tags.length > 0 || showAdd);
+  if (!showRow && !isOpen) return null;
 
   const handleToggle = (tag) => {
     if (tags.some((t) => t.id === tag.id)) removeTag.mutate(tag);
@@ -40,7 +51,7 @@ const BlockTags = ({ block, noteId, open, onOpenChange, showAdd = false, classNa
 
   return (
     <div className={`relative ${className}`}>
-      {tags.length > 0 ? (
+      {!showList ? null : tags.length > 0 ? (
         <button
           type="button"
           data-tag-picker-toggle
@@ -60,9 +71,9 @@ const BlockTags = ({ block, noteId, open, onOpenChange, showAdd = false, classNa
             type="button"
             data-tag-picker-toggle
             onClick={() => setOpen(!isOpen)}
-            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded
                        border border-dashed border-gray-300 dark:border-gray-600
-                       text-gray-400 hover:border-blue-400 hover:text-blue-500
+                       text-gray-600 dark:text-gray-300 hover:border-blue-400 hover:text-blue-500
                        dark:hover:border-blue-500 dark:hover:text-blue-400 transition-colors"
             aria-expanded={isOpen}
           >

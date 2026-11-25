@@ -40,7 +40,7 @@ const TodoListCard = ({ list }) => {
             </li>
           ))}
           {remaining > 0 && (
-            <li className="pl-[1.375rem] text-xs text-gray-400 dark:text-gray-500">+{remaining} más</li>
+            <li className="pl-[1.375rem] text-xs text-gray-600 dark:text-gray-300">+{remaining} más</li>
           )}
         </ul>
       ) : (
@@ -112,7 +112,7 @@ const TodoListGrid = ({ lists, onCreate }) => {
             className="w-full px-1 py-1 text-base font-semibold bg-transparent outline-none
                        border-b-2 border-blue-500 text-gray-900 dark:text-white placeholder:text-gray-400"
           />
-          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">Enter para crear · Esc para cancelar</p>
+          <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">Enter para crear · Esc para cancelar</p>
         </form>
       ) : (
         <button

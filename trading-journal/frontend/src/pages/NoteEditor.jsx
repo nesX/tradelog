@@ -282,9 +282,9 @@ const NoteEditor = ({ embeddedId }) => {
             <button
               ref={tagButtonRef}
               onClick={() => setTagPickerOpen((v) => !v)}
-              className="flex items-center gap-1 px-2 py-0.5 text-xs rounded-full
+              className="flex items-center gap-1 px-2 py-0.5 text-xs rounded
                          border border-dashed border-gray-300 dark:border-gray-600
-                         text-gray-400 hover:border-blue-400 hover:text-blue-500
+                         text-gray-600 dark:text-gray-300 hover:border-blue-400 hover:text-blue-500
                          dark:hover:border-blue-500 dark:hover:text-blue-400
                          transition-colors"
               aria-expanded={tagPickerOpen}
@@ -293,14 +293,14 @@ const NoteEditor = ({ embeddedId }) => {
               {noteTags.length === 0 ? 'Agregar tag' : <Plus className="w-3 h-3" />}
             </button>
 
-            <span className="text-[11px] text-gray-400 dark:text-gray-500">
+            <span className="text-xs text-gray-600 dark:text-gray-300">
               Se agregan a los bloques nuevos de esta nota
             </span>
 
             {canApplyTags && !confirmApply && (
               <button
                 onClick={() => setConfirmApply(true)}
-                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
               >
                 Aplicar a bloques existentes
               </button>

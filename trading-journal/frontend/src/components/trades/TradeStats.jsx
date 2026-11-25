@@ -79,7 +79,7 @@ const TradeStats = () => {
                   {stat.value}
                 </p>
                 {stat.subValue && (
-                  <p className="text-xs text-gray-400 mt-1">{stat.subValue}</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{stat.subValue}</p>
                 )}
               </div>
               <div className={`p-2 rounded-lg ${stat.bgColor}`}>

@@ -22,7 +22,7 @@ const SubNoteView = ({ block }) => {
     return (
       <div className="flex items-center gap-2 p-3 rounded-lg bg-gray-100 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500">
         <AlertCircle className="w-4 h-4 flex-shrink-0" />
-        <span className="text-sm italic">Nota eliminada</span>
+        <span className="text-reading/snug italic">Nota eliminada</span>
       </div>
     );
   }
@@ -34,7 +34,7 @@ const SubNoteView = ({ block }) => {
       <div className="flex-shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-900/60 transition-colors">
         <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
       </div>
-      <span className="text-sm font-medium text-gray-700 dark:text-gray-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
+      <span className="text-reading/snug font-medium text-gray-700 dark:text-gray-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
         {block.linked_note_title || 'Nota'}
       </span>
     </Link>
@@ -53,7 +53,7 @@ const ReferenceCard = ({ to, label, onClick, title }) => (
     <div className="flex-shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
       <Link2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
     </div>
-    <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors truncate">
+    <span className="flex-1 text-reading/snug font-medium text-gray-700 dark:text-gray-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors truncate">
       {label || 'Referencia'}
     </span>
     <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 flex-shrink-0" />
@@ -156,7 +156,7 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
       return (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-gray-100 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span className="text-sm italic">Referencia sin configurar</span>
+          <span className="text-reading/snug italic">Referencia sin configurar</span>
         </div>
       );
     }
@@ -167,7 +167,7 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
   if (!isConfigured) {
     return (
       <div className="flex flex-col gap-2 p-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
           <Link2 className="w-3.5 h-3.5 text-blue-500" />
           <span>Pega el enlace copiado desde otra nota o bloque</span>
         </div>
@@ -177,7 +177,7 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
           value={urlInput}
           onChange={(e) => commitFromUrl(e.target.value)}
           placeholder="https://.../notes/123#block-456"
-          className="w-full px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none focus:border-blue-400 dark:focus:border-blue-500"
+          className="w-full px-3 py-2 text-reading/snug rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none focus:border-blue-400 dark:focus:border-blue-500"
         />
         {parseError && (
           <div className="flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400">
@@ -206,7 +206,7 @@ const NoteReferenceBlock = ({ block, onUpdateMetadata }) => {
           onKeyDown={handleLabelKey}
           placeholder="Etiqueta de la referencia"
           maxLength={200}
-          className="flex-1 bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 placeholder-gray-400 outline-none"
+          className="flex-1 bg-transparent text-reading/snug font-medium text-gray-700 dark:text-gray-200 placeholder-gray-400 outline-none"
         />
       </div>
     );

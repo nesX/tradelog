@@ -149,7 +149,7 @@ const Login = () => {
           </div>
 
           {/* Footer */}
-          <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-center text-gray-600 dark:text-gray-300">
             Al iniciar sesión, aceptas que tus datos de trading se almacenen de forma segura en tu cuenta.
           </p>
         </div>

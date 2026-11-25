@@ -42,7 +42,7 @@ const BacktestSessionCard = ({ session }) => {
         <span
           className={`px-2 py-0.5 rounded-full text-xs font-medium ${
             session.closed_at
-              ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+              ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
               : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400'
           }`}
         >
@@ -51,7 +51,7 @@ const BacktestSessionCard = ({ session }) => {
       </div>
 
       {/* Fecha del período */}
-      <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-3">
+      <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 mb-3">
         <Calendar className="w-3.5 h-3.5" />
         <span>{periodDate}</span>
         {session.is_continuation && session.parent_period_date && (
@@ -63,7 +63,7 @@ const BacktestSessionCard = ({ session }) => {
 
       {/* Descripción */}
       {session.description && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">
+        <p className="text-xs text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">
           {session.description}
         </p>
       )}
@@ -83,7 +83,7 @@ const BacktestSessionCard = ({ session }) => {
             )}
           </div>
           {session.win_rate !== null && (
-            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
               <TrendingUp className="w-3.5 h-3.5" />
               <span>{session.win_rate}%</span>
             </div>
@@ -93,14 +93,14 @@ const BacktestSessionCard = ({ session }) => {
             <MoodDot score={session.mood_start_score} />
             {session.mood_end_score && (
               <>
-                <span className="text-gray-300 dark:text-gray-600 text-xs">→</span>
+                <span className="text-gray-500 dark:text-gray-400 text-xs">→</span>
                 <MoodDot score={session.mood_end_score} />
               </>
             )}
           </div>
         </div>
       ) : (
-        <p className="text-xs text-gray-400 dark:text-gray-500">Sin trades registrados</p>
+        <p className="text-xs text-gray-600 dark:text-gray-300">Sin trades registrados</p>
       )}
     </Link>
   );

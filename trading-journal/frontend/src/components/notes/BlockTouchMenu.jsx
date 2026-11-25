@@ -147,7 +147,7 @@ const BlockTouchMenu = ({
         >
           {view === 'actions' ? (
             <>
-              <p className="px-3 pt-2 pb-1 text-[11px] text-gray-400 dark:text-gray-500 select-none">
+              <p className="px-3 pt-2 pb-1 text-xs text-gray-600 dark:text-gray-300 select-none">
                 Mantén pulsado ⋮ para arrastrar
               </p>
               <button onClick={() => setView('insert')} className={itemClass}>

@@ -8,10 +8,10 @@ export function ContractBadge({ contractType }) {
   const tradfi = isTradfi(contractType);
   return (
     <span
-      className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
+      className={`flex-shrink-0 px-1.5 py-0.5 rounded text-xs font-medium uppercase tracking-wide ${
         tradfi
           ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-          : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
+          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
       }`}
     >
       {tradfi ? 'TradFi' : 'Cripto'}
@@ -149,7 +149,7 @@ export default function SymbolCombobox({ symbols = [], value, onChange, disabled
                 } ${s.symbol === value ? 'font-semibold' : ''}`}
               >
                 <span className="flex-1 text-gray-800 dark:text-gray-100">{s.symbol}</span>
-                {s.last_used_at && <span className="text-[10px] text-blue-500">usado</span>}
+                {s.last_used_at && <span className="text-xs text-blue-500">usado</span>}
                 <ContractBadge contractType={s.contract_type} />
               </li>
             ))

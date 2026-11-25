@@ -164,7 +164,7 @@ const MoveBlockToNoteModal = ({ block, sourceNoteId, onClose }) => {
             {note.title || 'Sin título'}
           </span>
           {isDisabled && note.id === sourceNoteId && (
-            <span className="flex-shrink-0 text-[10px] text-gray-400 dark:text-gray-500">
+            <span className="flex-shrink-0 text-xs text-gray-600 dark:text-gray-300">
               nota actual
             </span>
           )}
@@ -195,7 +195,7 @@ const MoveBlockToNoteModal = ({ block, sourceNoteId, onClose }) => {
         </div>
 
         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-200 dark:border-gray-700">
-          <p className="text-xs text-gray-500 dark:text-gray-400">Moviendo:</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">Moviendo:</p>
           <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
             {blockLabel(block)}
           </p>
@@ -244,7 +244,7 @@ const MoveBlockToNoteModal = ({ block, sourceNoteId, onClose }) => {
                   <div className="min-w-0">
                     <p className="text-sm truncate">{n.title || 'Sin título'}</p>
                     {breadcrumb && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate" title={breadcrumb}>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 truncate" title={breadcrumb}>
                         {breadcrumb}
                       </p>
                     )}
@@ -265,7 +265,7 @@ const MoveBlockToNoteModal = ({ block, sourceNoteId, onClose }) => {
               return (
                 <div key={group.section.id}>
                   <div className="flex items-center gap-2 px-3 pt-3 pb-1">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 truncate">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300 truncate">
                       {group.section.title}
                     </span>
                     <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />

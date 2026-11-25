@@ -123,7 +123,7 @@ const ImageViewer = ({
   if (imageList.length === 0) {
     return (
       <div className={`${thumbnailSize} bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center ${className}`}>
-        <span className="text-gray-400 text-xs">Sin imagen</span>
+        <span className="text-gray-600 dark:text-gray-300 text-xs">Sin imagen</span>
       </div>
     );
   }
@@ -139,7 +139,7 @@ const ImageViewer = ({
       {/* Thumbnail */}
       {thumbnailFailed ? (
         <div className={`${thumbnailSize} bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center ${className}`}>
-          <span className="text-gray-400 text-xs">Error</span>
+          <span className="text-gray-600 dark:text-gray-300 text-xs">Error</span>
         </div>
       ) : (
         <button

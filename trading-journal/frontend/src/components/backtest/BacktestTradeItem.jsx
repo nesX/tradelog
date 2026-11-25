@@ -15,7 +15,7 @@ const BacktestTradeItem = ({ trade, onDelete, onDeleteImage, canDelete = false }
       </span>
       <div className="flex-1 min-w-0">
         <p className="text-sm text-gray-700 dark:text-gray-200 break-words">{trade.comment}</p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{time}</p>
+        <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{time}</p>
         {trade.image_filename && !trade._optimistic && (
           <div className="mt-1.5 relative inline-block">
             <ImageViewer

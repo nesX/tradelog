@@ -19,7 +19,7 @@ const NoteBreadcrumb = ({ noteId, flat = [] }) => {
   const ancestors = buildAncestors(noteId, flat);
 
   return (
-    <nav className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
+    <nav className="flex items-center gap-1 text-reading/snug text-gray-500 dark:text-gray-400 flex-wrap">
       <Link to="/notes" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
         Notas
       </Link>

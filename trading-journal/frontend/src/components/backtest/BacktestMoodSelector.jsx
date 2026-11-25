@@ -36,7 +36,7 @@ const BacktestMoodSelector = ({ value, onChange, comment, onCommentChange, label
         })}
       </div>
       {value && (
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-600 dark:text-gray-300">
           {moodConfig.find((m) => m.score === value)?.label}
         </p>
       )}

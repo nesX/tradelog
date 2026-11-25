@@ -52,7 +52,7 @@ const BacktestCloseModal = ({ isOpen, onClose, onConfirm, isLoading = false }) =
             onChange={(e) => setPeriodEndDate(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <p className="text-xs text-gray-400 dark:text-gray-500">
+          <p className="text-xs text-gray-600 dark:text-gray-300">
             Última fecha del período histórico que revisaste en esta sesión
           </p>
           {errors.date && <p className="text-xs text-red-500">{errors.date}</p>}

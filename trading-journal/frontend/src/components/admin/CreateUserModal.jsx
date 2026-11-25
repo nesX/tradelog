@@ -45,7 +45,7 @@ export default function CreateUserModal({ actor, onClose }) {
           </select>
         </div>
 
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-600 dark:text-gray-300">
           El usuario podrá acceder iniciando sesión con su cuenta de Google.
         </p>
 

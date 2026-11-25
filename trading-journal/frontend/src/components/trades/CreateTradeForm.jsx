@@ -97,7 +97,7 @@ const SystemBlock = ({ role, systems, timeframes, analysis, onChange }) => {
       {/* Señales del sistema seleccionado */}
       {selectedSystem && selectedSystem.signals && (
         <div>
-          <label className="label text-xs text-gray-500 dark:text-gray-400">Señales presentes</label>
+          <label className="label text-xs text-gray-600 dark:text-gray-300">Señales presentes</label>
           <div className="space-y-2">
             {selectedSystem.signals.map(sig => {
               const tradeSignal = signals.find(s => s.signal_id === sig.id);
@@ -134,7 +134,7 @@ const SystemBlock = ({ role, systems, timeframes, analysis, onChange }) => {
       {/* Timeframes (solo en primario) */}
       {role === 'primary' && timeframes.length > 0 && (
         <div>
-          <label className="label text-xs text-gray-500 dark:text-gray-400">Timeframes</label>
+          <label className="label text-xs text-gray-600 dark:text-gray-300">Timeframes</label>
           <div className="flex flex-wrap gap-2">
             {timeframes.map(tf => {
               const selected = selectedTimeframeIds.includes(tf.id);
@@ -146,7 +146,7 @@ const SystemBlock = ({ role, systems, timeframes, analysis, onChange }) => {
                   className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
                     selected
                       ? 'bg-blue-600 border-blue-600 text-white'
-                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-blue-400'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400'
                   }`}
                 >
                   {tf.label}
@@ -446,7 +446,7 @@ const CreateTradeForm = ({
           <button
             type="button"
             onClick={() => setShowTagManager(true)}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
             title="Gestionar tags"
           >
             <Tags className="w-3.5 h-3.5" />
@@ -454,7 +454,7 @@ const CreateTradeForm = ({
           </button>
         </div>
         {tagsList.length === 0 ? (
-          <p className="text-xs text-gray-400">No hay tags creados aún. Usa "Gestionar" para crear uno.</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">No hay tags creados aún. Usa "Gestionar" para crear uno.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {tagsList.map((tag) => {
@@ -511,14 +511,14 @@ const CreateTradeForm = ({
               ) : (
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Estrategia secundaria</span>
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">Estrategia secundaria</span>
                     <button
                       type="button"
                       onClick={() => {
                         setShowSecondarySystem(false);
                         setAnalysis(prev => ({ ...prev, secondary_system_id: null, secondary_signals: [] }));
                       }}
-                      className="text-xs text-gray-400 hover:text-red-500"
+                      className="text-xs text-gray-600 dark:text-gray-300 hover:text-red-500"
                     >
                       Quitar
                     </button>
@@ -629,7 +629,7 @@ const CreateTradeForm = ({
               Arrastra imágenes o{' '}
               <span className="text-blue-600 dark:text-blue-400 font-medium">haz click para seleccionar</span>
             </p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
               JPG, PNG, WebP o GIF (máx. 5MB por imagen, hasta 10 imágenes)
             </p>
           </label>

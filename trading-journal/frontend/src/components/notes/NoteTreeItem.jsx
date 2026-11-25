@@ -76,7 +76,7 @@ const NoteTreeItem = ({
 
         {/* Título */}
         <span
-          className="flex-1 truncate text-sm"
+          className="flex-1 truncate text-reading/snug"
           onClick={onSelect}
           title={note.title}
         >
