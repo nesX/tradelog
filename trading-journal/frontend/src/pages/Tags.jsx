@@ -1,6 +1,18 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Tags as TagsIcon, Plus, Pencil, Trash2, Check, X, GripVertical, Search, FolderPlus } from 'lucide-react';
+import {
+  Tags as TagsIcon,
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  GripVertical,
+  Search,
+  FolderPlus,
+  Lightbulb,
+  ChevronRight,
+} from 'lucide-react';
 import {
   DndContext,
   PointerSensor,
@@ -421,6 +433,107 @@ const TagRow = ({ tag, groups, draggable }) => {
   );
 };
 
+const GUIDE_STORAGE_KEY = 'tags-guide-open';
+
+const readGuideOpen = () => {
+  try {
+    return localStorage.getItem(GUIDE_STORAGE_KEY) !== '0';
+  } catch {
+    return true;
+  }
+};
+
+const GUIDE_TIPS = [
+  {
+    title: 'Evita tags compuestos.',
+    body: (
+      <>
+        En vez de &quot;NQ scalping&quot;, usa <em>NQ</em> (Activo) + <em>Scalping</em> (Horizonte). Así cada uno
+        aparece cuando filtras por separado.
+      </>
+    ),
+  },
+  {
+    title: 'Prueba rápida:',
+    body: (
+      <>
+        si quieres combinar dos tags del mismo grupo con &quot;y&quot;, en realidad responden preguntas distintas.
+        Pásalos a grupos separados.
+      </>
+    ),
+  },
+  {
+    title: 'Crea un tag solo si vas a filtrar por él.',
+    body: (
+      <>
+        Lo ocasional puede ir en un tag general (<em>Acciones</em>, <em>Altcoin</em>), con el detalle en el texto del
+        bloque. Un tag que llevan todos los bloques no filtra nada.
+      </>
+    ),
+  },
+  {
+    title: 'Los datos no son tags.',
+    body: <>Precios, niveles y cifras van en el contenido del bloque.</>,
+  },
+  {
+    title: 'Un nombre por cosa.',
+    body: (
+      <>
+        Usa siempre el mismo nombre (<em>NQ</em>, no <em>MNQ</em> o <em>Nasdaq</em>) y mantenlo corto.
+      </>
+    ),
+  },
+  {
+    title: 'Libre es la incubadora.',
+    body: <>Si un tag sin grupo se repite, muévelo a un grupo o crea uno nuevo.</>,
+  },
+];
+
+/**
+ * Recomendaciones para organizar los tags. Plegable con `<details>`; recuerda en
+ * localStorage si se dejó abierta o cerrada (la primera vez arranca abierta).
+ */
+const TagGuide = () => {
+  const [open, setOpen] = useState(readGuideOpen);
+
+  const handleToggle = (e) => {
+    const isOpen = e.currentTarget.open;
+    setOpen(isOpen);
+    try {
+      localStorage.setItem(GUIDE_STORAGE_KEY, isOpen ? '1' : '0');
+    } catch {}
+  };
+
+  return (
+    <details
+      open={open}
+      onToggle={handleToggle}
+      className="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-gray-800
+                 [&_summary::-webkit-details-marker]:hidden [&[open]>summary>.chevron]:rotate-90"
+    >
+      <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none list-none rounded-xl">
+        <Lightbulb className="w-4 h-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+        <h2 className="text-reading/snug font-semibold text-gray-900 dark:text-white">Cómo organizar tus tags</h2>
+        <ChevronRight className="chevron ml-auto w-4 h-4 flex-shrink-0 text-gray-500 dark:text-gray-400 transition-transform duration-150" />
+      </summary>
+      <div className="px-3 pb-3 space-y-2 text-reading text-gray-700 dark:text-gray-200">
+        <p>
+          Los tags se ponen en los <strong>bloques</strong>. Cada <strong>grupo es una pregunta</strong> y sus tags son
+          las respuestas posibles. Al filtrar, los tags del mismo grupo se combinan con <strong>&quot;o&quot;</strong> y
+          los de grupos distintos con <strong>&quot;y&quot;</strong>.
+        </p>
+        <ul className="list-disc pl-5 space-y-1 marker:text-amber-600 dark:marker:text-amber-400">
+          {GUIDE_TIPS.map((tip) => (
+            <li key={tip.title}>
+              <strong className="text-gray-900 dark:text-white">{tip.title}</strong> {tip.body}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </details>
+  );
+};
+
 const deleteGroupMessage = (count) => {
   if (count === 0) return 'El grupo está vacío.';
   if (count === 1) return 'Su tag pasará a Libre. No se quita de ninguna nota ni bloque.';
@@ -658,6 +771,8 @@ export default function Tags() {
           />
         </section>
       )}
+
+      <TagGuide />
 
       {loading ? (
         <div className="flex items-center justify-center py-10">
