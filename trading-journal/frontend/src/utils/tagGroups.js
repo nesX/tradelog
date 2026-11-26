@@ -90,9 +90,14 @@ export const normalizeTagName = (text = '') =>
     .toLowerCase()
     .trim();
 
-/** Tags cuyo nombre contiene `text` (sin distinguir mayúsculas ni tildes). */
-export const filterTags = (tags = [], text = '') => {
+/**
+ * Tags cuyo nombre contiene `text` (sin distinguir mayúsculas ni tildes). Con
+ * `groups`, también los de un grupo cuyo nombre lo contiene ("libre" encuentra
+ * los de Libre); sin grupos cargados, solo por nombre del tag.
+ */
+export const filterTags = (tags = [], text = '', groups) => {
   const needle = normalizeTagName(text);
   if (!needle) return tags;
-  return tags.filter((t) => normalizeTagName(t.name).includes(needle));
+  const matches = (name) => normalizeTagName(name).includes(needle);
+  return tags.filter((t) => matches(t.name) || (groups != null && matches(getTagGroup(groups, t.group_id).label)));
 };

@@ -184,3 +184,13 @@ test('filterTags no distingue mayúsculas ni tildes', () => {
   assert.deepEqual(names(filterTags(tags, ' nq ')), ['NQ']);
   assert.equal(filterTags(tags, '').length, 2);
 });
+
+test('filterTags con grupos también busca en el nombre del grupo (Libre incluido)', () => {
+  const tags = [tag(1, 'NQ', 10), tag(2, 'ES', 10), tag(3, 'swing', 11), tag(4, 'zeta', null)];
+  assert.deepEqual(names(filterTags(tags, 'activo', groups)), ['NQ', 'ES']);
+  assert.deepEqual(names(filterTags(tags, 'swing', groups)), ['swing']);
+  assert.deepEqual(names(filterTags(tags, 'libre', groups)), ['zeta']);
+  // Sin grupos cargados, solo por nombre del tag.
+  assert.deepEqual(names(filterTags(tags, 'activo')), []);
+  assert.deepEqual(names(filterTags(tags, 'libre', undefined)), []);
+});

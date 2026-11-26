@@ -7,7 +7,8 @@ import { groupTags, filterTags, listTagGroups } from '../../utils/tagGroups.js';
 /**
  * Popover para elegir tags (de una nota o de un bloque): buscar, alternar y crear.
  *
- * - "Buscar o crear tag…" filtra en cliente sobre los tags del usuario.
+ * - "Buscar o crear tag…" filtra en cliente sobre los tags del usuario, por el
+ *   nombre del tag o el de su grupo ("activo" muestra todos los de Activo).
  * - Si el texto no coincide con ningún tag (sin distinguir mayúsculas), ofrece
  *   "Crear «texto» en:" con un botón por grupo del usuario más Libre (el de por
  *   defecto, al final); el tag nace con el color del grupo y crearlo lo asigna en
@@ -38,7 +39,7 @@ const TagPicker = ({ selectedIds = [], onToggle, onClose, anchorRef = null, clas
   const trimmed = text.trim();
   // Mismo orden que GroupedTagList, para que ↑/↓ recorran lo que se ve.
   const visibleTags = useMemo(
-    () => groupTags(filterTags(allTags, text), tagGroups).flatMap((g) => g.tags),
+    () => groupTags(filterTags(allTags, text, tagGroups), tagGroups).flatMap((g) => g.tags),
     [allTags, text, tagGroups]
   );
   const createGroups = useMemo(() => listTagGroups(tagGroups), [tagGroups]);
@@ -145,6 +146,7 @@ const TagPicker = ({ selectedIds = [], onToggle, onClose, anchorRef = null, clas
             selectedIds={selectedIds}
             onToggle={onToggle}
             filterText={text}
+            matchGroupNames
             activeId={active?.type === 'tag' ? active.tag.id : null}
             size="lg"
             emptyText={

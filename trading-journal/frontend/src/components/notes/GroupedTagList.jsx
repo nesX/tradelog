@@ -14,6 +14,8 @@ import { groupTags, filterTags } from '../../utils/tagGroups.js';
  * @param {number[]} props.selectedIds  - ids marcados
  * @param {(tag) => void} props.onToggle
  * @param {string}  [props.filterText]  - filtra por nombre (sin mayúsculas ni tildes)
+ * @param {boolean} [props.matchGroupNames] - el filtro también busca en el nombre
+ *   del grupo (TagPicker)
  * @param {number}  [props.activeId]    - tag resaltado por teclado (TagPicker)
  * @param {string}  [props.emptyText]   - texto cuando no queda ningún tag
  * @param {'sm'|'lg'} [props.size]
@@ -23,12 +25,16 @@ const GroupedTagList = ({
   selectedIds = [],
   onToggle,
   filterText = '',
+  matchGroupNames = false,
   activeId = null,
   emptyText = null,
   size = 'sm',
 }) => {
   const { data: tagGroups } = useTagGroups();
-  const groups = useMemo(() => groupTags(filterTags(tags, filterText), tagGroups), [tags, filterText, tagGroups]);
+  const groups = useMemo(
+    () => groupTags(filterTags(tags, filterText, matchGroupNames ? tagGroups : undefined), tagGroups),
+    [tags, filterText, matchGroupNames, tagGroups]
+  );
   const selected = new Set(selectedIds);
   const large = size === 'lg';
 
